@@ -1,0 +1,1 @@
+ Nguồn bản đồ không có bộ sưu tập từ CartoDB: Positron (Sáng), Dark Matter (Tối), Voyager (Chi tiết)  và  https://github.com/AnmolSaini16/mapcn  2.app hiện tại chưa lấy được thông bao google map và icon mũi tên chỉ đường  của googlemap 
