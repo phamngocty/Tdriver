@@ -1,0 +1,85 @@
+name: "Codebase to Overview"
+description: "Quét toàn bộ codebase (bất kỳ nền tảng nào) và tạo file PROJECT_OVERVIEW.md chi tiết. Hỗ trợ firmware ESP32, Android, iOS, Web, Backend..."
+version: "1.0"
+author: "Tự động tạo"
+platforms: [autogpt, agentgpt, cursor, custom]
+
+prompt_template: |
+  Bạn là một chuyên gia phân tích mã nguồn đa nền tảng. Hãy quét TOÀN BỘ dự án {{LOẠI_DỰ_ÁN}} có tên là **{{TÊN_DỰ_ÁN}}** và tạo một file `{{TÊN_DỰ_ÁN}}_OVERVIEW.md` mô tả chi tiết mọi thành phần của dự án.
+
+  ## THÔNG TIN DỰ ÁN
+  - **Loại dự án:** {{LOẠI_DỰ_ÁN}}
+  - **Tên dự án:** {{TÊN_DỰ_ÁN}}
+  - **Ngôn ngữ chính:** {{NGÔN_NGỮ}}
+  - **Nền tảng / Board:** {{NỀN_TẢNG}}
+  - **Framework / SDK:** {{FRAMEWORK}}
+  - **Thư viện chính:** {{THƯ_VIỆN}}
+
+  ## YÊU CẦU NỘI DUNG
+  ### 1. Cấu trúc thư mục & file
+  Liệt kê đầy đủ cây thư mục, mỗi file kèm mục đích ngắn gọn.
+
+  ### 2. Các thành phần chính
+  Module/Class/Function/Component: tên, vị trí, chức năng, tương tác, phần cứng liên quan.
+
+  ### 3. Dịch vụ nền
+  Service, worker, ISR, timer task: tên, loại, chức năng, vòng đời.
+
+  ### 4. Vòng đời & luồng hoạt động
+  Firmware: setup()/loop(), state machine, interrupt.
+  App: Activity/App lifecycle, navigation.
+  Vẽ sơ đồ text.
+
+  ### 5. Giao tiếp & API
+  BLE (UUIDs), HTTP/REST/MQTT, UART/SPI/I2C, Database.
+
+  ### 6. Tính năng chính
+  Từng tính năng: mục đích, thành phần, luồng dữ liệu.
+
+  ### 7. Thư viện & dependencies
+  Tên, phiên bản, mục đích.
+
+  ### 8. Kiến trúc dữ liệu
+  Models, schemas, store, state container.
+
+  ### 9. Cấu hình phần cứng (nhúng)
+  Pinout, platformio.ini, define.
+
+  ### 10. Hướng dẫn build/deploy
+  CLI commands, env vars.
+
+  ## ĐỊNH DẠNG
+  - File Markdown: `{{TÊN_DỰ_ÁN}}_OVERVIEW.md`
+  - Lưu vào thư mục gốc
+
+  ## LƯU Ý
+  - Không bỏ sót file mã nguồn nào
+  - Không thêm code mới, chỉ mô tả
+  - File quá dài → mô tả tổng quan
+
+variables:
+  - name: LOẠI_DỰ_ÁN
+    description: "Loại dự án (VD: Firmware ESP32 Arduino/PlatformIO, Android Kotlin app, React web app)"
+    required: true
+  - name: TÊN_DỰ_ÁN
+    description: "Tên dự án"
+    required: true
+  - name: NGÔN_NGỮ
+    description: "Ngôn ngữ chính (VD: C++, Kotlin, TypeScript)"
+    required: true
+  - name: NỀN_TẢNG
+    description: "Nền tảng / Board / Môi trường (VD: ESP32-S3 DevKitC-1, Android 14)"
+    required: true
+  - name: FRAMEWORK
+    description: "Framework / SDK (VD: Arduino, PlatformIO, React, Spring Boot)"
+    required: true
+  - name: THƯ_VIỆN
+    description: "Thư viện chính (VD: TFT_eSPI, NimBLE-Arduino, OkHttp)"
+    required: false
+
+workflow:
+  - step: "Xác định thư mục gốc dự án"
+  - step: "Đọc file cấu hình (platformio.ini, package.json, build.gradle...)"
+  - step: "Duyệt toàn bộ cây thư mục, đọc nội dung file"
+  - step: "Phân tích và tạo file {TÊN_DỰ_ÁN}_OVERVIEW.md"
+  - step: "Lưu file vào thư mục gốc"
