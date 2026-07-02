@@ -239,13 +239,18 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 }
                 override fun onZoom(zoomEvent: ZoomEvent?): Boolean {
                     updateZoomButtonsState()
+                    val currentZoom = binding.mapView.zoomLevelDouble.toFloat()
+                    PrefsHelper.putFloat(context, "last_map_zoom", currentZoom)
+                    NavigationRepository.lastMapZoom = currentZoom.toDouble()
                     triggerDrawRoutes(NavigationRepository.routes.value)
                     return false
                 }
             })
 
             // Restore Camera
-            controller.setZoom(PrefsHelper.getFloat(context, "last_map_zoom", 15f).toDouble())
+            val restoredZoom = PrefsHelper.getFloat(context, "last_map_zoom", 15f).toDouble()
+            NavigationRepository.lastMapZoom = restoredZoom
+            controller.setZoom(restoredZoom)
             val lat = PrefsHelper.getFloat(context, "last_map_lat", 10.762622f).toDouble()
             val lon = PrefsHelper.getFloat(context, "last_map_lon", 106.660172f).toDouble()
             controller.setCenter(GeoPoint(lat, lon))
@@ -547,6 +552,44 @@ class MapFragment : Fragment(), IOrientationConsumer {
                         PrefsHelper.putInt(requireContext(), "tile_source", which)
                         binding.mapView.setTileSource(sources[which])
                         Toast.makeText(requireContext(), sources[which].name(), Toast.LENGTH_SHORT).show()
+                    }
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+
+        binding.fabDisplayMode.setOnClickListener {
+            val modes = arrayOf("Chế độ Bản đồ (MAP)", "Chế độ Dẫn đường (HUD)", "Thời gian & Trạng thái (STATUS)")
+            val currentMode = when {
+                NavigationRepository.mapModeState.value -> 0
+                else -> 1 // Default show HUD when not in map
+            }
+
+            AlertDialog.Builder(requireContext())
+                .setTitle("Chế độ hiển thị ESP32")
+                .setSingleChoiceItems(modes, currentMode) { dialog, which ->
+                    val activeService = com.example.tymap.service.NavigationService.activeInstance
+                    if (activeService != null && activeService.bleManager.isConnected) {
+                        when (which) {
+                            0 -> {
+                                activeService.bleManager.sendRemoteCommand(0x11.toByte())
+                                NavigationRepository.setMapModeActive(true)
+                                Toast.makeText(requireContext(), "Đã chuyển sang Bản đồ", Toast.LENGTH_SHORT).show()
+                            }
+                            1 -> {
+                                activeService.bleManager.sendRemoteCommand(0x10.toByte())
+                                NavigationRepository.setMapModeActive(false)
+                                Toast.makeText(requireContext(), "Đã chuyển sang Dẫn đường HUD", Toast.LENGTH_SHORT).show()
+                            }
+                            2 -> {
+                                activeService.bleManager.sendRemoteCommand(0x12.toByte())
+                                NavigationRepository.setMapModeActive(false)
+                                Toast.makeText(requireContext(), "Đã chuyển sang Trạng thái", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } else {
+                        Toast.makeText(requireContext(), "BLE chưa kết nối!", Toast.LENGTH_SHORT).show()
                     }
                     dialog.dismiss()
                 }
@@ -951,6 +994,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     override fun onOrientationChanged(orientation: Float, source: IOrientationProvider?) {
         lastHeading = orientation
+        NavigationRepository.updateCompassHeading(orientation)
         lifecycleScope.launch(Dispatchers.Main) {
             val currentLoc = NavigationRepository.gpsLocation.value
             val speed = currentLoc?.speed ?: 0f

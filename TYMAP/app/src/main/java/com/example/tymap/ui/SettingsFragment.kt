@@ -57,18 +57,53 @@ class SettingsFragment : Fragment() {
     }
 
     private val screenCaptureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val ctx = context ?: return@registerForActivityResult
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            val serviceIntent = Intent(requireContext(), NavigationService::class.java).apply {
+            val serviceIntent = Intent(ctx, NavigationService::class.java).apply {
                 action = "ACTION_START_CAPTURE"
                 putExtra("PROJECTION_INTENT", result.data)
             }
-            requireContext().startForegroundService(serviceIntent)
-            PrefsHelper.putInt(requireContext(), "map_capture_mode", 1)
+            ctx.startForegroundService(serviceIntent)
+            if (_binding != null) {
+                val selectedMode = binding.spinnerMapCaptureMode.selectedItemPosition
+                PrefsHelper.putInt(ctx, "map_capture_mode", selectedMode)
+            }
         } else {
-            binding.spinnerMapCaptureMode.setSelection(0)
-            PrefsHelper.putInt(requireContext(), "map_capture_mode", 0)
-            Toast.makeText(requireContext(), "Quyền chụp màn hình bị từ chối", Toast.LENGTH_SHORT).show()
+            if (_binding != null) {
+                showPermissionDeniedDialog(ctx)
+            }
         }
+    }
+
+    private fun showPermissionDeniedDialog(ctx: Context) {
+        if (_binding == null) return
+        androidx.appcompat.app.AlertDialog.Builder(ctx)
+            .setTitle("Quyền Chụp Màn Hình Bị Từ Chối")
+            .setMessage("Để truyền hình ảnh Google Maps sang thiết bị, ứng dụng cần quyền ghi màn hình.\n\n" +
+                    "⚠️ Hướng dẫn khắc phục:\n" +
+                    "1. Hãy TẮT toàn bộ các ứng dụng vẽ đè (Bong bóng chat Messenger, Zalo...) nếu có trước khi thử lại.\n" +
+                    "2. Đảm bảo bấm \"Bắt đầu ngay\" khi hộp thoại xác nhận hiện ra.")
+            .setPositiveButton("Thử lại") { _, _ ->
+                try {
+                    ctx.stopService(Intent(ctx, com.example.tymap.service.CropOverlayService::class.java))
+                } catch (e: Exception) {}
+                
+                // Start service first to ensure it is in foreground with mediaProjection type
+                val startIntent = Intent(ctx, NavigationService::class.java)
+                ctx.startForegroundService(startIntent)
+                
+                val mpm = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                screenCaptureLauncher.launch(mpm.createScreenCaptureIntent())
+            }
+            .setNegativeButton("Hủy (Dùng OSM)") { _, _ ->
+                if (_binding != null) {
+                    binding.spinnerMapCaptureMode.setSelection(0)
+                    PrefsHelper.putInt(ctx, "map_capture_mode", 0)
+                    updateCropVisibility(0)
+                }
+            }
+            .setCancelable(false)
+            .show()
     }
 
     override fun onCreateView(
@@ -231,9 +266,27 @@ class SettingsFragment : Fragment() {
         updateCropVisibility(initialMode)
         updateCropSummaries()
 
+        var isFirstSelectionMapCapture = true
         setupSpinner(binding.spinnerMapCaptureMode, captureModes, initialMode) { mode ->
             PrefsHelper.putInt(context, "map_capture_mode", mode)
             updateCropVisibility(mode)
+            
+            if (isFirstSelectionMapCapture) {
+                isFirstSelectionMapCapture = false
+            } else {
+                if (mode == 1 || mode == 2) {
+                    try {
+                        requireContext().stopService(Intent(requireContext(), com.example.tymap.service.CropOverlayService::class.java))
+                    } catch (e: Exception) {}
+                    
+                    // Start service first so it is running and foregrounded with mediaProjection type before permission request
+                    val startIntent = Intent(requireContext(), NavigationService::class.java)
+                    requireContext().startForegroundService(startIntent)
+                    
+                    val mpm = requireContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                    screenCaptureLauncher.launch(mpm.createScreenCaptureIntent())
+                }
+            }
         }
 
         binding.btnConfigCropGmaps.setOnClickListener {
@@ -267,17 +320,22 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        val fpsList = arrayOf("1 FPS", "2 FPS", "3 FPS", "5 FPS")
+        val fpsList = arrayOf("1 FPS", "2 FPS", "3 FPS", "5 FPS", "7 FPS")
         setupSpinner(binding.spinnerMapFps, fpsList, PrefsHelper.getInt(context, "map_fps", 0)) {
             PrefsHelper.putInt(context, "map_fps", it)
         }
 
-        val initialQuality = PrefsHelper.getFloat(context, "jpeg_quality", 70f)
+        val initialQuality = PrefsHelper.getFloat(context, "jpeg_quality", 40f)
         binding.sliderJpegQuality.value = initialQuality
         binding.tvValueJpegQuality.text = "${initialQuality.toInt()}%"
         binding.sliderJpegQuality.addOnChangeListener { _, value, _ -> 
             PrefsHelper.putFloat(context, "jpeg_quality", value)
             binding.tvValueJpegQuality.text = "${value.toInt()}%"
+        }
+
+        binding.switchFrameSkipping.isChecked = PrefsHelper.getBoolean(context, "frame_skipping", true)
+        binding.switchFrameSkipping.setOnCheckedChangeListener { _, isChecked -> 
+            PrefsHelper.putBoolean(context, "frame_skipping", isChecked)
         }
 
         // 5.1 POPUP SETTINGS
@@ -575,8 +633,6 @@ class SettingsFragment : Fragment() {
 
     private fun updateCropVisibility(mode: Int) {
         if (mode == 1 || mode == 2) {
-            val mpm = requireContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            screenCaptureLauncher.launch(mpm.createScreenCaptureIntent())
             binding.btnConfigCropGmaps.visibility = View.VISIBLE
             binding.tvCropSummaryGmaps.visibility = View.VISIBLE
             binding.btnConfigCropMapTab.visibility = View.GONE

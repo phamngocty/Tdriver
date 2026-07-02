@@ -68,10 +68,7 @@ class RoutingEngine(private val client: OkHttpClient) {
         destLat: Double, destLng: Double,
         avoidHighways: Boolean
     ): List<RouteInfo>? {
-        var url = "https://router.project-osrm.org/route/v1/driving/$startLng,$startLat;$destLng,$destLat?steps=true&geometries=polyline&overview=full&alternatives=true"
-        if (avoidHighways) {
-            url += "&exclude=motorway"
-        }
+        val url = "https://router.project-osrm.org/route/v1/driving/$startLng,$startLat;$destLng,$destLat?steps=true&geometries=polyline&overview=full&alternatives=true"
         val request = Request.Builder().url(url).build()
         
         return try {

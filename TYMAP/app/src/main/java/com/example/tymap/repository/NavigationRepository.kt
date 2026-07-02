@@ -153,4 +153,11 @@ object NavigationRepository {
     fun clearLogs() {
         _logs.value = emptyList()
     }
+
+    private val _compassHeading = MutableStateFlow(0f)
+    val compassHeading = _compassHeading.asStateFlow()
+
+    fun updateCompassHeading(heading: Float) {
+        _compassHeading.value = heading
+    }
 }

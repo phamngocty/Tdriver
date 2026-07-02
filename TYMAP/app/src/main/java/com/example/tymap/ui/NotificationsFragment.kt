@@ -59,6 +59,10 @@ class NotificationsFragment : Fragment() {
         binding.btnPickGallery.setOnClickListener {
             pickImageLauncher.launch("image/*")
         }
+
+        binding.btnSendGmapsCapture.setOnClickListener {
+            sendGmapsCaptureFrame()
+        }
     }
 
     private fun setupRecyclerView() {
@@ -122,19 +126,17 @@ class NotificationsFragment : Fragment() {
 
     private fun sendLiveMapFrame() {
         val bleManager = NavigationService.bleManager
-        val screenCaptureManager = NavigationService.screenCaptureManager
+        val service = NavigationService.activeInstance
         
-        if (bleManager != null && bleManager.isConnected) {
+        if (bleManager != null && bleManager.isConnected && service != null) {
             lifecycleScope.launch(Dispatchers.IO) {
                 val quality = PrefsHelper.getFloat(requireContext(), "jpeg_quality", 70f).toInt()
-                val jpeg = screenCaptureManager?.captureAndProcess(quality, "map_tab_")
+                val jpeg = service.renderOsmMap(quality)
                 
                 withContext(Dispatchers.Main) {
                     if (jpeg != null) {
-                        lifecycleScope.launch {
-                            bleManager.writeMapImage(jpeg)
-                            Toast.makeText(requireContext(), "Đã gửi ảnh bản đồ", Toast.LENGTH_SHORT).show()
-                        }
+                        service.sendImageToDevice(jpeg)
+                        Toast.makeText(requireContext(), "Đã gửi ảnh bản đồ", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(requireContext(), "Không thể chụp ảnh bản đồ lúc này", Toast.LENGTH_SHORT).show()
                     }
@@ -147,7 +149,8 @@ class NotificationsFragment : Fragment() {
 
     private fun processAndSendGalleryImage(uri: Uri) {
         val bleManager = NavigationService.bleManager
-        if (bleManager == null || !bleManager.isConnected) {
+        val service = NavigationService.activeInstance
+        if (bleManager == null || !bleManager.isConnected || service == null) {
             Toast.makeText(requireContext(), "Vui lòng kết nối ESP32", Toast.LENGTH_SHORT).show()
             return
         }
@@ -178,15 +181,43 @@ class NotificationsFragment : Fragment() {
                     scaled.recycle()
 
                     withContext(Dispatchers.Main) {
-                        lifecycleScope.launch {
-                            bleManager.writeMapImage(jpegBytes)
-                            Toast.makeText(requireContext(), "Đã gửi ảnh từ máy", Toast.LENGTH_SHORT).show()
-                        }
+                        service.sendImageToDevice(jpegBytes)
+                        Toast.makeText(requireContext(), "Đã gửi ảnh từ máy", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(requireContext(), "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun sendGmapsCaptureFrame() {
+        val bleManager = NavigationService.bleManager
+        val service = NavigationService.activeInstance
+        val captureManager = service?.screenCaptureManager
+
+        if (bleManager == null || !bleManager.isConnected || service == null) {
+            Toast.makeText(requireContext(), "Vui lòng kết nối ESP32", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (captureManager == null) {
+            Toast.makeText(requireContext(), "Chưa khởi tạo trình chụp Google Maps. Vui lòng cấp quyền chụp ở cài đặt trước.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val quality = PrefsHelper.getFloat(requireContext(), "jpeg_quality", 70f).toInt()
+            val jpeg = captureManager.captureAndProcess(quality, "gmaps_")
+            
+            withContext(Dispatchers.Main) {
+                if (jpeg != null) {
+                    service.sendImageToDevice(jpeg)
+                    Toast.makeText(requireContext(), "Đã gửi ảnh chụp Google Maps", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), "Không lấy được ảnh chụp (Google Maps có thể đang chạy ngầm hoặc cần cấp lại quyền)", Toast.LENGTH_LONG).show()
                 }
             }
         }

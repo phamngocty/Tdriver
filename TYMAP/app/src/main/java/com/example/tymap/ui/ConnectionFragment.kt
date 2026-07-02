@@ -51,6 +51,7 @@ class ConnectionFragment : Fragment() {
     }
     private var isScanning = false
     private var isLogPaused = false
+    private var isSyncingToggle = false
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -253,7 +254,7 @@ class ConnectionFragment : Fragment() {
         }
 
         binding.toggleEspMode.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (isChecked) {
+            if (isChecked && !isSyncingToggle) {
                 val cmd: Byte = when (checkedId) {
                     R.id.btnHudMode -> 0x10
                     R.id.btnMapMode -> 0x11
@@ -386,13 +387,18 @@ class ConnectionFragment : Fragment() {
                 binding.tvVoltage.text = "Battery: ${status["voltage"] ?: "--"}V"
                 binding.tvEspMode.text = "Mode: ${status["mode"] ?: "--"}"
                 status["mode"]?.let { mode ->
-                    binding.toggleEspMode.clearChecked()
-                    when (mode) {
-                        "HUD" -> binding.toggleEspMode.check(R.id.btnHudMode)
-                        "MAP" -> binding.toggleEspMode.check(R.id.btnMapMode)
-                        "STATUS" -> binding.toggleEspMode.check(R.id.btnStatusMode)
-                        "INFO" -> binding.toggleEspMode.check(R.id.btnInfoMode)
-                        "NOTIF" -> binding.toggleEspMode.check(R.id.btnNotifMode)
+                    val targetButtonId = when (mode) {
+                        "HUD" -> R.id.btnHudMode
+                        "MAP" -> R.id.btnMapMode
+                        "STATUS" -> R.id.btnStatusMode
+                        "INFO" -> R.id.btnInfoMode
+                        "NOTIF" -> R.id.btnNotifMode
+                        else -> -1
+                    }
+                    if (targetButtonId != -1 && binding.toggleEspMode.checkedButtonId != targetButtonId) {
+                        isSyncingToggle = true
+                        binding.toggleEspMode.check(targetButtonId)
+                        isSyncingToggle = false
                     }
                 }
             }

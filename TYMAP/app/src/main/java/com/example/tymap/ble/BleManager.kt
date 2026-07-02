@@ -295,15 +295,10 @@ class MyBleManager(context: Context) : BleManager(context) {
         // Write size first
         writeCharacteristic(char, sizeBuffer.array(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).suspend()
 
-        // Then write image in chunks
-        val mtu = mtu - 3
-        var offset = 0
-        while (offset < jpegData.size) {
-            val length = kotlin.math.min(mtu, jpegData.size - offset)
-            val chunk = jpegData.copyOfRange(offset, offset + length)
-            writeCharacteristic(char, chunk, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).suspend()
-            offset += length
-        }
+        // Then write image in chunks using Nordic BLE Library's split mechanism
+        writeCharacteristic(char, jpegData, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+            .split()
+            .suspend()
     }
 
     fun writePhoneBattery(level: Int, charging: Boolean) {

@@ -11,8 +11,10 @@ import java.util.regex.Pattern
 
 object UrlParser {
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-        .followRedirects(false)
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     fun extractUrlFromText(text: String): String? {
@@ -22,27 +24,70 @@ object UrlParser {
 
     fun resolveRedirect(shortUrl: String): String {
         var currentUrl = shortUrl
-        var redirects = 0
-        while (redirects < 5) {
+        var attempts = 0
+        val maxAttempts = 3
+        
+        while (attempts < maxAttempts) {
             try {
                 val request = Request.Builder()
                     .url(currentUrl)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36")
                     .build()
                 client.newCall(request).execute().use { response ->
-                    val code = response.code
-                    if (code in 300..399) {
-                        val loc = response.header("Location")
-                        if (loc != null) {
-                            currentUrl = loc
-                            redirects++
-                            continue
+                    val finalUrl = response.request.url.toString()
+                    
+                    // 1. Limit reading to 150KB of HTML body to avoid network timeouts on large pages
+                    val bodyString = response.body?.source()?.let { source ->
+                        try {
+                            val buffer = okio.Buffer()
+                            source.read(buffer, 150 * 1024)
+                            buffer.readUtf8()
+                        } catch (e: Exception) {
+                            ""
+                        }
+                    } ?: ""
+                    
+                    // 2. High Priority: Extract center coordinates from staticmap metadata in HTML body
+                    val centerMatcher = Pattern.compile("center=([-+]?\\d+\\.\\d+)%2C([-+]?\\d+\\.\\d+)").matcher(bodyString)
+                    if (centerMatcher.find()) {
+                        val lat = centerMatcher.group(1)
+                        val lon = centerMatcher.group(2)
+                        if (lat != null && lon != null) {
+                            return "$finalUrl#@$lat,$lon"
                         }
                     }
-                    return response.request.url.toString()
+                    
+                    // 3. If final URL already contains coordinates, return it immediately
+                    val coordRegex = "([-+]?\\d+\\.\\d+)[,%2C]([-+]?\\d+\\.\\d+)"
+                    val hasCoords = finalUrl.contains("!3d") && finalUrl.contains("!4d") || 
+                                    Pattern.compile("(@|q=|query=)$coordRegex").matcher(finalUrl).find()
+                    if (hasCoords) {
+                        return finalUrl
+                    }
+                    
+                    // 4. Fallback: Parse normal google maps redirect links
+                    if (finalUrl.contains("maps.app.goo.gl") || response.code == 200) {
+                        val htmlMatcher = Pattern.compile("https://(www\\.)?google\\.[a-z.]+/maps/\\S+").matcher(bodyString)
+                        if (htmlMatcher.find()) {
+                            var foundUrl = htmlMatcher.group()
+                            if (foundUrl.endsWith("\"") || foundUrl.endsWith("'") || foundUrl.endsWith(">")) {
+                                foundUrl = foundUrl.substring(0, foundUrl.length - 1)
+                            }
+                            return URLDecoder.decode(foundUrl, "UTF-8")
+                        }
+                    }
+                    return finalUrl
                 }
             } catch (e: Exception) {
-                break
+                attempts++
+                android.util.Log.w("UrlParser", "Resolve attempt $attempts failed: ${e.message}. Retrying...")
+                if (attempts < maxAttempts) {
+                    try {
+                        Thread.sleep(800)
+                    } catch (ie: InterruptedException) {}
+                } else {
+                    android.util.Log.e("UrlParser", "All resolve attempts failed: ${e.message}", e)
+                }
             }
         }
         return currentUrl
@@ -52,8 +97,59 @@ object UrlParser {
         val coordRegex = "([-+]?\\d+\\.\\d+)[,%2C]([-+]?\\d+\\.\\d+)"
         val googleDataRegex = "!3d([-+]?\\d+\\.\\d+)!4d([-+]?\\d+\\.\\d+)"
         
-        // 1. Route /dir/
+        // 1. Highest Priority for Routes: Check if URL is a route but contains destination coordinate metadata (!3d...!4d...)
         if (url.contains("/dir/")) {
+            val dataMatcher = Pattern.compile(googleDataRegex).matcher(url)
+            if (dataMatcher.find()) {
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "POI")
+                    putDouble("DEST_LAT", dataMatcher.group(1)!!.toDouble())
+                    putDouble("DEST_LON", dataMatcher.group(2)!!.toDouble())
+                    putString("LABEL", "Điểm đến từ Google Maps")
+                }
+            }
+        }
+
+        // 2. Highest Priority for POIs: Extract exact location coordinates from POI data (!3d...!4d...)
+        val dataMatcher = Pattern.compile(googleDataRegex).matcher(url)
+        if (dataMatcher.find()) {
+            return Bundle().apply {
+                putString("SHARE_TYPE", "POI")
+                putDouble("DEST_LAT", dataMatcher.group(1)!!.toDouble())
+                putDouble("DEST_LON", dataMatcher.group(2)!!.toDouble())
+                putString("LABEL", "Điểm từ Google Maps")
+            }
+        }
+
+        // 3. Second Priority: Extract coordinates from @lat,lon or q=lat,lon
+        val poiMatcher = Pattern.compile("(@|q=|query=)$coordRegex").matcher(url)
+        if (poiMatcher.find()) {
+            return Bundle().apply {
+                putString("SHARE_TYPE", "POI")
+                putDouble("DEST_LAT", poiMatcher.group(2)!!.toDouble())
+                putDouble("DEST_LON", poiMatcher.group(3)!!.toDouble())
+                putString("LABEL", "Vị trí đã chọn")
+            }
+        }
+
+        // 4. Third Priority: Extract any generic valid coordinates sequence in the URL
+        val genericMatcher = Pattern.compile(coordRegex).matcher(url)
+        if (genericMatcher.find()) {
+            val lat = genericMatcher.group(1)!!.toDouble()
+            val lon = genericMatcher.group(2)!!.toDouble()
+            if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "POI")
+                    putDouble("DEST_LAT", lat)
+                    putDouble("DEST_LON", lon)
+                    putString("LABEL", "Tọa độ từ liên kết")
+                }
+            }
+        }
+
+        // 5. Fourth Priority for Routes: If no coordinates could be parsed, check if it's a route with names
+        if (url.contains("/dir/")) {
+            // Check if matches route coords
             val matcher = Pattern.compile(coordRegex).matcher(url)
             val matches = mutableListOf<Pair<Double, Double>>()
             while (matcher.find()) {
@@ -68,27 +164,25 @@ object UrlParser {
                     putDouble("DEST_LON", matches.last().second)
                     putString("LABEL", "Lộ trình Google Maps")
                 }
-            }
-        }
-
-        // 2. POI !3d...!4d...
-        val dataMatcher = Pattern.compile(googleDataRegex).matcher(url)
-        if (dataMatcher.find()) {
-            return Bundle().apply {
-                putString("SHARE_TYPE", "POI")
-                putDouble("DEST_LAT", dataMatcher.group(1)!!.toDouble())
-                putDouble("DEST_LON", dataMatcher.group(2)!!.toDouble())
-                putString("LABEL", "Điểm từ Google Maps")
-            }
-        }
-
-        // 3. POI @lat,lng hoặc q=lat,lng
-        val poiMatcher = Pattern.compile("(@|q=)$coordRegex").matcher(url)
-        if (poiMatcher.find()) {
-            return Bundle().apply {
-                putString("SHARE_TYPE", "POI")
-                putDouble("DEST_LAT", poiMatcher.group(2)!!.toDouble())
-                putDouble("DEST_LON", poiMatcher.group(3)!!.toDouble())
+            } else {
+                // Parse destination place name for geocoding fallback
+                val dirPattern = Pattern.compile("/dir/([^/]+)/([^/\\?#]+)")
+                val dirMatcher = dirPattern.matcher(url)
+                if (dirMatcher.find()) {
+                    val destNameEncoded = dirMatcher.group(2)
+                    if (destNameEncoded != null) {
+                        try {
+                            val destName = URLDecoder.decode(destNameEncoded.replace("+", " "), "UTF-8")
+                            if (destName.isNotEmpty() && destName.lowercase() != "vị trí của tôi" && destName.lowercase() != "my location") {
+                                return Bundle().apply {
+                                    putString("SHARE_TYPE", "DIR_NAME")
+                                    putString("DEST_NAME", destName)
+                                    putString("LABEL", destName)
+                                }
+                            }
+                        } catch (e: Exception) {}
+                    }
+                }
             }
         }
         
@@ -98,7 +192,6 @@ object UrlParser {
     fun geocodeWithName(placeName: String): Bundle? {
         if (placeName.length <= 2) return null
         
-        // Try Photon first
         try {
             val geocodeUrl = "https://photon.komoot.io/api/?q=${URLEncoder.encode(placeName, "UTF-8")}&limit=1"
             val response = client.newCall(Request.Builder().url(geocodeUrl).build()).execute()

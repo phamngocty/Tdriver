@@ -38,6 +38,7 @@ uint8_t *jpegBuffer = nullptr;
 uint32_t jpegSize = 0;
 uint32_t jpegWritten = 0;
 bool isReceivingJpeg = false;
+volatile bool newMapImageAvailable = false;
 
 // Trạng thái Popup Bản đồ trong HUD
 bool isPopupActive = false;
@@ -65,6 +66,7 @@ OneButton btnZoom(ZOOM_BTN, true);
 
 volatile bool screenNeedsRedraw = true;
 volatile bool statusUpdatePending = false;
+volatile bool needClearScreen = false;
 int lastRenderedSecond = -1;
 
 int16_t clipMinX = 0;
@@ -89,6 +91,7 @@ class MyServerCallbacks : public NimBLEServerCallbacks
     void onConnect(NimBLEServer *pServer) override
     {
         bleConnected = true;
+        needClearScreen = true;
         screenNeedsRedraw = true;
         Serial.println("BLE: Client Connected!");
     }
@@ -104,6 +107,7 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         isReceivingJpeg = false;
         jpegSize = 0;
         jpegWritten = 0;
+        needClearScreen = true;
         screenNeedsRedraw = true;
         advertisingPending = true;
     }
@@ -515,16 +519,13 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                 if (jpegWritten >= jpegSize)
                 {
                     isReceivingJpeg = false;
+                    newMapImageAvailable = true;
+                    screenNeedsRedraw = true; // Request redraw immediately on the Main Thread
 
-                    if (currentMode == MAP_MODE)
-                    {
-                        renderJpegImage(jpegBuffer, jpegSize);
-                    }
-                    else if (currentMode == HUD_MODE && popupEnabled)
+                    if (currentMode == HUD_MODE && popupEnabled)
                     {
                         isPopupActive = true;
                         popupStartTime = millis();
-                        renderJpegImage(jpegBuffer, jpegSize);
                     }
                 }
             }
@@ -552,24 +553,36 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                 if (cmd == 0x10)
                 {
                     currentMode = HUD_MODE;
+                    isPopupActive = false;
+                    isReceivingJpeg = false;
+                    needClearScreen = true;
                     screenNeedsRedraw = true;
                     statusUpdatePending = true;
                 }
                 else if (cmd == 0x11)
                 {
                     currentMode = MAP_MODE;
+                    isPopupActive = false;
+                    isReceivingJpeg = false;
+                    needClearScreen = true;
                     screenNeedsRedraw = true;
                     statusUpdatePending = true;
                 }
                 else if (cmd == 0x12)
                 {
                     currentMode = STATUS_MODE;
+                    isPopupActive = false;
+                    isReceivingJpeg = false;
+                    needClearScreen = true;
                     screenNeedsRedraw = true;
                     statusUpdatePending = true;
                 }
                 else if (cmd == 0x13)
                 {
                     currentMode = INFO_MODE;
+                    isPopupActive = false;
+                    isReceivingJpeg = false;
+                    needClearScreen = true;
                     screenNeedsRedraw = true;
                     statusUpdatePending = true;
                 }
@@ -581,6 +594,9 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                         currentMode = NOTIF_MODE;
                         notifViewIndex = 0;
                         isNotifPopupTransient = false; // Persistent mode từ menu
+                        isPopupActive = false;
+                        isReceivingJpeg = false;
+                        needClearScreen = true;
                         screenNeedsRedraw = true;
                         statusUpdatePending = true;
                     }
@@ -903,6 +919,13 @@ void loop()
         statusUpdatePending = true;
     }
 
+    // Clear screen if requested from BLE thread safely
+    if (needClearScreen)
+    {
+        needClearScreen = false;
+        tft.fillScreen(TFT_BLACK);
+    }
+
     // Render giao diện chính
     if (isMenuOpen)
     {
@@ -915,7 +938,15 @@ void loop()
     else if (isPopupActive)
     {
         // Đang vẽ ảnh chụp bản đồ (JPEG) phủ đè lên HUD
-        // Không cần gọi draw vì ảnh JPEG đã được vẽ trực tiếp qua Callback khi nhận đủ
+        if (newMapImageAvailable && jpegSize > 0 && !isReceivingJpeg)
+        {
+            renderJpegImage(jpegBuffer, jpegSize);
+            newMapImageAvailable = false;
+        }
+        else if (screenNeedsRedraw && jpegSize > 0 && !isReceivingJpeg)
+        {
+            renderJpegImage(jpegBuffer, jpegSize);
+        }
     }
     else
     {
@@ -936,8 +967,12 @@ void loop()
                 drawHUD();
                 break;
             case MAP_MODE:
-                // Ảnh map hiển thị trực tiếp qua JPEGDEC callback, vẽ lại ảnh cũ nếu có
-                if (jpegSize > 0 && !isReceivingJpeg)
+                if (newMapImageAvailable && jpegSize > 0 && !isReceivingJpeg)
+                {
+                    renderJpegImage(jpegBuffer, jpegSize);
+                    newMapImageAvailable = false;
+                }
+                else if (screenNeedsRedraw && jpegSize > 0 && !isReceivingJpeg)
                 {
                     renderJpegImage(jpegBuffer, jpegSize);
                 }
