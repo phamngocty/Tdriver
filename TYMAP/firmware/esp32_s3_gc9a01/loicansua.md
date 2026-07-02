@@ -52,4 +52,5 @@ String extractLeadingDistance(String &str)
         
 
  hiển thị full map không hieenjj thị khu vục cắt , sữ nút bản dồ hiện tại  ở tap notifile  thành ảnh vằ cắt ở tap map
- hiển thị full map không hieenjj thị khu vục cắt , sữ nút bản dồ hiện tại  ở tap notifile  thành ảnh vằ cắt ở tap map
+ hiển thị full map không hieenjj thị khu vục cắt , sữ nút bản dồ hiện tại  ở tap notifile  thành ảnh vằ cắt ở tap map 
+thêm co chế  chup popup osm    giống goooogle mấp   và cải thieenj  share giông polylinr google map 

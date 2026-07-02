@@ -13,8 +13,8 @@ object UrlParser {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
+        .followRedirects(false) // Disable auto-redirects to intercept 302 Locations immediately
+        .followSslRedirects(false)
         .build()
 
     fun extractUrlFromText(text: String): String? {
@@ -29,55 +29,60 @@ object UrlParser {
         
         while (attempts < maxAttempts) {
             try {
-                val request = Request.Builder()
-                    .url(currentUrl)
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36")
-                    .build()
-                client.newCall(request).execute().use { response ->
-                    val finalUrl = response.request.url.toString()
+                var stepUrl = currentUrl
+                var stepCount = 0
+                
+                while (stepCount < 5) {
+                    val request = Request.Builder()
+                        .url(stepUrl)
+                        .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36")
+                        .build()
                     
-                    // 1. Limit reading to 150KB of HTML body to avoid network timeouts on large pages
-                    val bodyString = response.body?.source()?.let { source ->
-                        try {
-                            val buffer = okio.Buffer()
-                            source.read(buffer, 150 * 1024)
-                            buffer.readUtf8()
-                        } catch (e: Exception) {
-                            ""
-                        }
-                    } ?: ""
-                    
-                    // 2. High Priority: Extract center coordinates from staticmap metadata in HTML body
-                    val centerMatcher = Pattern.compile("center=([-+]?\\d+\\.\\d+)%2C([-+]?\\d+\\.\\d+)").matcher(bodyString)
-                    if (centerMatcher.find()) {
-                        val lat = centerMatcher.group(1)
-                        val lon = centerMatcher.group(2)
-                        if (lat != null && lon != null) {
-                            return "$finalUrl#@$lat,$lon"
-                        }
-                    }
-                    
-                    // 3. If final URL already contains coordinates, return it immediately
-                    val coordRegex = "([-+]?\\d+\\.\\d+)[,%2C]([-+]?\\d+\\.\\d+)"
-                    val hasCoords = finalUrl.contains("!3d") && finalUrl.contains("!4d") || 
-                                    Pattern.compile("(@|q=|query=)$coordRegex").matcher(finalUrl).find()
-                    if (hasCoords) {
-                        return finalUrl
-                    }
-                    
-                    // 4. Fallback: Parse normal google maps redirect links
-                    if (finalUrl.contains("maps.app.goo.gl") || response.code == 200) {
-                        val htmlMatcher = Pattern.compile("https://(www\\.)?google\\.[a-z.]+/maps/\\S+").matcher(bodyString)
-                        if (htmlMatcher.find()) {
-                            var foundUrl = htmlMatcher.group()
-                            if (foundUrl.endsWith("\"") || foundUrl.endsWith("'") || foundUrl.endsWith(">")) {
-                                foundUrl = foundUrl.substring(0, foundUrl.length - 1)
+                    client.newCall(request).execute().use { response ->
+                        val code = response.code
+                        if (code in 300..399) {
+                            val loc = response.header("Location")
+                            if (loc != null) {
+                                stepUrl = loc
+                                stepCount++
+                                
+                                // If the location header already contains coordinates, return it immediately
+                                val coordRegex = "([-+]?\\d+\\.\\d+)[,%2C]([-+]?\\d+\\.\\d+)"
+                                val hasCoords = stepUrl.contains("!3d") && stepUrl.contains("!4d") || 
+                                                Pattern.compile("(@|q=|query=)$coordRegex").matcher(stepUrl).find()
+                                if (hasCoords) {
+                                    return stepUrl
+                                }
+                                continue
                             }
-                            return URLDecoder.decode(foundUrl, "UTF-8")
+                        } else if (code == 200) {
+                            // If code is 200, we must inspect the HTML body for maps links or staticmap centers
+                            val bodyString = response.body?.string() ?: ""
+                            
+                            // Check staticmap center first
+                            val centerMatcher = Pattern.compile("center=([-+]?\\d+\\.\\d+)%2C([-+]?\\d+\\.\\d+)").matcher(bodyString)
+                            if (centerMatcher.find()) {
+                                val lat = centerMatcher.group(1)
+                                val lon = centerMatcher.group(2)
+                                if (lat != null && lon != null) {
+                                    return "$stepUrl#@$lat,$lon"
+                                }
+                            }
+                            
+                            // Check for full maps links
+                            val htmlMatcher = Pattern.compile("https://(www\\.)?google\\.[a-z.]+/maps/\\S+").matcher(bodyString)
+                            if (htmlMatcher.find()) {
+                                var foundUrl = htmlMatcher.group()
+                                if (foundUrl.endsWith("\"") || foundUrl.endsWith("'") || foundUrl.endsWith(">")) {
+                                    foundUrl = foundUrl.substring(0, foundUrl.length - 1)
+                                }
+                                return URLDecoder.decode(foundUrl, "UTF-8")
+                            }
                         }
+                        return stepUrl
                     }
-                    return finalUrl
                 }
+                return stepUrl
             } catch (e: Exception) {
                 attempts++
                 android.util.Log.w("UrlParser", "Resolve attempt $attempts failed: ${e.message}. Retrying...")
@@ -189,11 +194,24 @@ object UrlParser {
         return null
     }
 
+    fun cleanPlaceName(name: String): String {
+        // Remove text in parentheses, e.g., "Lẩu Dê 135 (2)" -> "Lẩu Dê 135 "
+        var cleaned = name.replace(Regex("\\([^)]*\\)"), " ")
+        // Replace commas, dots, dashes, and slashes with spaces to avoid ElasticSearch query parser errors
+        cleaned = cleaned.replace(Regex("[,.\\-_/]"), " ")
+        // Normalize whitespace
+        cleaned = cleaned.replace(Regex("\\s+"), " ").trim()
+        return cleaned
+    }
+
     fun geocodeWithName(placeName: String): Bundle? {
         if (placeName.length <= 2) return null
         
+        val cleanedName = cleanPlaceName(placeName)
+        if (cleanedName.length <= 2) return null
+        
         try {
-            val geocodeUrl = "https://photon.komoot.io/api/?q=${URLEncoder.encode(placeName, "UTF-8")}&limit=1"
+            val geocodeUrl = "https://photon.komoot.io/api/?q=${URLEncoder.encode(cleanedName, "UTF-8")}&limit=1"
             val response = client.newCall(Request.Builder().url(geocodeUrl).build()).execute()
             if (response.isSuccessful) {
                 val json = JSONObject(response.body!!.string())
@@ -212,7 +230,7 @@ object UrlParser {
 
         // Fallback to Nominatim
         try {
-            val nominatimUrl = "https://nominatim.openstreetmap.org/search?q=${URLEncoder.encode(placeName, "UTF-8")}&format=json&limit=1"
+            val nominatimUrl = "https://nominatim.openstreetmap.org/search?q=${URLEncoder.encode(cleanedName, "UTF-8")}&format=json&limit=1"
             val request = Request.Builder().url(nominatimUrl).header("User-Agent", "TYMAP").build()
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
