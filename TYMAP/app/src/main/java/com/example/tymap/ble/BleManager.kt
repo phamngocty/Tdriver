@@ -1,0 +1,315 @@
+package com.example.tymap.ble
+
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCharacteristic
+import android.content.Context
+import android.util.Log
+import com.example.tymap.repository.NavigationRepository
+import no.nordicsemi.android.ble.BleManager
+import no.nordicsemi.android.ble.PhyRequest
+import no.nordicsemi.android.ble.ktx.suspend
+import no.nordicsemi.android.ble.observer.ConnectionObserver
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+class MyBleManager(context: Context) : BleManager(context) {
+    private var navChar: BluetoothGattCharacteristic? = null
+    private var navIconChar: BluetoothGattCharacteristic? = null
+    private var speedChar: BluetoothGattCharacteristic? = null
+    private var settingsChar: BluetoothGattCharacteristic? = null
+    private var timeChar: BluetoothGattCharacteristic? = null
+    private var weatherChar: BluetoothGattCharacteristic? = null
+    private var mapImageChar: BluetoothGattCharacteristic? = null
+    private var deviceCtrlChar: BluetoothGattCharacteristic? = null
+    private var remoteCmdChar: BluetoothGattCharacteristic? = null
+    private var deviceStatusChar: BluetoothGattCharacteristic? = null
+    private var iconDataChar: BluetoothGattCharacteristic? = null
+    private var oledImageChar: BluetoothGattCharacteristic? = null
+    private var notificationChar: BluetoothGattCharacteristic? = null
+    private var phoneBatteryChar: BluetoothGattCharacteristic? = null
+
+    init {
+        connectionObserver = object : ConnectionObserver {
+            override fun onDeviceConnecting(device: BluetoothDevice) {
+                NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Connecting)
+            }
+            override fun onDeviceConnected(device: BluetoothDevice) {
+                NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Connected)
+            }
+            override fun onDeviceFailedToConnect(device: BluetoothDevice, reason: Int) {
+                NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Disconnected)
+            }
+            override fun onDeviceReady(device: BluetoothDevice) {
+                NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Ready)
+            }
+            override fun onDeviceDisconnecting(device: BluetoothDevice) {}
+            override fun onDeviceDisconnected(device: BluetoothDevice, reason: Int) {
+                NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Disconnected)
+            }
+        }
+    }
+
+    override fun getGattCallback(): BleManagerGattCallback = MyGattCallback()
+
+    override fun log(priority: Int, message: String) {
+        Log.println(priority, "BleManager", message)
+        NavigationRepository.addLog(message)
+    }
+
+    private inner class MyGattCallback : BleManagerGattCallback() {
+        override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
+            val service = gatt.getService(BleConstants.SERVICE_UUID) ?: return false
+            navChar = service.getCharacteristic(BleConstants.CHA_NAV)
+            navIconChar = service.getCharacteristic(BleConstants.CHA_NAV_TBT_ICON)
+            speedChar = service.getCharacteristic(BleConstants.CHA_GPS_SPEED)
+            settingsChar = service.getCharacteristic(BleConstants.CHA_SETTINGS)
+            timeChar = service.getCharacteristic(BleConstants.CHA_TIME)
+            weatherChar = service.getCharacteristic(BleConstants.CHA_WEATHER)
+            mapImageChar = service.getCharacteristic(BleConstants.CHA_MAP_IMAGE)
+            deviceCtrlChar = service.getCharacteristic(BleConstants.CHA_DEVICE_CTRL)
+            remoteCmdChar = service.getCharacteristic(BleConstants.CHA_REMOTE_CMD)
+            deviceStatusChar = service.getCharacteristic(BleConstants.CHA_DEVICE_STATUS)
+            iconDataChar = service.getCharacteristic(BleConstants.CHA_ICON_DATA)
+            oledImageChar = service.getCharacteristic(BleConstants.CHA_OLED_IMAGE)
+            notificationChar = service.getCharacteristic(BleConstants.CHA_NOTIFICATION)
+            phoneBatteryChar = service.getCharacteristic(BleConstants.CHA_PHONE_BATTERY)
+
+            val missing = mutableListOf<String>()
+            if (navChar == null) missing.add("NAV")
+            if (navIconChar == null) missing.add("NAV_ICON")
+            if (speedChar == null) missing.add("SPEED")
+            if (settingsChar == null) missing.add("SETTINGS")
+            if (timeChar == null) missing.add("TIME")
+            if (weatherChar == null) missing.add("WEATHER")
+            if (deviceCtrlChar == null) missing.add("DEVICE_CTRL")
+            if (remoteCmdChar == null) missing.add("REMOTE_CMD")
+            if (deviceStatusChar == null) missing.add("DEVICE_STATUS")
+            if (iconDataChar == null) missing.add("ICON_DATA")
+            if (notificationChar == null) missing.add("NOTIFICATION")
+
+            if (missing.isNotEmpty()) {
+                NavigationRepository.addLog("Missing characteristics: ${missing.joinToString()}")
+                return false
+            }
+
+            return true
+        }
+
+        override fun initialize() {
+            requestMtu(512).enqueue()
+            requestConnectionPriority(no.nordicsemi.android.ble.ConnectionPriorityRequest.CONNECTION_PRIORITY_HIGH).enqueue()
+            setPreferredPhy(PhyRequest.PHY_LE_2M_MASK, PhyRequest.PHY_LE_2M_MASK, PhyRequest.PHY_OPTION_NO_PREFERRED).enqueue()
+            
+            // Listen for device control (zoom, refresh request)
+            deviceCtrlChar?.let { char ->
+                setNotificationCallback(char).with { _, data ->
+                    val bitfield = data.getByte(0)?.toInt() ?: 0
+                    handleDeviceCtrl(bitfield)
+                }
+                enableNotifications(char).enqueue()
+            }
+
+            // Listen for device status (mode, voltage, rssi, ping)
+            deviceStatusChar?.let { char ->
+                setNotificationCallback(char).with { _, data ->
+                    val rawBytes = data.value ?: byteArrayOf()
+                    val nullIndex = rawBytes.indexOf(0.toByte())
+                    val cleanBytes = if (nullIndex >= 0) rawBytes.copyOfRange(0, nullIndex) else rawBytes
+                    val statusText = String(cleanBytes, Charsets.UTF_8)
+                    Log.d("BleManager", "Received device status notification, rawText='$statusText', bytesCount=${rawBytes.size}")
+                    handleDeviceStatus(statusText)
+                }
+                enableNotifications(char).enqueue()
+            }
+        }
+
+        override fun onServicesInvalidated() {
+            navChar = null
+            navIconChar = null
+            speedChar = null
+            settingsChar = null
+            timeChar = null
+            weatherChar = null
+            mapImageChar = null
+            deviceCtrlChar = null
+            remoteCmdChar = null
+            deviceStatusChar = null
+            iconDataChar = null
+            oledImageChar = null
+            notificationChar = null
+            phoneBatteryChar = null
+        }
+    }
+
+    private fun handleDeviceCtrl(bitfield: Int) {
+        val zoomIn = (bitfield and 1) != 0
+        val zoomOut = (bitfield and 2) != 0
+        val mapMode = (bitfield and 4) != 0
+        val refreshMap = (bitfield and 8) != 0
+        NavigationRepository.addLog("Device Ctrl: zoomIn=$zoomIn, zoomOut=$zoomOut, mapMode=$mapMode, refresh=$refreshMap")
+        
+        if (zoomIn) NavigationRepository.triggerRemoteZoom(true)
+        if (zoomOut) NavigationRepository.triggerRemoteZoom(false)
+        NavigationRepository.setMapModeActive(mapMode)
+    }
+
+    private fun handleDeviceStatus(status: String) {
+        NavigationRepository.addLog("Device Status: $status")
+        val lines = status.split("\n")
+        val statusMap = mutableMapOf<String, String>()
+        lines.forEach { line ->
+            val parts = line.split("=")
+            if (parts.size == 2) {
+                val key = parts[0].trim()
+                val value = parts[1].trim()
+                statusMap[key] = value
+                
+                // Handle Icon Request
+                if (key == "icon_req") {
+                    NavigationRepository.requestIconData(value)
+                }
+            }
+        }
+        NavigationRepository.updateDeviceStatus(statusMap)
+        
+        // Đồng bộ trạng thái hiển thị bản đồ của app khớp với ESP32
+        statusMap["mode"]?.let { mode ->
+            val isMap = mode.equals("MAP", ignoreCase = true)
+            NavigationRepository.setMapModeActive(isMap)
+        }
+    }
+
+    fun writeHudData(json: String) {
+        val char = navChar ?: return
+        NavigationRepository.addLog("BLE OUT: HUD JSON -> $json")
+        writeCharacteristic(char, json.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun writeNavIconHash(hashHex: String) {
+        val char = navIconChar ?: return
+        val data = "hash=$hashHex".toByteArray()
+        Log.d("BleManager", "Writing Icon Hash: $hashHex (${data.size} bytes)")
+        NavigationRepository.addLog("BLE OUT: Icon Hash -> $hashHex")
+        writeCharacteristic(char, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun writeIconData(hash: Long, bitmap: ByteArray) {
+        val char = iconDataChar ?: return
+        val buffer = ByteBuffer.allocate(4 + bitmap.size).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt(hash.toInt())
+        buffer.put(bitmap)
+        val finalData = buffer.array()
+        Log.d("BleManager", "Writing Icon Bitmap: Hash=${String.format("%08X", hash)}, Size=${finalData.size} bytes")
+        NavigationRepository.addLog("BLE OUT: Icon Bitmap Data -> Hash=${String.format("%08X", hash)}, Size=${finalData.size} bytes")
+        writeCharacteristic(char, finalData, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun writeNotification(json: String) {
+        val char = notificationChar ?: return
+        NavigationRepository.addLog("BLE OUT: Notif -> $json")
+        writeCharacteristic(char, json.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    suspend fun writeOledImage(bitmapData: ByteArray) {
+        val char = oledImageChar ?: return
+        val sizeBuffer = ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN)
+        sizeBuffer.putShort(bitmapData.size.toShort())
+        
+        NavigationRepository.addLog("BLE OUT: OLED Image Start -> Size=${bitmapData.size} bytes")
+        writeCharacteristic(char, sizeBuffer.array(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).suspend()
+
+        val mtu = mtu - 3
+        var offset = 0
+        while (offset < bitmapData.size) {
+            val length = kotlin.math.min(mtu, bitmapData.size - offset)
+            val chunk = bitmapData.copyOfRange(offset, offset + length)
+            writeCharacteristic(char, chunk, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).suspend()
+            offset += length
+        }
+    }
+
+    fun writeNavigationData(data: String) {
+        val char = navChar ?: return
+        NavigationRepository.addLog("BLE OUT: Nav Text ->\n$data")
+        writeCharacteristic(char, data.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun writeNavIconData(data: ByteArray) {
+        val char = navIconChar ?: return
+        // Send 1bpp monochrome icon data (48x48 = 288 bytes)
+        NavigationRepository.addLog("BLE OUT: Raw Icon Data -> Size=${data.size} bytes")
+        writeCharacteristic(char, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun writeSpeed(speed: Int) {
+        val char = speedChar ?: return
+        NavigationRepository.addLog("BLE OUT: Speed -> $speed km/h")
+        writeCharacteristic(char, speed.toString().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun writeSettings(settings: String) {
+        val char = settingsChar ?: return
+        NavigationRepository.addLog("BLE OUT: Settings -> $settings")
+        writeCharacteristic(char, settings.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun writeTime(timestamp: Long) {
+        val char = timeChar ?: return
+        // Cộng thêm Offset múi giờ địa phương (ví dụ +7h cho Việt Nam)
+        val tz = java.util.TimeZone.getDefault()
+        val localTimestamp = timestamp + tz.getOffset(timestamp)
+        
+        val buffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt((localTimestamp / 1000).toInt())
+        NavigationRepository.addLog("BLE OUT: Sync Time -> Epoch ${localTimestamp / 1000}")
+        writeCharacteristic(char, buffer.array(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+        Log.d("BleManager", "Sent Local Time: ${localTimestamp / 1000} (Offset: ${tz.rawOffset / 3600000}h)")
+    }
+
+    fun writeWeather(json: String) {
+        val char = weatherChar ?: return
+        NavigationRepository.addLog("BLE OUT: Weather -> $json")
+        writeCharacteristic(char, json.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun sendRemoteCommand(command: Byte) {
+        val char = remoteCmdChar ?: return
+        NavigationRepository.addLog("BLE OUT: Command -> 0x${String.format("%02X", command)}")
+        writeCharacteristic(char, byteArrayOf(command), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    fun writeManualZoom(zoomIn: Boolean) {
+        val char = deviceCtrlChar ?: return
+        val value = if (zoomIn) 1.toByte() else 2.toByte()
+        NavigationRepository.addLog("BLE OUT: Remote Zoom -> ${if (zoomIn) "IN" else "OUT"}")
+        writeCharacteristic(char, byteArrayOf(value), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    suspend fun writeMapImage(jpegData: ByteArray) {
+        val char = mapImageChar ?: return
+        val sizeBuffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        sizeBuffer.putInt(jpegData.size)
+        
+        NavigationRepository.addLog("BLE OUT: Map JPEG Start -> Size=${jpegData.size} bytes")
+        // Write size first
+        writeCharacteristic(char, sizeBuffer.array(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).suspend()
+
+        // Then write image in chunks
+        val mtu = mtu - 3
+        var offset = 0
+        while (offset < jpegData.size) {
+            val length = kotlin.math.min(mtu, jpegData.size - offset)
+            val chunk = jpegData.copyOfRange(offset, offset + length)
+            writeCharacteristic(char, chunk, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).suspend()
+            offset += length
+        }
+    }
+
+    fun writePhoneBattery(level: Int, charging: Boolean) {
+        val char = phoneBatteryChar ?: return
+        val json = "{\"level\":$level,\"charging\":$charging}"
+        NavigationRepository.addLog("BLE OUT: Phone Battery -> $level%, Charging=$charging")
+        writeCharacteristic(char, json.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+}

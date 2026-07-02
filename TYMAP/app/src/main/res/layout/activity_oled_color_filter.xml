@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#121212">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="Cấu hình bộ lọc màu (1-bit)"
+        android:textAppearance="?attr/textAppearanceHeadline6"
+        android:textColor="#FFFFFF"
+        android:background="#1F1F1F" />
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="Chạm để chọn màu, vuốt để di chuyển con trỏ"
+                android:textColor="#BBBBBB"
+                android:textSize="12sp" />
+
+            <!-- Sample Image Area -->
+            <FrameLayout
+                android:layout_width="240dp"
+                android:layout_height="240dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="8dp"
+                android:background="#000000">
+                <ImageView
+                    android:id="@+id/ivSampleImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop" />
+                <View
+                    android:id="@+id/vPickerPointer"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:background="@drawable/bg_picker_pointer"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/vCurrentColor"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:background="#000000" />
+
+                <TextView
+                    android:id="@+id/tvCurrentColorHex"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="#000000"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Sliders -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="80dp"
+                    android:layout_height="wrap_content"
+                    android:text="Độ nhạy:"
+                    android:textColor="#FFFFFF" />
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/sliderTolerance"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:valueFrom="0"
+                    android:valueTo="100"
+                    android:stepSize="1" />
+                <TextView
+                    android:id="@+id/tvToleranceValue"
+                    android:layout_width="30dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="40"
+                    android:textColor="#00E676" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <TextView
+                    android:layout_width="80dp"
+                    android:layout_height="wrap_content"
+                    android:text="Độ dither:"
+                    android:textColor="#FFFFFF" />
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/sliderDither"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:valueFrom="0"
+                    android:valueTo="100"
+                    android:stepSize="1" />
+                <TextView
+                    android:id="@+id/tvDitherValue"
+                    android:layout_width="30dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="100"
+                    android:textColor="#00E676" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnAddFilter"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="+ THÊM VÀO DANH SÁCH"
+                android:textColor="#888888" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvFilters"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</LinearLayout>

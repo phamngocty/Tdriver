@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <org.osmdroid.views.MapView
+        android:id="@+id/mapView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Search Bar -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/searchCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:cardCornerRadius="24dp"
+        app:cardElevation="6dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="4dp">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_map"
+                app:tint="@color/blue_primary" />
+
+            <EditText
+                android:id="@+id/etSearch"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="@string/search_here"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:paddingHorizontal="12dp" />
+
+            <ProgressBar
+                android:id="@+id/searchProgress"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/btnShare"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_share"
+                android:visibility="gone" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Search Suggestions -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/suggestionsCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="72dp"
+        android:visibility="gone"
+        app:cardCornerRadius="8dp"
+        app:cardElevation="4dp">
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvSuggestions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="300dp" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Floating Buttons Stack (Right) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="88dp"
+        android:layout_marginEnd="16dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <ImageButton
+            android:id="@+id/btnCompass"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/bg_circle_button"
+            android:elevation="4dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_compass"
+            android:visibility="gone" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabLocation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:src="@drawable/ic_my_location"
+            app:backgroundTint="@android:color/white"
+            app:fabSize="mini"
+            app:tint="@android:color/black" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabLayers"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_layers"
+            app:backgroundTint="@android:color/white"
+            app:fabSize="mini"
+            app:tint="@android:color/black" />
+    </LinearLayout>
+
+    <!-- Zoom Controls (Bottom Right) -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="140dp"
+        android:orientation="vertical">
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabZoomIn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:src="@drawable/ic_add"
+            app:backgroundTint="@android:color/white"
+            app:fabSize="mini"
+            app:tint="@android:color/black" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabZoomOut"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_remove"
+            app:backgroundTint="@android:color/white"
+            app:fabSize="mini"
+            app:tint="@android:color/black" />
+    </LinearLayout>
+
+    <!-- Recenter Button (Center Bottom) -->
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/btnRecenter"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="130dp"
+        android:text="@string/recenter"
+        android:visibility="gone"
+        app:backgroundTint="@color/blue_primary"
+        app:icon="@drawable/ic_my_location"
+        app:iconTint="@android:color/white"
+        android:textColor="@android:color/white" />
+
+    <!-- Speed Warning -->
+    <ImageView
+        android:id="@+id/ivSpeedWarning"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="160dp"
+        android:src="@drawable/ic_speedometer"
+        app:tint="@android:color/holo_red_dark"
+        android:visibility="gone" />
+
+    <!-- Bottom Sheet -->
+    <include
+        android:id="@+id/bottomSheet"
+        layout="@layout/bottom_sheet_navigation" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

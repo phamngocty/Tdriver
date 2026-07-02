@@ -1,0 +1,73 @@
+<resources>
+    <string name="app_name">TYMAP</string>
+    <string name="nav_connection">Kết nối</string>
+    <string name="nav_map">Bản đồ</string>
+    <string name="nav_settings">Cài đặt</string>
+
+    <!-- Connection -->
+    <string name="ble_connection">Kết nối BLE</string>
+    <string name="disconnected">Đã ngắt kết nối</string>
+    <string name="connected">Đã kết nối</string>
+    <string name="disconnect">Ngắt kết nối</string>
+    <string name="scan">Quét</string>
+    <string name="paired_history">Lịch sử đã ghép đôi</string>
+    <string name="api_services">Dịch vụ API</string>
+    <string name="esp32_controls">Điều khiển ESP32</string>
+    <string name="mode">Chế độ</string>
+    <string name="brightness">Độ sáng</string>
+    <string name="refresh">Làm mới</string>
+    <string name="advanced_controls">Điều khiển nâng cao</string>
+    <string name="ping">Kiểm tra độ trễ (Ping)</string>
+    <string name="restart_esp32">Khởi động lại ESP32</string>
+    <string name="remote_zoom">Thu phóng từ xa</string>
+    <string name="test">Kiểm tra</string>
+    <string name="register">Đăng ký</string>
+    <string name="event_log">Nhật ký sự kiện</string>
+    <string name="clear_log">Xóa nhật ký</string>
+
+    <!-- Map -->
+    <string name="search_here">Tìm kiếm ở đây</string>
+    <string name="recenter">Về Giữa</string>
+    <string name="directions">Chỉ đường</string>
+    <string name="start">Bắt đầu</string>
+    <string name="end">Kết thúc</string>
+    <string name="eta">Thời gian đến</string>
+    <string name="eta_format">Đến lúc: %1$s (%2$s)</string>
+    <string name="arrived">Bạn đã đến nơi</string>
+    <string name="current_location">Vị trí hiện tại</string>
+
+    <!-- Settings -->
+    <string name="display">Hiển thị</string>
+    <string name="theme">Chủ đề</string>
+    <string name="time_format">Định dạng thời gian</string>
+    <string name="units">Đơn vị</string>
+    <string name="map">Bản đồ</string>
+    <string name="tile_source">Nguồn bản đồ</string>
+    <string name="custom_tile_url">Mẫu URL bản đồ tùy chỉnh</string>
+    <string name="default_zoom">Mức thu phóng mặc định</string>
+    <string name="auto_zoom_turn">Tự động thu phóng khi đến đoạn rẽ</string>
+    <string name="map_orientation">Hướng bản đồ</string>
+    <string name="routing">Định tuyến</string>
+    <string name="preferred_engine">Công cụ ưu tiên</string>
+    <string name="fallback_priority">Thứ tự ưu tiên dự phòng</string>
+    <string name="configure_priority">Thiết lập ưu tiên</string>
+    <string name="off_route_dist">Khoảng cách phát hiện lệch tuyến (m)</string>
+    <string name="speed_warning">Cảnh báo tốc độ</string>
+    <string name="speed_threshold">Ngưỡng tốc độ (km/h)</string>
+    <string name="voice">Giọng nói</string>
+    <string name="voice_guidance">Chỉ dẫn giọng nói</string>
+    <string name="volume">Âm lượng</string>
+    <string name="voice_style">Kiểu giọng nói</string>
+    <string name="off_route_alert">Cảnh báo lệch tuyến</string>
+    <string name="speed_warning_voice">Giọng nói cảnh báo tốc độ</string>
+    <string name="language">Ngôn ngữ</string>
+    <string name="data_sending">Gửi dữ liệu (đến ESP32)</string>
+    <string name="map_fps">Tốc độ gửi ảnh bản đồ (FPS)</string>
+    <string name="move_threshold">Ngưỡng di chuyển (pixel)</string>
+    <string name="jpeg_quality">Chất lượng ảnh JPEG cho ESP32</string>
+    <string name="send_only_moving">Chỉ gửi khi đang di chuyển</string>
+    <string name="stop_after_idle">Dừng gửi sau khi dừng chờ</string>
+    <string name="system">Hệ thống</string>
+    <string name="firmware_update">Cập nhật phần mềm (OTA)</string>
+    <string name="app_version">Phiên bản ứng dụng</string>
+</resources>
