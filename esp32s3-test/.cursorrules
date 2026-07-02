@@ -1,5 +1,0 @@
-# Codebase to Overview - Cursor AI Rules
-# Nếu người dùng yêu cầu "tạo tài liệu tổng quan", "overview dự án",
-# "mô tả project", "documentation", "tổng quan codebase",
-# hãy thực hiện theo quy trình trong file codebase-to-overview.prompt.md
-# và tạo file {TÊN_DỰ_ÁN}_OVERVIEW.md
