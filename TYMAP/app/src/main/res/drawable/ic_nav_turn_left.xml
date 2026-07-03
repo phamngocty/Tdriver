@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Thân rẽ trái: cong lên rồi quẹo trái -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:pathData="M30,38 L30,22 Q30,14 22,14 L16,14"/>
+    <!-- Đầu mũi tên trái -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,14 L20,8 L20,12 L30,12 L30,16 L20,16 L20,20 Z"/>
+</vector>

@@ -28,6 +28,10 @@ class MyBleManager(context: Context) : BleManager(context) {
     private var oledImageChar: BluetoothGattCharacteristic? = null
     private var notificationChar: BluetoothGattCharacteristic? = null
     private var phoneBatteryChar: BluetoothGattCharacteristic? = null
+    
+    private var mapTileChar: BluetoothGattCharacteristic? = null
+    private var mapCtrlChar: BluetoothGattCharacteristic? = null
+    private var mapStatusChar: BluetoothGattCharacteristic? = null
 
     init {
         connectionObserver = object : ConnectionObserver {
@@ -74,6 +78,10 @@ class MyBleManager(context: Context) : BleManager(context) {
             oledImageChar = service.getCharacteristic(BleConstants.CHA_OLED_IMAGE)
             notificationChar = service.getCharacteristic(BleConstants.CHA_NOTIFICATION)
             phoneBatteryChar = service.getCharacteristic(BleConstants.CHA_PHONE_BATTERY)
+
+            mapTileChar = service.getCharacteristic(BleConstants.CHA_MAP_TILE)
+            mapCtrlChar = service.getCharacteristic(BleConstants.CHA_MAP_CTRL)
+            mapStatusChar = service.getCharacteristic(BleConstants.CHA_MAP_STATUS)
 
             val missing = mutableListOf<String>()
             if (navChar == null) missing.add("NAV")
@@ -122,6 +130,17 @@ class MyBleManager(context: Context) : BleManager(context) {
                 }
                 enableNotifications(char).enqueue()
             }
+
+            mapStatusChar?.let { char ->
+                setNotificationCallback(char).with { _, data ->
+                    val rawBytes = data.value ?: byteArrayOf()
+                    val nullIndex = rawBytes.indexOf(0.toByte())
+                    val cleanBytes = if (nullIndex >= 0) rawBytes.copyOfRange(0, nullIndex) else rawBytes
+                    val statusText = String(cleanBytes, Charsets.UTF_8)
+                    handleMapStatus(statusText)
+                }
+                enableNotifications(char).enqueue()
+            }
         }
 
         override fun onServicesInvalidated() {
@@ -139,6 +158,9 @@ class MyBleManager(context: Context) : BleManager(context) {
             oledImageChar = null
             notificationChar = null
             phoneBatteryChar = null
+            mapTileChar = null
+            mapCtrlChar = null
+            mapStatusChar = null
         }
     }
 
@@ -248,6 +270,13 @@ class MyBleManager(context: Context) : BleManager(context) {
         writeCharacteristic(char, speed.toString().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
     }
 
+    fun writeGpsSpeedAndPosition(speed: Int, bearing: Int, px: Int, py: Int) {
+        val char = speedChar ?: return
+        val text = "speed=$speed,bearing=$bearing,px=$px,py=$py"
+        NavigationRepository.addLog("BLE OUT: GPS Pos -> $text")
+        writeCharacteristic(char, text.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
     fun writeSettings(settings: String) {
         val char = settingsChar ?: return
         NavigationRepository.addLog("BLE OUT: Settings -> $settings")
@@ -306,5 +335,46 @@ class MyBleManager(context: Context) : BleManager(context) {
         val json = "{\"level\":$level,\"charging\":$charging}"
         NavigationRepository.addLog("BLE OUT: Phone Battery -> $level%, Charging=$charging")
         writeCharacteristic(char, json.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    suspend fun writeMapTile(header: ByteArray, jpegData: ByteArray) {
+        val char = mapTileChar ?: return
+        val data = ByteArray(header.size + jpegData.size)
+        System.arraycopy(header, 0, data, 0, header.size)
+        System.arraycopy(jpegData, 0, data, header.size, jpegData.size)
+        
+        Log.d("BleManager", "Writing Map Tile Chunks: HeaderSize=${header.size}, JPEGSize=${jpegData.size} bytes")
+        NavigationRepository.addLog("BLE OUT: Map Tile -> Size=${data.size} bytes")
+        writeCharacteristic(char, data, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+            .split()
+            .suspend()
+    }
+
+    fun writeMapCtrl(command: Byte, params: ByteArray) {
+        val char = mapCtrlChar ?: return
+        val data = ByteArray(1 + params.size)
+        data[0] = command
+        System.arraycopy(params, 0, data, 1, params.size)
+        
+        Log.d("BleManager", "Writing Map Ctrl command: 0x${String.format("%02X", command)}")
+        NavigationRepository.addLog("BLE OUT: Map Ctrl -> Command=0x${String.format("%02X", command)}, ParamsSize=${params.size}")
+        writeCharacteristic(char, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
+    private fun handleMapStatus(statusText: String) {
+        NavigationRepository.addLog("Map Status: $statusText")
+        val lines = statusText.split("\n")
+        val statusMap = mutableMapOf<String, String>()
+        lines.forEach { line ->
+            val parts = line.split("=")
+            if (parts.size == 2) {
+                statusMap[parts[0].trim()] = parts[1].trim()
+            }
+        }
+        
+        // Gộp chung vào deviceStatus trong Repository để cập nhật UI
+        val currentStatus = NavigationRepository.deviceStatus.value.toMutableMap()
+        currentStatus.putAll(statusMap)
+        NavigationRepository.updateDeviceStatus(currentStatus)
     }
 }

@@ -373,7 +373,7 @@ class ConnectionFragment : Fragment() {
                     binding.tvHudEtaPreview.text = "ETA: ${hud.eta}"
                     binding.tvHudEtePreview.text = hud.duration
                     if (hud.bitmapIcon != null) binding.ivHudIconPreview.setImageBitmap(hud.bitmapIcon)
-                    else binding.ivHudIconPreview.setImageResource(R.drawable.ic_directions)
+                    else binding.ivHudIconPreview.setImageResource(maneuverIconRes(hud.iconIndex))
                 } else {
                     binding.cardHudPreview.visibility = View.GONE
                 }

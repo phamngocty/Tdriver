@@ -14,7 +14,8 @@ data class RouteInfo(
     val distance: Double,
     val duration: Double,
     val steps: List<StepInfo> = emptyList(),
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val engineName: String = "OSRM"
 )
 
 data class StepInfo(
@@ -51,6 +52,7 @@ object NavigationRepository {
         val title: String = "",       
         val directions: String = "",  
         val speed: String = "",
+        val iconIndex: Int = 0,         // index từ mapManeuverToIcon()
         val icon1bpp: ByteArray? = null,
         val bitmapIcon: android.graphics.Bitmap? = null
     )
@@ -159,5 +161,12 @@ object NavigationRepository {
 
     fun updateCompassHeading(heading: Float) {
         _compassHeading.value = heading
+    }
+
+    private val _isOfflineSelectionMode = MutableStateFlow(false)
+    val isOfflineSelectionMode = _isOfflineSelectionMode.asStateFlow()
+
+    fun setOfflineSelectionMode(active: Boolean) {
+        _isOfflineSelectionMode.value = active
     }
 }

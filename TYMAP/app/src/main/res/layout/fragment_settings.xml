@@ -95,14 +95,14 @@
             android:paddingHorizontal="16dp"
             android:paddingBottom="24dp">
 
-            <!-- Card 1: Giao diện & Hiển thị (Chung) -->
+            <!-- Card 1: Chung (CardGeneral) -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardDisplay"
+                android:id="@+id/cardGeneral"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="1dp"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
@@ -114,7 +114,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Giao diện &amp; Hiển thị"
+                        android:text="Cài đặt Chung"
                         android:textAppearance="?attr/textAppearanceSubtitle1"
                         android:textColor="?attr/colorPrimary"
                         android:layout_marginBottom="16dp"
@@ -123,22 +123,36 @@
                         android:gravity="center_vertical"
                         android:textStyle="bold"/>
 
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Định dạng thời gian" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Giao diện (Theme)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                    <Spinner android:id="@+id/spinnerTheme" android:layout_width="match_parent" android:layout_height="48dp" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Định dạng thời gian" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
                     <Spinner android:id="@+id/spinnerTimeFormat" android:layout_width="match_parent" android:layout_height="48dp" />
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Đơn vị khoảng cách" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
                     <Spinner android:id="@+id/spinnerUnits" android:layout_width="match_parent" android:layout_height="48dp" />
+
+                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="12dp"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnOta"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Cập nhật phần mềm (OTA)" />
+
+                    <TextView android:id="@+id/tvVersion" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center" android:text="Phiên bản: 1.0.0" android:textSize="11sp" android:textColor="?attr/colorOnSurfaceVariant"/>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card 2: Bản đồ (Bản đồ) -->
+            <!-- Card 2: Bản đồ (CardMap) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardMap"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="1dp"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
@@ -183,17 +197,31 @@
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Hướng xoay bản đồ" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
                     <Spinner android:id="@+id/spinnerMapOrientation" android:layout_width="match_parent" android:layout_height="48dp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchOfflinePriority"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Ưu tiên bản đồ offline" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnManageOfflineMaps"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Quản lý bản đồ ngoại tuyến" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card 3: Định tuyến (Định tuyến) -->
+            <!-- Card 3: Định tuyến (CardRouting) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardRouting"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="1dp"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
@@ -245,14 +273,14 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card 4: Âm thanh & Giọng nói (Giọng nói) -->
+            <!-- Card 4: Âm thanh & Giọng nói (CardVoice) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardVoice"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="1dp"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
@@ -292,14 +320,14 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card 5: Kết nối & Dữ liệu ESP32 (Dữ liệu) -->
+            <!-- Card 5: Truyền tải ảnh bản đồ (CardMapTransfer) -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardEsp32Data"
+                android:id="@+id/cardMapTransfer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="1dp"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
@@ -311,7 +339,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Kết nối &amp; Dữ liệu ESP32"
+                        android:text="Truyền tải ảnh bản đồ"
                         android:textAppearance="?attr/textAppearanceSubtitle1"
                         android:textColor="?attr/colorPrimary"
                         android:layout_marginBottom="16dp"
@@ -328,36 +356,66 @@
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Chế độ truyền ảnh bản đồ" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
                     <Spinner android:id="@+id/spinnerMapCaptureMode" android:layout_width="match_parent" android:layout_height="48dp" />
 
+
+
+                    <LinearLayout android:id="@+id/layoutJpegOptions" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tốc độ khung hình (FPS)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                        <Spinner android:id="@+id/spinnerMapFps" android:layout_width="match_parent" android:layout_height="48dp" />
+                        
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Chất lượng ảnh JPEG (%)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                            <TextView android:id="@+id/tvValueJpegQuality" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="?attr/colorPrimary"/>
+                        </LinearLayout>
+                        <com.google.android.material.slider.Slider android:id="@+id/sliderJpegQuality" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="20" android:valueTo="100" android:stepSize="5" />
+                        
+                        <com.google.android.material.switchmaterial.SwitchMaterial 
+                            android:id="@+id/switchFrameSkipping" 
+                            android:layout_width="match_parent" 
+                            android:layout_height="wrap_content" 
+                            android:layout_marginTop="8dp" 
+                            android:text="Bỏ qua khung hình trùng lặp (CRC32)" />
+                    </LinearLayout>
+
+                    <TextView android:id="@+id/tvStopAfterIdle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Dừng truyền dữ liệu sau" android:textSize="12sp" android:visibility="gone" android:textColor="?attr/colorOnSurfaceVariant"/>
+                    <Spinner android:id="@+id/spinnerStopAfterIdle" android:layout_width="match_parent" android:layout_height="48dp" android:visibility="gone" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 6: Popup & HUD (CardPopup) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardPopup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp"
+                app:strokeWidth="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Popup &amp; HUD"
+                        android:textAppearance="?attr/textAppearanceSubtitle1"
+                        android:textColor="?attr/colorPrimary"
+                        android:layout_marginBottom="16dp"
+                        android:drawableStart="@drawable/ic_share"
+                        android:drawablePadding="8dp"
+                        android:gravity="center_vertical"
+                        android:textStyle="bold"/>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/switchGmapsScreenshot" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Chụp Maps HUD (Popup)" />
+
                     <Button android:id="@+id/btnConfigCropGmaps" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cấu hình cắt Google Maps" android:visibility="gone" android:layout_marginTop="4dp"/>
                     <TextView android:id="@+id/tvCropSummaryGmaps" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vị trí đã lưu: Chưa cài đặt" android:textSize="10sp" android:paddingHorizontal="4dp" android:visibility="gone" android:textColor="?attr/colorOnSurfaceVariant" android:layout_marginBottom="8dp"/>
 
                     <Button android:id="@+id/btnConfigCropMapTab" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cấu hình cắt Tab Map" android:visibility="gone" android:layout_marginTop="4dp"/>
                     <TextView android:id="@+id/tvCropSummaryMapTab" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Vị trí đã lưu: Chưa cài đặt" android:textSize="10sp" android:paddingHorizontal="4dp" android:visibility="gone" android:textColor="?attr/colorOnSurfaceVariant" android:layout_marginBottom="8dp"/>
-
-                     <LinearLayout android:id="@+id/layoutJpegOptions" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
-                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tốc độ khung hình (FPS)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                         <Spinner android:id="@+id/spinnerMapFps" android:layout_width="match_parent" android:layout_height="48dp" />
-                         
-                         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
-                             <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Chất lượng ảnh JPEG (%)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                             <TextView android:id="@+id/tvValueJpegQuality" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="?attr/colorPrimary"/>
-                         </LinearLayout>
-                         <com.google.android.material.slider.Slider android:id="@+id/sliderJpegQuality" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="20" android:valueTo="100" android:stepSize="5" />
-                         
-                         <com.google.android.material.switchmaterial.SwitchMaterial 
-                             android:id="@+id/switchFrameSkipping" 
-                             android:layout_width="match_parent" 
-                             android:layout_height="wrap_content" 
-                             android:layout_marginTop="8dp" 
-                             android:text="Bỏ qua khung hình trùng lặp (CRC32)" />
-                     </LinearLayout>
-
-                    <TextView android:id="@+id/tvStopAfterIdle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Dừng truyền dữ liệu sau" android:textSize="12sp" android:visibility="gone" android:textColor="?attr/colorOnSurfaceVariant"/>
-                    <Spinner android:id="@+id/spinnerStopAfterIdle" android:layout_width="match_parent" android:layout_height="48dp" android:visibility="gone" />
-
-                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="12dp"/>
-
-                    <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/switchGmapsScreenshot" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Chụp Maps HUD (Popup)" />
 
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
                         <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="K.cách báo rẽ lần 1 (m)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
@@ -385,14 +443,14 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card 6: Cấu hình màn hình OLED (Dữ liệu & OLED) -->
+            <!-- Card 7: Màn hình OLED (CardOled) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardOled"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="1dp"
+                android:layout_marginBottom="32dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="4dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
@@ -450,40 +508,6 @@
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card 7: Hệ thống (Chung) -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardSystem"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="32dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="1dp"
-                app:strokeWidth="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Hệ thống"
-                        android:textAppearance="?attr/textAppearanceSubtitle1"
-                        android:textColor="?attr/colorPrimary"
-                        android:layout_marginBottom="16dp"
-                        android:drawableStart="@drawable/ic_play"
-                        android:drawablePadding="8dp"
-                        android:gravity="center_vertical"
-                        android:textStyle="bold"/>
-
-                    <Button android:id="@+id/btnOta" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cập nhật phần mềm (OTA)" />
-                    <TextView android:id="@+id/tvVersion" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:gravity="center" android:text="Phiên bản: 1.0.0" android:textSize="11sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

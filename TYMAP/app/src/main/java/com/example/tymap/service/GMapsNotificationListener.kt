@@ -155,7 +155,26 @@ class GMapsNotificationListener : NotificationListenerService() {
 
         // CHẨN ĐOÁN: Chỉ coi là DỪNG nếu thông báo Maps cực kỳ ngắn và không có icon dẫn đường
         val hasTurnIcon = sbn.notification.getLargeIcon() != null
-        val isNav = hasTurnIcon || parsedData.distance.isNotEmpty() || parsedData.instruction.contains("hướng", ignoreCase = true)
+        val instr = parsedData.instruction.lowercase()
+        val isNav = hasTurnIcon 
+                || parsedData.distance.isNotEmpty() 
+                || instr.contains("hướng")
+                || instr.contains("rẽ")
+                || instr.contains("chếch")
+                || instr.contains("quay đầu")
+                || instr.contains("đi thẳng")
+                || instr.contains("vòng xuyến")
+                || instr.contains("cầu")
+                || instr.contains("hầm")
+                || instr.contains("lộ trình")
+                || instr.contains("đi về")
+                || instr.contains("turn")
+                || instr.contains("head")
+                || instr.contains("keep")
+                || instr.contains("exit")
+                || instr.contains("merge")
+                || instr.contains("roundabout")
+                || instr.contains("straight")
 
         if (!isNav) {
             Log.d("GMapsListener", "Maps notification seems static. Not starting HUD.")

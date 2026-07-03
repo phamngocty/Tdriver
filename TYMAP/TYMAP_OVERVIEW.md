@@ -54,6 +54,12 @@ TYMAP/
 │   │   │   │       ├── SettingsFragment.kt       # Fragment tab Cài đặt cấu hình hiển thị, bản đồ, định tuyến
 │   │   │   │       ├── SuggestionAdapter.kt      # Adapter hiển thị gợi ý tìm kiếm địa chỉ
 │   │   │   │       └── theme/                    # Cấu hình màu sắc, typography và theme Material 3
+│   │   │   │   ├── utils/
+│   │   │   │   │   ├── IconUtils.kt              # Tiện ích chuyển đổi hình ảnh sang mảng byte và bitmap 1bpp
+│   │   │   │   │   ├── PolylineDecoder.kt        # Giải mã chuỗi polyline dẫn đường
+│   │   │   │   │   ├── PrefsHelper.kt            # Quản lý cài đặt SharedPreferences thông thường và bảo mật
+│   │   │   │   │   ├── ScreenCaptureManager.kt   # Điều khiển chụp màn hình MediaProjection, crop và nén JPEG
+│   │   │   │   │   └── UrlParser.kt              # Giải mã link Google Maps rút gọn và parse tọa độ POI/Route
 │   │   │   └── res/
 │   │   │       ├── layout/                   # Các tệp thiết kế giao diện XML của Android
 │   │   │       └── AndroidManifest.xml       # Khai báo quyền, activities, services và intent filters
@@ -172,6 +178,26 @@ TYMAP/
     *   `ivSampleImage.setOnTouchListener()`: Nhận sự kiện chạm của người dùng, lấy pixel màu tại tọa độ tương ứng trên bitmap mẫu để cập nhật `selectedColor` và di chuyển vòng tròn pointer.
     *   `btnAddFilter` click: Đóng gói thông tin màu sắc, dung sai (`tolerance`), độ dither (`dither`) vào đối tượng `OledFilter`, thêm vào danh sách và lưu lại.
 *   **Giao tiếp:** Đọc/ghi cấu hình bộ lọc dạng JSON vào SharedPreferences qua `PrefsHelper`.
+
+### 2.8. Các công cụ tiện ích (Utils)
+
+Các class util cung cấp các hàm bổ trợ xử lý dữ liệu nặng và các tương tác API nền tảng một cách độc lập:
+
+*   **`utils/PolylineDecoder.kt`**:
+    *   *Chức năng:* Cung cấp giải thuật giải mã chuỗi polyline nén nhận được từ các API định tuyến (OSRM, ORS, GraphHopper, Valhalla, Mapbox) thành danh sách `GeoPoint` để vẽ lên bản đồ.
+    *   *Hiệu năng:* Chạy ngầm bất đồng bộ hoàn toàn trên `Dispatchers.Default` để tránh chặn luồng giao diện Main Thread.
+*   **`utils/IconUtils.kt`**:
+    *   *Chức năng:*
+        *   Chuyển đổi `Drawable` sang `Bitmap` phục vụ hiển thị xem trước.
+        *   Chuyển đổi `Bitmap` màu sắc thành dữ liệu mảng byte nhị phân đơn sắc 1bpp (1 bit đại diện cho 1 pixel sáng/tối) kích thước 48x48px (288 bytes) để gửi qua BLE hiển thị lên màn hình phụ HUD.
+*   **`utils/PrefsHelper.kt`**:
+    *   *Chức năng:* Wrapper tập trung quản lý SharedPreferences. Hỗ trợ `EncryptedSharedPreferences` bảo mật cao dùng lưu trữ an toàn các mã API key định tuyến của người dùng. Quản lý lưu trữ/khôi phục cài đặt chung, lịch sử kết nối BLE, bộ lọc màu OLED và thông số tọa độ vùng crop màn hình.
+*   **`utils/ScreenCaptureManager.kt`**:
+    *   *Chức năng:* Điều phối tiến trình quay và chụp màn hình thông qua `MediaProjection` API.
+    *   *Tối ưu:* Tự động giảm kích thước màn hình chụp xuống 2 lần (tiết kiệm 4 lần bộ nhớ) để phòng ngừa lỗi rò rỉ bộ nhớ hoặc bị Android OS kill do quá tải RAM. Thực hiện crop lấy vùng bản đồ theo tỷ lệ chuẩn hóa lưu trong SharedPreferences, co giãn về kích thước 240x240px, nén JPEG với chất lượng định trước. Tích hợp cơ chế cache frame để gửi lại ảnh tĩnh gần nhất khi luồng MediaProjection không đẩy frame mới (chống giật/nhấp nháy màn hình).
+*   **`utils/UrlParser.kt`**:
+    *   *Chức năng:* Phân tích liên kết chia sẻ địa điểm/lộ trình từ ứng dụng Google Maps.
+    *   *Hoạt động:* Sử dụng OkHttp Client gọi ngầm và chặn phản hồi redirect 30x từ Google Maps rút gọn (`goo.gl/maps` hoặc `maps.app.goo.gl`) để lấy URL gốc đầy đủ. Sau đó trích xuất tọa độ POI (`!3d...!4d`), tọa độ lộ trình, hoặc tên địa điểm để phục vụ fallback tìm kiếm qua các dịch vụ Photon/Nominatim. Đồng thời phân tích mã phương tiện di chuyển được chỉ định.
 
 ---
 

@@ -36,9 +36,54 @@ void drawHUD()
     myFont.print(startX, 22, part1, TFT_SKYBLUE, TFT_BLACK);
     myFont.print(startX + len1, 22, part2, TFT_WHITE, TFT_BLACK);
 
-    // 2. Vẽ Icon hướng rẽ chính ở trung tâm (cy = 80)
-    // Ưu tiên Bitmap từ Google Maps
-    drawCustomIcon(canvasSprite, customIconBitmap, 72, 36, 2); // 48x48 scale 2 -> 96x96 (tâm y=80)
+    // 2. Icon hướng rẽ trung tâm (cy=84)
+    // Ưu tiên: 1bpp bitmap (Google Maps TBT); fallback: mũi tên vector theo navDirIdx
+    if (hasCustomIcon) {
+        drawCustomIcon(canvasSprite, customIconBitmap, 72, 36, 2);
+    } else {
+        int ax = 120, ay = 84; // tâm
+        switch (navDirIdx) {
+            case 4: // slight-left / keep-left
+                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+                canvasSprite.drawLine(ax, ay, ax - 16, ay - 30, TFT_WHITE);
+                canvasSprite.fillTriangle(ax - 16, ay - 30, ax - 8, ay - 16, ax - 24, ay - 20, TFT_WHITE);
+                break;
+            case 5: // left
+                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+                canvasSprite.drawLine(ax, ay, ax - 30, ay, TFT_WHITE);
+                canvasSprite.fillTriangle(ax - 30, ay, ax - 16, ay - 8, ax - 16, ay + 8, TFT_WHITE);
+                break;
+            case 6: // sharp-left
+                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+                canvasSprite.drawLine(ax, ay, ax - 26, ay - 26, TFT_WHITE);
+                canvasSprite.fillTriangle(ax - 26, ay - 26, ax - 12, ay - 18, ax - 18, ay - 12, TFT_WHITE);
+                break;
+            case 1: // slight-right
+                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+                canvasSprite.drawLine(ax, ay, ax + 16, ay - 30, TFT_WHITE);
+                canvasSprite.fillTriangle(ax + 16, ay - 30, ax + 8, ay - 16, ax + 24, ay - 20, TFT_WHITE);
+                break;
+            case 2: // right
+                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+                canvasSprite.drawLine(ax, ay, ax + 30, ay, TFT_WHITE);
+                canvasSprite.fillTriangle(ax + 30, ay, ax + 16, ay - 8, ax + 16, ay + 8, TFT_WHITE);
+                break;
+            case 3: // sharp-right
+                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+                canvasSprite.drawLine(ax, ay, ax + 26, ay - 26, TFT_WHITE);
+                canvasSprite.fillTriangle(ax + 26, ay - 26, ax + 12, ay - 18, ax + 18, ay - 12, TFT_WHITE);
+                break;
+            case 7: case 8: // uturn
+                canvasSprite.drawArc(ax, ay - 10, 30, 26, 0, 180, TFT_WHITE, TFT_BLACK);
+                canvasSprite.drawLine(ax + 30, ay - 10, ax + 30, ay + 28, TFT_WHITE);
+                canvasSprite.fillTriangle(ax + 30, ay + 36, ax + 22, ay + 20, ax + 38, ay + 20, TFT_WHITE);
+                break;
+            default: // 0 straight / arrive / roundabout / unknown
+                canvasSprite.drawLine(ax, ay + 30, ax, ay - 30, TFT_WHITE);
+                canvasSprite.fillTriangle(ax, ay - 38, ax - 10, ay - 22, ax + 10, ay - 22, TFT_WHITE);
+                break;
+        }
+    }
 
     // 3. Vẽ tên đường chỉ dẫn ở giữa (tự động cuộn nếu quá dài)
     myFont.set_font(FONT_HUD_STREET);
@@ -46,27 +91,20 @@ void drawHUD()
     int visibleWidth = 200;
     if (streetLen > visibleWidth)
     {
-        // Thiết lập vùng clipping để cuộn chữ không lấn ra ngoài
         clipMinX = 120 - visibleWidth / 2;
         clipMaxX = 120 + visibleWidth / 2;
         clipMinY = 130;
         clipMaxY = 160;
 
         int range = streetLen - visibleWidth + 40;
-        int scrollMs = millis() % (range * 30 + 1000); // 30ms mỗi pixel, dừng 1s ở đầu
+        int scrollMs = millis() % (range * 30 + 1000);
         int scrollX = 0;
-        if (scrollMs > 1000)
-        {
-            scrollX = (scrollMs - 1000) / 30;
-        }
+        if (scrollMs > 1000) scrollX = (scrollMs - 1000) / 30;
 
         myFont.print(120 - visibleWidth / 2 - scrollX, 135, nextStreet, TFT_WHITE, TFT_BLACK);
 
-        // Khôi phục vùng vẽ mặc định toàn màn hình
-        clipMinX = 0;
-        clipMaxX = 240;
-        clipMinY = 0;
-        clipMaxY = 240;
+        clipMinX = 0; clipMaxX = 240;
+        clipMinY = 0; clipMaxY = 240;
     }
     else
     {
@@ -78,14 +116,15 @@ void drawHUD()
     uint16_t distLen = myFont.getLength(distToNext);
     myFont.print(120 - distLen / 2, 170, distToNext, TFT_WHITE, TFT_BLACK);
 
-    // 5. Vẽ nút bản đồ dạng tròn ở dưới cùng (chuyển nhanh chế độ)
-    canvasSprite.fillCircle(120, 212, 15, TFT_DARKGREY);
-    canvasSprite.drawCircle(120, 212, 15, TFT_WHITE);
-    // Vẽ icon bản đồ gấp khúc nhỏ bên trong
-    int mcx = 120, mcy = 212;
-    canvasSprite.drawRect(mcx - 6, mcy - 6, 4, 12, TFT_WHITE);
-    canvasSprite.drawRect(mcx - 2, mcy - 4, 4, 12, TFT_WHITE);
-    canvasSprite.drawRect(mcx + 2, mcy - 6, 4, 12, TFT_WHITE);
+    // 5. Vẽ nút bấm tròn chứa mũi tên đi thẳng chỉ hướng di chuyển ở dưới cùng
+    canvasSprite.fillCircle(120, 215, 15, TFT_BLACK);
+    canvasSprite.drawCircle(120, 215, 15, TFT_WHITE);
+
+    // Vẽ mũi tên chỉ thẳng hướng lên nhỏ bên trong nút bấm
+    int acx = 120, acy = 215;
+    canvasSprite.drawLine(acx, acy + 6, acx, acy - 6, TFT_WHITE);
+    canvasSprite.drawLine(acx, acy - 6, acx - 4, acy - 2, TFT_WHITE);
+    canvasSprite.drawLine(acx, acy - 6, acx + 4, acy - 2, TFT_WHITE);
 
     canvasSprite.pushSprite(0, 0);
 }
@@ -111,15 +150,16 @@ void drawMapOverlay()
     myFont.print(startX, 15, part1, TFT_SKYBLUE, TFT_BLACK);
     myFont.print(startX + len1, 15, part2, TFT_WHITE, TFT_BLACK);
 
-    // 2. Vẽ nút bấm tròn chứa mũi tên đi thẳng chỉ hướng di chuyển ở dưới cùng
-    canvasSprite.fillCircle(120, 215, 15, TFT_BLACK);
-    canvasSprite.drawCircle(120, 215, 15, TFT_WHITE);
+    // 3. Vẽ nút bản đồ dạng tròn ở dưới cùng (chuyển nhanh chế độ)
+    canvasSprite.fillCircle(120, 212, 15, TFT_DARKGREY);
+    canvasSprite.drawCircle(120, 212, 15, TFT_WHITE);
+    // Vẽ icon bản đồ gấp khúc nhỏ bên trong
+    int mcx = 120, mcy = 212;
+    canvasSprite.drawRect(mcx - 6, mcy - 6, 4, 12, TFT_WHITE);
+    canvasSprite.drawRect(mcx - 2, mcy - 4, 4, 12, TFT_WHITE);
+    canvasSprite.drawRect(mcx + 2, mcy - 6, 4, 12, TFT_WHITE);
 
-    // Vẽ mũi tên chỉ thẳng hướng lên nhỏ bên trong nút bấm
-    int acx = 120, acy = 215;
-    canvasSprite.drawLine(acx, acy + 6, acx, acy - 6, TFT_WHITE);
-    canvasSprite.drawLine(acx, acy - 6, acx - 4, acy - 2, TFT_WHITE);
-    canvasSprite.drawLine(acx, acy - 6, acx + 4, acy - 2, TFT_WHITE);
+    canvasSprite.pushSprite(0, 0);
 }
 
 // Vẽ icon thời tiết dạng pixel tại vị trí (cx, cy) kích thước ~20px

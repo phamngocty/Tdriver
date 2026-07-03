@@ -126,8 +126,19 @@ class SettingsFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             com.example.tymap.repository.NavigationRepository.deviceStatus.collect { status ->
                 val display = status["display"] ?: ""
-                val isOled = display.contains("OLED")
+                val isOled = display.contains("OLED") || display.contains("SSD1306")
                 binding.layoutJpegOptions.visibility = if (isOled) View.GONE else View.VISIBLE
+                
+                if (isOled) {
+                    val currentMode = PrefsHelper.getInt(requireContext(), "map_capture_mode", 0)
+                    if (currentMode == 3) {
+                        binding.spinnerMapCaptureMode.setSelection(0)
+                        PrefsHelper.putInt(requireContext(), "map_capture_mode", 0)
+                        PrefsHelper.putBoolean(requireContext(), "tile_streaming", false)
+                        updateCropVisibility(0)
+                        Toast.makeText(requireContext(), "Thiết bị OLED không hỗ trợ Tile Streaming. Chuyển về bản đồ tĩnh.", Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         }
     }
@@ -142,6 +153,14 @@ class SettingsFragment : Fragment() {
 
     private fun setupUI() {
         val context = requireContext()
+
+        // 0. THEME
+        val themes = arrayOf("Hệ thống", "Sáng", "Tối")
+        val currentTheme = PrefsHelper.getInt(context, "app_theme", 0)
+        setupSpinner(binding.spinnerTheme, themes, currentTheme) {
+            PrefsHelper.putInt(context, "app_theme", it)
+            applyTheme(it)
+        }
 
         // 1. DISPLAY
         val timeFormats = arrayOf("12h", "24h")
@@ -183,6 +202,18 @@ class SettingsFragment : Fragment() {
         setupSpinner(binding.spinnerMapOrientation, orientations, PrefsHelper.getInt(context, "map_orientation", 1)) {
             PrefsHelper.putInt(context, "map_orientation", it)
         }
+
+        binding.switchOfflinePriority.isChecked = PrefsHelper.getBoolean(context, "offline_priority", true)
+        binding.switchOfflinePriority.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "offline_priority", isChecked)
+        }
+
+        binding.btnManageOfflineMaps.setOnClickListener {
+            val intent = Intent(requireContext(), OfflineMapActivity::class.java)
+            startActivity(intent)
+        }
+
+
 
         // 3. ROUTING
         val engines = arrayOf("OSRM Demo", "OpenRouteService", "GraphHopper", "Valhalla", "Mapbox")
@@ -257,11 +288,17 @@ class SettingsFragment : Fragment() {
 
         // 5. DATA SENDING
         val captureModes = arrayOf(
-            "Bản đồ OSM (Dẫn đường App)",
+            "Bản đồ OSM tĩnh (Continuous)",
             "Chụp Google Maps (Liên tục)",
-            "Chụp Google Maps (Theo ngã rẽ/Popup)"
+            "Chụp Google Maps (Theo ngã rẽ/Popup)",
+            "Bản đồ OSM cuốn chiếu (Tile Streaming)"
         )
-        val initialMode = PrefsHelper.getInt(context, "map_capture_mode", 0)
+        var initialMode = PrefsHelper.getInt(context, "map_capture_mode", 0)
+        val isTileStreamingOld = PrefsHelper.getBoolean(context, "tile_streaming", false)
+        if (isTileStreamingOld && initialMode == 0) {
+            initialMode = 3
+            PrefsHelper.putInt(context, "map_capture_mode", 3)
+        }
         
         updateCropVisibility(initialMode)
         updateCropSummaries()
@@ -269,6 +306,11 @@ class SettingsFragment : Fragment() {
         var isFirstSelectionMapCapture = true
         setupSpinner(binding.spinnerMapCaptureMode, captureModes, initialMode) { mode ->
             PrefsHelper.putInt(context, "map_capture_mode", mode)
+            if (mode == 3) {
+                PrefsHelper.putBoolean(context, "tile_streaming", true)
+            } else {
+                PrefsHelper.putBoolean(context, "tile_streaming", false)
+            }
             updateCropVisibility(mode)
             
             if (isFirstSelectionMapCapture) {
@@ -621,8 +663,13 @@ class SettingsFragment : Fragment() {
             .show()
     }
 
-    private fun updateTheme(position: Int) {
-        // Feature disabled: App is locked to Dark Mode
+    private fun applyTheme(themeMode: Int) {
+        val mode = when (themeMode) {
+            1 -> AppCompatDelegate.MODE_NIGHT_NO
+            2 -> AppCompatDelegate.MODE_NIGHT_YES
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        AppCompatDelegate.setDefaultNightMode(mode)
     }
 
 
@@ -632,16 +679,25 @@ class SettingsFragment : Fragment() {
     }
 
     private fun updateCropVisibility(mode: Int) {
-        if (mode == 1 || mode == 2) {
-            binding.btnConfigCropGmaps.visibility = View.VISIBLE
-            binding.tvCropSummaryGmaps.visibility = View.VISIBLE
-            binding.btnConfigCropMapTab.visibility = View.GONE
-            binding.tvCropSummaryMapTab.visibility = View.GONE
-        } else {
-            binding.btnConfigCropGmaps.visibility = View.GONE
-            binding.tvCropSummaryGmaps.visibility = View.GONE
-            binding.btnConfigCropMapTab.visibility = View.VISIBLE
-            binding.tvCropSummaryMapTab.visibility = View.VISIBLE
+        when (mode) {
+            1, 2 -> {
+                binding.btnConfigCropGmaps.visibility = View.VISIBLE
+                binding.tvCropSummaryGmaps.visibility = View.VISIBLE
+                binding.btnConfigCropMapTab.visibility = View.GONE
+                binding.tvCropSummaryMapTab.visibility = View.GONE
+            }
+            0 -> {
+                binding.btnConfigCropGmaps.visibility = View.GONE
+                binding.tvCropSummaryGmaps.visibility = View.GONE
+                binding.btnConfigCropMapTab.visibility = View.VISIBLE
+                binding.tvCropSummaryMapTab.visibility = View.VISIBLE
+            }
+            else -> { // mode == 3 (Tile Streaming)
+                binding.btnConfigCropGmaps.visibility = View.GONE
+                binding.tvCropSummaryGmaps.visibility = View.GONE
+                binding.btnConfigCropMapTab.visibility = View.GONE
+                binding.tvCropSummaryMapTab.visibility = View.GONE
+            }
         }
     }
 
@@ -673,18 +729,17 @@ class SettingsFragment : Fragment() {
             val checkedId = checkedIds.firstOrNull() ?: R.id.chipAll
             
             // Ẩn tất cả card trước
-            binding.cardDisplay.visibility = View.GONE
+            binding.cardGeneral.visibility = View.GONE
             binding.cardMap.visibility = View.GONE
             binding.cardRouting.visibility = View.GONE
             binding.cardVoice.visibility = View.GONE
-            binding.cardEsp32Data.visibility = View.GONE
+            binding.cardMapTransfer.visibility = View.GONE
+            binding.cardPopup.visibility = View.GONE
             binding.cardOled.visibility = View.GONE
-            binding.cardSystem.visibility = View.GONE
             
             when (checkedId) {
                 R.id.chipGeneral -> {
-                    binding.cardDisplay.visibility = View.VISIBLE
-                    binding.cardSystem.visibility = View.VISIBLE
+                    binding.cardGeneral.visibility = View.VISIBLE
                 }
                 R.id.chipMap -> {
                     binding.cardMap.visibility = View.VISIBLE
@@ -696,17 +751,18 @@ class SettingsFragment : Fragment() {
                     binding.cardVoice.visibility = View.VISIBLE
                 }
                 R.id.chipData -> {
-                    binding.cardEsp32Data.visibility = View.VISIBLE
+                    binding.cardMapTransfer.visibility = View.VISIBLE
+                    binding.cardPopup.visibility = View.VISIBLE
                     binding.cardOled.visibility = View.VISIBLE
                 }
                 else -> { // chipAll / mặc định hiển thị tất cả
-                    binding.cardDisplay.visibility = View.VISIBLE
+                    binding.cardGeneral.visibility = View.VISIBLE
                     binding.cardMap.visibility = View.VISIBLE
                     binding.cardRouting.visibility = View.VISIBLE
                     binding.cardVoice.visibility = View.VISIBLE
-                    binding.cardEsp32Data.visibility = View.VISIBLE
+                    binding.cardMapTransfer.visibility = View.VISIBLE
+                    binding.cardPopup.visibility = View.VISIBLE
                     binding.cardOled.visibility = View.VISIBLE
-                    binding.cardSystem.visibility = View.VISIBLE
                 }
             }
         }

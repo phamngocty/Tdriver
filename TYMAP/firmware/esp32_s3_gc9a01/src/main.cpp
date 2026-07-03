@@ -31,6 +31,44 @@ const char *CHA_DEVICE_STATUS_UUID = "a1b2c3d4-e5f6-4789-b012-3456789abcde";
 const char *CHA_NOTIFICATION_UUID = "c1d2e3f4-a5b6-4789-c012-3456789abcde";
 const char *CHA_PHONE_BATTERY_UUID = "e5f6a7b8-c9d0-4123-e456-789012cdef01"; // NEW: Pin điện thoại
 
+// Tile Streaming UUIDs
+const char *CHA_MAP_TILE_UUID = "d1e2f3a4-b5c6-4789-d012-3456789abcde";
+const char *CHA_MAP_CTRL_UUID = "e2f3a4b5-c6d7-4890-e123-456789abcdef";
+const char *CHA_MAP_STATUS_UUID = "f3a4b5c6-d7e8-4901-f234-567890abcdef";
+
+struct MapTile {
+    uint32_t x;
+    uint32_t y;
+    uint8_t z;
+    uint16_t* rgb565Data;
+    uint32_t lastUsed;
+    bool active;
+};
+
+#define MAX_TILES 9
+MapTile tileCache[MAX_TILES];
+bool tileCacheInitialized = false;
+int TILE_SIZE = 256;
+int MAX_TILES_DYNAMIC = 9;
+
+uint32_t activeTileX = 0;
+uint32_t activeTileY = 0;
+uint8_t activeTileZ = 0;
+bool hasActiveTile = false;
+
+int vehiclePx = 128;
+int vehiclePy = 128;
+int vehicleBearing = 0;
+
+uint8_t *tileBuffer = nullptr;
+uint32_t tileBufferSize = 0;
+uint32_t tileBufferWritten = 0;
+bool isReceivingTile = false;
+
+uint32_t recvTileX = 0;
+uint32_t recvTileY = 0;
+uint8_t recvTileZ = 0;
+
 Mode currentMode = STATUS_MODE;
 
 // Nhận JPEG qua BLE
@@ -107,6 +145,7 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         isReceivingJpeg = false;
         jpegSize = 0;
         jpegWritten = 0;
+        hasActiveTile = false;
         needClearScreen = true;
         screenNeedsRedraw = true;
         advertisingPending = true;
@@ -128,12 +167,18 @@ NimBLECharacteristic *pDeviceStatusChar = nullptr;
 NimBLECharacteristic *pNotificationChar = nullptr;
 NimBLECharacteristic *pPhoneBatteryChar = nullptr; // NEW: Pin điện thoại
 
+// Tile Streaming Pointers
+NimBLECharacteristic *pMapTileChar = nullptr;
+NimBLECharacteristic *pMapCtrlChar = nullptr;
+NimBLECharacteristic *pMapStatusChar = nullptr;
+
 // HUD Dẫn đường
 String nextStreet = "";
 String distToNext = "";
 String totalDist = "";
 String eta = "";
 String ete = "";
+int navDirIdx = 0; // Maneuver index từ mapManeuverToIcon() của Android app
 int gpsSpeed = 0;
 uint32_t lastNavUpdate = 0;
 
@@ -219,6 +264,246 @@ void addIconToCache(uint32_t hash, const uint8_t *bitmap)
         iconCache[49].hash = hash;
         memcpy(iconCache[49].bitmap, bitmap, 288);
     }
+}
+
+// Tile Cache Management & Rendering
+uint16_t* decodeTargetBuffer = nullptr;
+
+int drawJPEGToBuffer(JPEGDRAW *pDraw)
+{
+    if (decodeTargetBuffer)
+    {
+        int yOffset = pDraw->y;
+        int xOffset = pDraw->x;
+        for (int y = 0; y < pDraw->iHeight; y++)
+        {
+            memcpy(decodeTargetBuffer + (yOffset + y) * TILE_SIZE + xOffset,
+                   pDraw->pPixels + y * pDraw->iWidth,
+                   pDraw->iWidth * 2);
+        }
+    }
+    return 1;
+}
+
+void sendMapCacheStatus()
+{
+    if (!pMapStatusChar) return;
+    char buffer[256];
+    String cacheList = "";
+    for (int i = 0; i < MAX_TILES_DYNAMIC; i++)
+    {
+        if (tileCache[i].active)
+        {
+            if (cacheList.length() > 0) cacheList += ",";
+            cacheList += String(tileCache[i].x) + ":" + String(tileCache[i].y);
+        }
+    }
+    snprintf(buffer, sizeof(buffer), "x=%d\ny=%d\nz=%d\ncache=%s",
+             activeTileX, activeTileY, activeTileZ, cacheList.c_str());
+    pMapStatusChar->setValue((uint8_t*)buffer, strlen(buffer));
+    pMapStatusChar->notify();
+}
+
+void saveTileToCache(uint32_t tx, uint32_t ty, uint8_t tz, const uint8_t *jpegData, uint32_t jpegLen)
+{
+    if (!tileCacheInitialized) return;
+    
+    int targetSlot = -1;
+    uint32_t minLastUsed = 0xFFFFFFFF;
+    
+    for (int i = 0; i < MAX_TILES_DYNAMIC; i++)
+    {
+        if (tileCache[i].active && tileCache[i].x == tx && tileCache[i].y == ty && tileCache[i].z == tz)
+        {
+            targetSlot = i;
+            break;
+        }
+    }
+    
+    if (targetSlot == -1)
+    {
+        for (int i = 0; i < MAX_TILES_DYNAMIC; i++)
+        {
+            if (!tileCache[i].active)
+            {
+                targetSlot = i;
+                break;
+            }
+            if (tileCache[i].lastUsed < minLastUsed)
+            {
+                minLastUsed = tileCache[i].lastUsed;
+                targetSlot = i;
+            }
+        }
+    }
+    
+    if (targetSlot != -1)
+    {
+        decodeTargetBuffer = tileCache[targetSlot].rgb565Data;
+        if (decodeTargetBuffer)
+        {
+            JPEGDEC tileDecoder;
+            if (tileDecoder.openRAM((uint8_t *)jpegData, jpegLen, drawJPEGToBuffer))
+            {
+                int scale = (TILE_SIZE == 128) ? 2 : 0; // scale 1/2 nếu không có PSRAM
+                tileDecoder.decode(0, 0, scale);
+                tileDecoder.close();
+                
+                tileCache[targetSlot].x = tx;
+                tileCache[targetSlot].y = ty;
+                tileCache[targetSlot].z = tz;
+                tileCache[targetSlot].active = true;
+                tileCache[targetSlot].lastUsed = millis();
+                
+                Serial.printf("Tile Cache: Saved tile (%d, %d, %d) to slot %d (Size: %d)\n", tx, ty, tz, targetSlot, TILE_SIZE);
+                sendMapCacheStatus();
+            }
+            else
+            {
+                Serial.println("Tile Cache: Failed to open JPEG for tile decoding");
+            }
+        }
+        decodeTargetBuffer = nullptr;
+    }
+}
+
+void renderTileStreamingMap()
+{
+    if (!hasActiveTile)
+    {
+        canvasSprite.fillSprite(TFT_BLACK);
+        canvasSprite.setTextColor(TFT_WHITE);
+        canvasSprite.drawCentreString("Đang chờ định vị...", 120, 110, 2);
+        canvasSprite.pushSprite(0, 0);
+        return;
+    }
+    
+    int activeSlot = -1;
+    for (int i = 0; i < MAX_TILES_DYNAMIC; i++)
+    {
+        if (tileCache[i].active && tileCache[i].x == activeTileX && tileCache[i].y == activeTileY && tileCache[i].z == activeTileZ)
+        {
+            activeSlot = i;
+            break;
+        }
+    }
+    
+    if (activeSlot == -1)
+    {
+        canvasSprite.fillSprite(TFT_BLACK);
+        canvasSprite.setTextColor(TFT_WHITE);
+        canvasSprite.drawCentreString("Đang nạp bản đồ...", 120, 110, 2);
+        canvasSprite.pushSprite(0, 0);
+        return;
+    }
+    
+    tileCache[activeSlot].lastUsed = millis();
+    uint16_t *activeData = tileCache[activeSlot].rgb565Data;
+    
+    // Tìm các ô tile lân cận
+    uint16_t *tileN = nullptr;
+    uint16_t *tileS = nullptr;
+    uint16_t *tileW = nullptr;
+    uint16_t *tileE = nullptr;
+    uint16_t *tileNW = nullptr;
+    uint16_t *tileNE = nullptr;
+    uint16_t *tileSW = nullptr;
+    uint16_t *tileSE = nullptr;
+    
+    for (int i = 0; i < MAX_TILES_DYNAMIC; i++)
+    {
+        if (!tileCache[i].active || tileCache[i].z != activeTileZ) continue;
+        int dx = (int)tileCache[i].x - (int)activeTileX;
+        int dy = (int)tileCache[i].y - (int)activeTileY;
+        if (dx == 0 && dy == -1) tileN = tileCache[i].rgb565Data;
+        else if (dx == 0 && dy == 1) tileS = tileCache[i].rgb565Data;
+        else if (dx == -1 && dy == 0) tileW = tileCache[i].rgb565Data;
+        else if (dx == 1 && dy == 0) tileE = tileCache[i].rgb565Data;
+        else if (dx == -1 && dy == -1) tileNW = tileCache[i].rgb565Data;
+        else if (dx == 1 && dy == -1) tileNE = tileCache[i].rgb565Data;
+        else if (dx == -1 && dy == 1) tileSW = tileCache[i].rgb565Data;
+        else if (dx == 1 && dy == 1) tileSE = tileCache[i].rgb565Data;
+    }
+    
+    float angleRad = (float)vehicleBearing * 3.14159265f / 180.0f;
+    float cos_a = cos(-angleRad);
+    float sin_a = sin(-angleRad);
+    
+    uint16_t canvasBuffer[240];
+    
+    // Đồng bộ toạ độ xe tỉ lệ thuận theo TILE_SIZE (tránh lệch xe trên map khi TILE_SIZE=128)
+    float vPx = (float)vehiclePx * (float)TILE_SIZE / 256.0f;
+    float vPy = (float)vehiclePy * (float)TILE_SIZE / 256.0f;
+    
+    for (int dy = 0; dy < 240; dy++)
+    {
+        float y_screen = dy - 120;
+        float x_screen_start = -120;
+        
+        float rx = x_screen_start * cos_a - y_screen * sin_a + vPx;
+        float ry = x_screen_start * sin_a + y_screen * cos_a + vPy;
+        
+        for (int dx = 0; dx < 240; dx++)
+        {
+            float radSq = (dx - 120)*(dx - 120) + (dy - 120)*(dy - 120);
+            if (radSq > 14400)
+            {
+                canvasBuffer[dx] = TFT_BLACK;
+                rx += cos_a;
+                ry += sin_a;
+                continue;
+            }
+            
+            int tx = (int)floor(rx);
+            int ty = (int)floor(ry);
+            
+            uint16_t color = TFT_BLACK;
+            
+            if (tx >= 0 && tx < TILE_SIZE && ty >= 0 && ty < TILE_SIZE)
+            {
+                color = activeData[ty * TILE_SIZE + tx];
+            }
+            else
+            {
+                int tile_dx = (tx < 0) ? -1 : ((tx >= TILE_SIZE) ? 1 : 0);
+                int tile_dy = (ty < 0) ? -1 : ((ty >= TILE_SIZE) ? 1 : 0);
+                
+                int local_x = (tx < 0) ? (tx + TILE_SIZE) : ((tx >= TILE_SIZE) ? (tx - TILE_SIZE) : tx);
+                int local_y = (ty < 0) ? (ty + TILE_SIZE) : ((ty >= TILE_SIZE) ? (ty - TILE_SIZE) : ty);
+                
+                uint16_t *neighborData = nullptr;
+                if (tile_dx == 0 && tile_dy == -1) neighborData = tileN;
+                else if (tile_dx == 0 && tile_dy == 1) neighborData = tileS;
+                else if (tile_dx == -1 && tile_dy == 0) neighborData = tileW;
+                else if (tile_dx == 1 && tile_dy == 0) neighborData = tileE;
+                else if (tile_dx == -1 && tile_dy == -1) neighborData = tileNW;
+                else if (tile_dx == 1 && tile_dy == -1) neighborData = tileNE;
+                else if (tile_dx == -1 && tile_dy == 1) neighborData = tileSW;
+                else if (tile_dx == 1 && tile_dy == 1) neighborData = tileSE;
+                
+                if (neighborData)
+                {
+                    color = neighborData[local_y * TILE_SIZE + local_x];
+                }
+                else
+                {
+                    color = 0xE73C;
+                }
+            }
+            
+            canvasBuffer[dx] = color;
+            rx += cos_a;
+            ry += sin_a;
+        }
+        
+        for (int dx = 0; dx < 240; dx++)
+        {
+            canvasSprite.drawPixel(dx, dy, canvasBuffer[dx]);
+        }
+    }
+    
+    drawMapOverlay();
+    canvasSprite.pushSprite(0, 0);
 }
 
 // Gửi trạng thái qua BLE
@@ -320,8 +605,10 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                         distToNext = value;
                     else if (key == "inst" || key == "title")
                         nextStreet = value;
-                    else if (key == "road" || key == "dir")
-                        totalDist = value; // tên đường rẽ
+                    else if (key == "road")
+                        totalDist = value; // tổng quãng đường
+                    else if (key == "dir")
+                        navDirIdx = value.toInt(); // maneuver index từ app Android
                     else if (key == "eta")
                         eta = value;
                     else if (key == "ete")
@@ -332,6 +619,12 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
             if (isActive)
             {
                 lastNavUpdate = millis();
+                if (currentMode == STATUS_MODE)
+                {
+                    currentMode = HUD_MODE;
+                    needClearScreen = true;
+                    screenNeedsRedraw = true;
+                }
             }
             else
             {
@@ -343,6 +636,7 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     isReceivingJpeg = false;
                     jpegSize = 0;
                     jpegWritten = 0;
+                    hasActiveTile = false;
                     statusUpdatePending = true; // Cập nhật trạng thái an toàn qua luồng loop
                 }
             }
@@ -414,11 +708,43 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
         }
         else if (uuid == CHA_GPS_SPEED_UUID)
         {
-            int newSpeed = atoi(val.c_str());
-            if (newSpeed != gpsSpeed)
+            String sVal = val.c_str();
+            if (sVal.startsWith("speed="))
             {
-                gpsSpeed = newSpeed;
+                int speed = 0, bearing = 0, px = 128, py = 128;
+                int start = 0;
+                while (start < sVal.length())
+                {
+                    int comma = sVal.indexOf(',', start);
+                    if (comma == -1) comma = sVal.length();
+                    String part = sVal.substring(start, comma);
+                    start = comma + 1;
+                    
+                    int eq = part.indexOf('=');
+                    if (eq != -1)
+                    {
+                        String k = part.substring(0, eq);
+                        String v = part.substring(eq + 1);
+                        if (k == "speed") speed = v.toInt();
+                        else if (k == "bearing") bearing = v.toInt();
+                        else if (k == "px") px = v.toInt();
+                        else if (k == "py") py = v.toInt();
+                    }
+                }
+                gpsSpeed = speed;
+                vehicleBearing = bearing;
+                vehiclePx = px;
+                vehiclePy = py;
                 screenNeedsRedraw = true;
+            }
+            else
+            {
+                int newSpeed = atoi(val.c_str());
+                if (newSpeed != gpsSpeed)
+                {
+                    gpsSpeed = newSpeed;
+                    screenNeedsRedraw = true;
+                }
             }
         }
         else if (uuid == CHA_SETTINGS_UUID)
@@ -528,6 +854,113 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                         popupStartTime = millis();
                     }
                 }
+            }
+        }
+        else if (uuid == CHA_MAP_TILE_UUID)
+        {
+            if (!isReceivingTile)
+            {
+                if (val.length() >= 7)
+                {
+                    uint8_t rx = val[0];
+                    uint8_t ry = val[1];
+                    recvTileZ = val[2];
+                    memcpy(&tileBufferSize, val.data() + 3, 4);
+                    
+                    recvTileX = (activeTileX & 0xFFFFFF00) | rx;
+                    int diffX = (int)(recvTileX & 0xFF) - (int)(activeTileX & 0xFF);
+                    if (diffX > 128) recvTileX -= 0x100;
+                    else if (diffX < -128) recvTileX += 0x100;
+                    
+                    recvTileY = (activeTileY & 0xFFFFFF00) | ry;
+                    int diffY = (int)(recvTileY & 0xFF) - (int)(activeTileY & 0xFF);
+                    if (diffY > 128) recvTileY -= 0x100;
+                    else if (diffY < -128) recvTileY += 0x100;
+                    
+                    tileBufferWritten = 0;
+                    isReceivingTile = true;
+                    Serial.printf("BLE: Tile Receive Start -> Tile(%d, %d, %d), Size=%d bytes\n", recvTileX, recvTileY, recvTileZ, tileBufferSize);
+
+                    int remainingBytes = val.length() - 7;
+                    if (remainingBytes > 0)
+                    {
+                        memcpy(tileBuffer, val.data() + 7, remainingBytes);
+                        tileBufferWritten = remainingBytes;
+                    }
+
+                    if (tileBufferWritten >= tileBufferSize)
+                    {
+                        isReceivingTile = false;
+                        saveTileToCache(recvTileX, recvTileY, recvTileZ, tileBuffer, tileBufferSize);
+                        screenNeedsRedraw = true;
+                    }
+                }
+            }
+            else
+            {
+                memcpy(tileBuffer + tileBufferWritten, val.data(), val.length());
+                tileBufferWritten += val.length();
+                if (tileBufferWritten >= tileBufferSize)
+                {
+                    isReceivingTile = false;
+                    saveTileToCache(recvTileX, recvTileY, recvTileZ, tileBuffer, tileBufferSize);
+                    screenNeedsRedraw = true;
+                }
+            }
+        }
+        else if (uuid == CHA_MAP_CTRL_UUID)
+        {
+            if (val.length() == 10)
+            {
+                uint8_t cmd = val[0];
+                if (cmd == 0x01)
+                {
+                    uint32_t cx, cy;
+                    uint8_t cz;
+                    memcpy(&cx, val.data() + 1, 4);
+                    memcpy(&cy, val.data() + 5, 4);
+                    cz = val[9];
+                    
+                    activeTileX = cx;
+                    activeTileY = cy;
+                    activeTileZ = cz;
+                    hasActiveTile = true;
+                    
+                    Serial.printf("BLE: Active Tile switched to (%d, %d, %d)\n", cx, cy, cz);
+                    sendMapCacheStatus();
+                    screenNeedsRedraw = true;
+                }
+            }
+            else if (val.length() == 1)
+            {
+                uint8_t cmd = val[0];
+                if (cmd == 0x03)
+                {
+                    hasActiveTile = false;
+                    for (int i = 0; i < MAX_TILES_DYNAMIC; i++)
+                    {
+                        tileCache[i].active = false;
+                    }
+                    Serial.println("BLE: Reset all tiles and disabled tile streaming");
+                    screenNeedsRedraw = true;
+                }
+            }
+            else if (val.length() == 9)
+            {
+                uint32_t cx, cy;
+                uint8_t cz;
+                memcpy(&cx, val.data(), 4);
+                memcpy(&cy, val.data() + 4, 4);
+                cz = val[8];
+                
+                activeTileX = cx;
+                activeTileY = cy;
+                activeTileZ = cz;
+                hasActiveTile = true;
+                
+                Serial.printf("BLE: Active Tile switched to (%d, %d, %d) (raw)\n", cx, cy, cz);
+                sendMapCacheStatus();
+                screenNeedsRedraw = true;
             }
         }
         else if (uuid == CHA_DEVICE_CTRL_UUID)
@@ -678,6 +1111,49 @@ void setup()
         jpegBuffer = (uint8_t *)malloc(32 * 1024); // Fallback to SRAM
     }
 
+    // Khởi tạo tile cache trong PSRAM
+    // Tự động cấu hình kích thước và số lượng tile cache theo tài nguyên PSRAM
+    bool hasPsram = psramFound();
+    if (hasPsram)
+    {
+        TILE_SIZE = 256;
+        MAX_TILES_DYNAMIC = 9;
+        Serial.println("PSRAM detected: Running full Tile Cache (9 tiles, 256x256)");
+    }
+    else
+    {
+        TILE_SIZE = 128;
+        MAX_TILES_DYNAMIC = 1; // Chỉ dùng 1 tile 128x128 để an toàn SRAM tránh OOM crash
+        Serial.println("NO PSRAM detected: Running low memory Tile Cache (1 tile, 128x128)");
+    }
+
+    for (int i = 0; i < MAX_TILES; i++) {
+        tileCache[i].x = 0;
+        tileCache[i].y = 0;
+        tileCache[i].z = 0;
+        tileCache[i].rgb565Data = nullptr;
+        
+        if (i < MAX_TILES_DYNAMIC)
+        {
+            tileCache[i].rgb565Data = (uint16_t*)ps_malloc(TILE_SIZE * TILE_SIZE * 2);
+            if (!tileCache[i].rgb565Data) {
+                tileCache[i].rgb565Data = (uint16_t*)malloc(TILE_SIZE * TILE_SIZE * 2);
+            }
+            if (tileCache[i].rgb565Data) {
+                memset(tileCache[i].rgb565Data, 0, TILE_SIZE * TILE_SIZE * 2);
+            }
+        }
+        tileCache[i].lastUsed = 0;
+        tileCache[i].active = false;
+    }
+    tileCacheInitialized = true;
+    
+    // Cấp phát buffer tile JPEG
+    tileBuffer = (uint8_t *)ps_malloc(32 * 1024);
+    if (!tileBuffer) {
+        tileBuffer = (uint8_t *)malloc(32 * 1024);
+    }
+
     // Khởi tạo màn hình
     tft.init();
     tft.setRotation(0);
@@ -758,6 +1234,14 @@ void setup()
 
     pPhoneBatteryChar = pService->createCharacteristic(CHA_PHONE_BATTERY_UUID, NIMBLE_PROPERTY::WRITE);
     pPhoneBatteryChar->setCallbacks(sCallbacks);
+
+    pMapTileChar = pService->createCharacteristic(CHA_MAP_TILE_UUID, NIMBLE_PROPERTY::WRITE);
+    pMapTileChar->setCallbacks(sCallbacks);
+
+    pMapCtrlChar = pService->createCharacteristic(CHA_MAP_CTRL_UUID, NIMBLE_PROPERTY::WRITE);
+    pMapCtrlChar->setCallbacks(sCallbacks);
+
+    pMapStatusChar = pService->createCharacteristic(CHA_MAP_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
     pService->start();
     NimBLEDevice::getAdvertising()->start();
@@ -883,7 +1367,7 @@ void loop()
     }
 
     // Kiểm tra timeout của HUD để về STATUS mode
-    if (currentMode == HUD_MODE && millis() - lastNavUpdate > (uint32_t)(hudTimeout * 30000))
+    if (currentMode == HUD_MODE && millis() - lastNavUpdate > (uint32_t)(hudTimeout * 1000))
     {
         currentMode = STATUS_MODE;
         screenNeedsRedraw = true;
@@ -917,6 +1401,10 @@ void loop()
     if (millis() - lastStatusSent > 10000)
     {
         statusUpdatePending = true;
+        if (hasActiveTile)
+        {
+            sendMapCacheStatus();
+        }
     }
 
     // Clear screen if requested from BLE thread safely
@@ -937,15 +1425,25 @@ void loop()
     }
     else if (isPopupActive)
     {
-        // Đang vẽ ảnh chụp bản đồ (JPEG) phủ đè lên HUD
-        if (newMapImageAvailable && jpegSize > 0 && !isReceivingJpeg)
+        if (hasActiveTile)
         {
-            renderJpegImage(jpegBuffer, jpegSize);
-            newMapImageAvailable = false;
+            if (screenNeedsRedraw)
+            {
+                renderTileStreamingMap();
+            }
         }
-        else if (screenNeedsRedraw && jpegSize > 0 && !isReceivingJpeg)
+        else
         {
-            renderJpegImage(jpegBuffer, jpegSize);
+            // Đang vẽ ảnh chụp bản đồ (JPEG) phủ đè lên HUD
+            if (newMapImageAvailable && jpegSize > 0 && !isReceivingJpeg)
+            {
+                renderJpegImage(jpegBuffer, jpegSize);
+                newMapImageAvailable = false;
+            }
+            else if (screenNeedsRedraw && jpegSize > 0 && !isReceivingJpeg)
+            {
+                renderJpegImage(jpegBuffer, jpegSize);
+            }
         }
     }
     else
@@ -967,14 +1465,24 @@ void loop()
                 drawHUD();
                 break;
             case MAP_MODE:
-                if (newMapImageAvailable && jpegSize > 0 && !isReceivingJpeg)
+                if (hasActiveTile)
                 {
-                    renderJpegImage(jpegBuffer, jpegSize);
-                    newMapImageAvailable = false;
+                    if (screenNeedsRedraw)
+                    {
+                        renderTileStreamingMap();
+                    }
                 }
-                else if (screenNeedsRedraw && jpegSize > 0 && !isReceivingJpeg)
+                else
                 {
-                    renderJpegImage(jpegBuffer, jpegSize);
+                    if (newMapImageAvailable && jpegSize > 0 && !isReceivingJpeg)
+                    {
+                        renderJpegImage(jpegBuffer, jpegSize);
+                        newMapImageAvailable = false;
+                    }
+                    else if (screenNeedsRedraw && jpegSize > 0 && !isReceivingJpeg)
+                    {
+                        renderJpegImage(jpegBuffer, jpegSize);
+                    }
                 }
                 break;
             case STATUS_MODE:

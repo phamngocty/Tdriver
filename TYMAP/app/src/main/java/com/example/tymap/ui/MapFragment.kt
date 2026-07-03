@@ -59,6 +59,26 @@ import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.compass.IOrientationConsumer
 import org.osmdroid.views.overlay.compass.IOrientationProvider
+import android.graphics.DashPathEffect
+import android.graphics.RectF
+import android.widget.CheckBox
+import android.widget.TextView
+import android.widget.EditText
+import android.content.DialogInterface
+import com.example.tymap.utils.OfflineFileTileProvider
+import com.example.tymap.service.OfflineDownloadService
+import org.osmdroid.util.BoundingBox
+import org.osmdroid.tileprovider.modules.MapTileModuleProviderBase
+import org.osmdroid.tileprovider.MapTileProviderArray
+import org.osmdroid.tileprovider.util.SimpleRegisterReceiver
+import java.io.File
+import java.util.UUID
+import kotlin.math.min
+import kotlin.math.max
+import kotlin.math.abs
+import android.os.Build
+import org.osmdroid.views.MapView
+import org.osmdroid.views.Projection
 
 class MapFragment : Fragment(), IOrientationConsumer {
     private var _binding: FragmentMapBinding? = null
@@ -76,6 +96,9 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private var drawRoutesJob: Job? = null
     private var compassOverlay: CompassOverlay? = null
     private var orientationProvider: InternalCompassOrientationProvider? = null
+    
+    private var selectionOverlay: SelectionOverlay? = null
+    private var offlineSelectionBinding: com.example.tymap.databinding.LayoutOfflineSelectionBinding? = null
 
     private var isFollowing = true
     private var isTrackUp = true
@@ -283,7 +306,32 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
         binding.mapView.tileProvider.tileRequestCompleteHandlers.add(tileCallbackHandler)
 
+        injectOfflineProvider()
         updateZoomButtonsState()
+    }
+
+    private fun injectOfflineProvider() {
+        val context = requireContext()
+        val isOfflinePriority = PrefsHelper.getBoolean(context, "offline_priority", true)
+        if (!isOfflinePriority) return
+
+        val offlineDir = File(context.getExternalFilesDir(null), "offline_maps")
+        try {
+            val provider = binding.mapView.tileProvider
+            val field = org.osmdroid.tileprovider.MapTileProviderArray::class.java.getDeclaredField("mTileProviderList")
+            field.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            val list = field.get(provider) as MutableList<org.osmdroid.tileprovider.modules.MapTileModuleProviderBase>
+
+            val alreadyExists = list.any { it is OfflineFileTileProvider }
+            if (!alreadyExists) {
+                val offlineProvider = OfflineFileTileProvider(provider.tileSource, offlineDir)
+                list.add(0, offlineProvider)
+                android.util.Log.d("MapFragment", "Successfully injected OfflineFileTileProvider into MapView")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MapFragment", "Error injecting offline provider: ${e.message}", e)
+        }
     }
 
     private fun createUserIcon(context: Context): android.graphics.drawable.Drawable {
@@ -611,8 +659,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
             updateLocationButtonState()
             val context = requireContext()
             NavigationRepository.gpsLocation.value?.let {
-                binding.mapView.controller.setCenter(GeoPoint(it.latitude, it.longitude))
-                binding.mapView.controller.setZoom(PrefsHelper.getFloat(context, "default_zoom", 15f).toDouble())
+                val point = GeoPoint(it.latitude, it.longitude)
+                binding.mapView.controller.animateTo(point, PrefsHelper.getFloat(context, "default_zoom", 15f).toDouble(), 200L)
                 if (isTrackUp) binding.mapView.mapOrientation = -it.bearing
             }
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
@@ -652,8 +700,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     }
                     
                     if (isFirstLocation) {
-                        binding.mapView.controller.animateTo(point)
-                        binding.mapView.controller.setZoom(PrefsHelper.getFloat(requireContext(), "default_zoom", 15f).toDouble())
+                        val zoom = PrefsHelper.getFloat(requireContext(), "default_zoom", 15f).toDouble()
+                        binding.mapView.controller.animateTo(point, zoom, 200L)
                         isFirstLocation = false
                     }
                     
@@ -717,9 +765,19 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     binding.bottomSheet.tvNavDistance.text = hud.distance
                     binding.bottomSheet.tvNavDistance.setTypeface(null, Typeface.BOLD)
                     binding.bottomSheet.tvNavEta.text = getString(R.string.eta_format, hud.eta, hud.duration)
-                    if (hud.bitmapIcon != null) binding.bottomSheet.ivNavIcon.setImageBitmap(hud.bitmapIcon)
-                    else binding.bottomSheet.ivNavIcon.setImageResource(R.drawable.ic_directions)
+                    if (hud.bitmapIcon != null) {
+                        binding.bottomSheet.ivNavIcon.setImageBitmap(hud.bitmapIcon)
+                    } else {
+                        binding.bottomSheet.ivNavIcon.setImageResource(maneuverIconRes(hud.iconIndex))
+                    }
                 }
+            }
+        }
+
+        // Quan sát cờ chọn vùng bản đồ offline
+        lifecycleScope.launch {
+            NavigationRepository.isOfflineSelectionMode.collect { selectionMode ->
+                handleOfflineSelectionMode(selectionMode)
             }
         }
     }
@@ -741,11 +799,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val startLoc = NavigationRepository.gpsLocation.value ?: return
         val context = requireContext()
         lifecycleScope.launch(Dispatchers.IO) {
-            val preferredEngine = getEngineName(PrefsHelper.getInt(context, "routing_engine", 0))
-            val priorityList = mutableListOf(preferredEngine)
-            val others = listOf("Mapbox", "GraphHopper", "Valhalla", "OSRM", "OpenRouteService")
-            others.forEach { if (!priorityList.contains(it)) priorityList.add(it) }
-            val routes = routingEngine.fetchRouteWithFallback(context, startLoc.latitude, startLoc.longitude, lat, lon, priorityList)
+            val routes = routingEngine.fetchOsrmAndValhalla(context, startLoc.latitude, startLoc.longitude, lat, lon)
             withContext(Dispatchers.Main) {
                 if (!routes.isNullOrEmpty()) {
                     NavigationRepository.updateRoutes(routes)
@@ -786,7 +840,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         // Simplify polylines on Dispatchers.Default
         val simplifiedRoutes = withContext(Dispatchers.Default) {
             routes.map { route ->
-                val simplifiedPoints = simplifyDouglasPeucker(route.polyline, tolerance)
+                val simplifiedPoints = com.example.tymap.utils.PolylineDecoder.simplify(route.polyline, tolerance)
                 route to simplifiedPoints
             }
         }
@@ -797,25 +851,35 @@ class MapFragment : Fragment(), IOrientationConsumer {
             binding.mapView.overlays.removeAll(toRemove)
             routePolylines.clear()
 
-            simplifiedRoutes.forEach { (route, points) ->
+            // Separate selected and unselected to control Z-index
+            val unselected = simplifiedRoutes.filter { !it.first.isSelected }
+            val selected = simplifiedRoutes.filter { it.first.isSelected }
+
+            // Add unselected first (bottom layer)
+            (unselected + selected).forEach { (route, points) ->
                 if (points.size >= 2) {
                     val polyline = Polyline(binding.mapView).apply {
                         outlinePaint.isAntiAlias = true
-                        // Use a bright, clear blue for the selected route
+                        // Selected: Blue, Unselected: Grey/Semi-transparent
                         outlinePaint.color = if (route.isSelected) Color.parseColor("#007AFF") else Color.parseColor("#8E8E93")
                         outlinePaint.strokeWidth = if (route.isSelected) 18f else 12f
+                        outlinePaint.alpha = if (route.isSelected) 255 else 180
                         outlinePaint.strokeCap = Paint.Cap.ROUND
                         outlinePaint.strokeJoin = Paint.Join.ROUND
                         setPoints(points.map { GeoPoint(it.first, it.second) })
                         setOnClickListener { _, _, _ -> selectRoute(routes.indexOf(route)); true }
                     }
                     routePolylines.add(polyline)
-                    // Add polylines to the map
-                    binding.mapView.overlays.add(polyline)
+                    // Insert polylines at index 1 (above Events but below markers/controls)
+                    if (binding.mapView.overlays.size > 1) {
+                        binding.mapView.overlays.add(1, polyline)
+                    } else {
+                        binding.mapView.overlays.add(polyline)
+                    }
                 }
             }
 
-            // Ensure markers are always on top of polylines
+            // Ensure markers and UI controls are always on top of polylines
             userMarker?.let { 
                 binding.mapView.overlays.remove(it)
                 binding.mapView.overlays.add(it)
@@ -824,72 +888,16 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 binding.mapView.overlays.remove(it)
                 binding.mapView.overlays.add(it)
             }
-
-            binding.mapView.invalidate()
-        }
-    }
-
-    private fun simplifyDouglasPeucker(points: List<Pair<Double, Double>>, tolerance: Double): List<Pair<Double, Double>> {
-        if (points.size < 3) return points
-
-        val keep = BooleanArray(points.size) { false }
-        keep[0] = true
-        keep[points.size - 1] = true
-
-        val stack = java.util.Stack<Pair<Int, Int>>()
-        stack.push(Pair(0, points.size - 1))
-
-        while (!stack.isEmpty()) {
-            val step = stack.pop()
-            val start = step.first
-            val end = step.second
-
-            if (end - start < 2) continue
-
-            var maxDist = 0.0
-            var index = start
-
-            for (i in (start + 1) until end) {
-                val dist = perpendicularDistance(points[i], points[start], points[end])
-                if (dist > maxDist) {
-                    maxDist = dist
-                    index = i
-                }
+            compassOverlay?.let {
+                binding.mapView.overlays.remove(it)
+                binding.mapView.overlays.add(it)
+            }
+            binding.mapView.overlays.filterIsInstance<RotationGestureOverlay>().firstOrNull()?.let {
+                binding.mapView.overlays.remove(it)
+                binding.mapView.overlays.add(it)
             }
 
-            if (maxDist > tolerance) {
-                keep[index] = true
-                stack.push(Pair(start, index))
-                stack.push(Pair(index, end))
-            }
-        }
-
-        val result = ArrayList<Pair<Double, Double>>()
-        for (i in points.indices) {
-            if (keep[i]) {
-                result.add(points[i])
-            }
-        }
-        return result
-    }
-
-    private fun perpendicularDistance(pt: Pair<Double, Double>, lineStart: Pair<Double, Double>, lineEnd: Pair<Double, Double>): Double {
-        val dx = lineEnd.second - lineStart.second
-        val dy = lineEnd.first - lineStart.first
-
-        if (dx == 0.0 && dy == 0.0) {
-            return Math.hypot(pt.second - lineStart.second, pt.first - lineStart.first)
-        }
-
-        val t = ((pt.second - lineStart.second) * dx + (pt.first - lineStart.first) * dy) / (dx * dx + dy * dy)
-        return if (t < 0.0) {
-            Math.hypot(pt.second - lineStart.second, pt.first - lineStart.first)
-        } else if (t > 1.0) {
-            Math.hypot(pt.second - lineEnd.second, pt.first - lineEnd.first)
-        } else {
-            val closestX = lineStart.second + t * dx
-            val closestY = lineStart.first + t * dy
-            Math.hypot(pt.second - closestX, pt.first - closestY)
+            binding.mapView.postInvalidateDelayed(50)
         }
     }
 
@@ -930,6 +938,15 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val label = intent.getStringExtra("LABEL") ?: "Vị trí đã chọn"
         val destLat = intent.getDoubleExtra("DEST_LAT", 0.0)
         val destLon = intent.getDoubleExtra("DEST_LON", 0.0)
+        
+        // Automatically sync vehicle travel mode (motorcycle/car) shared from Google Maps
+        if (intent.hasExtra("VEHICLE_TYPE")) {
+            val vehicleType = intent.getIntExtra("VEHICLE_TYPE", -1)
+            if (vehicleType != -1) {
+                PrefsHelper.putInt(requireContext(), "vehicle_type", vehicleType)
+                android.util.Log.d("MapFragment", "Shared vehicle type synced: $vehicleType")
+            }
+        }
 
         // Clear intent extras to avoid re-triggering on rotation
         intent.removeExtra("SHARE_TYPE")
@@ -967,6 +984,237 @@ class MapFragment : Fragment(), IOrientationConsumer {
             }
         }
     }
+
+    private fun handleOfflineSelectionMode(enabled: Boolean) {
+        val context = requireContext()
+        if (enabled) {
+            isFollowing = false
+            isTrackUp = false
+            binding.mapView.mapOrientation = 0f
+            
+            // Ẩn UI thông thường
+            binding.searchCard.visibility = View.GONE
+            binding.suggestionsCard.visibility = View.GONE
+            binding.fabLocation.hide()
+            binding.fabLayers.hide()
+            binding.btnRecenter.hide()
+            bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+            
+            // Thêm Selection Overlay
+            if (selectionOverlay == null) {
+                selectionOverlay = SelectionOverlay(context)
+            }
+            if (!binding.mapView.overlays.contains(selectionOverlay)) {
+                binding.mapView.overlays.add(selectionOverlay)
+            }
+            
+            // Inflate Top/Bottom Panels
+            if (offlineSelectionBinding == null) {
+                val view = layoutInflater.inflate(R.layout.layout_offline_selection, binding.root, false)
+                binding.root.addView(view)
+                offlineSelectionBinding = com.example.tymap.databinding.LayoutOfflineSelectionBinding.bind(view)
+                
+                offlineSelectionBinding?.btnCancel?.setOnClickListener {
+                    NavigationRepository.setOfflineSelectionMode(false)
+                }
+                
+                offlineSelectionBinding?.btnDownload?.setOnClickListener {
+                    showRegionNameDialog()
+                }
+                
+                val listener = { _: android.widget.CompoundButton, _: Boolean ->
+                    updateOfflineEstimation()
+                }
+                offlineSelectionBinding?.cbZoom14?.setOnCheckedChangeListener(listener)
+                offlineSelectionBinding?.cbZoom15?.setOnCheckedChangeListener(listener)
+                offlineSelectionBinding?.cbZoom16?.setOnCheckedChangeListener(listener)
+            }
+            
+            // Đăng ký MapListener tạm thời để cập nhật dung lượng dự kiến khi di chuyển
+            binding.mapView.addMapListener(offlineMapListener)
+            updateOfflineEstimation()
+        } else {
+            // Xóa Selection Overlay
+            selectionOverlay?.let { binding.mapView.overlays.remove(it) }
+            
+            // Gỡ bỏ Panels
+            offlineSelectionBinding?.let {
+                binding.root.removeView(it.root)
+                offlineSelectionBinding = null
+            }
+            
+            binding.mapView.removeMapListener(offlineMapListener)
+            
+            // Hiện lại UI thông thường
+            binding.searchCard.visibility = View.VISIBLE
+            binding.fabLocation.show()
+            binding.fabLayers.show()
+            updateLocationButtonState()
+            isFollowing = true
+        }
+        binding.mapView.invalidate()
+    }
+
+    private val offlineMapListener = object : MapListener {
+        override fun onScroll(scrollEvent: ScrollEvent?): Boolean {
+            updateOfflineEstimation()
+            return false
+        }
+        override fun onZoom(zoomEvent: ZoomEvent?): Boolean {
+            updateOfflineEstimation()
+            return false
+        }
+    }
+
+    private fun updateOfflineEstimation() {
+        val w = binding.mapView.width
+        val h = binding.mapView.height
+        if (w == 0 || h == 0) return
+        
+        val fillRegionBinding = offlineSelectionBinding ?: return
+        val rectSize = Math.min(w, h) * 0.7f
+        val left = (w - rectSize) / 2
+        val top = (h - rectSize) / 2
+        val right = left + rectSize
+        val bottom = top + rectSize
+        
+        val pTopLeft = binding.mapView.projection.fromPixels(left.toInt(), top.toInt()) as? GeoPoint ?: return
+        val pBottomRight = binding.mapView.projection.fromPixels(right.toInt(), bottom.toInt()) as? GeoPoint ?: return
+        
+        val minLat = min(pTopLeft.latitude, pBottomRight.latitude)
+        val maxLat = max(pTopLeft.latitude, pBottomRight.latitude)
+        val minLon = min(pTopLeft.longitude, pBottomRight.longitude)
+        val maxLon = max(pTopLeft.longitude, pBottomRight.longitude)
+        
+        var totalTilesCount = 0
+        val zooms = mutableListOf<Int>()
+        if (fillRegionBinding.cbZoom14.isChecked) zooms.add(14)
+        if (fillRegionBinding.cbZoom15.isChecked) zooms.add(15)
+        if (fillRegionBinding.cbZoom16.isChecked) zooms.add(16)
+        
+        for (z in zooms) {
+            val xMin = OfflineDownloadService.getTileX(minLon, z)
+            val xMax = OfflineDownloadService.getTileX(maxLon, z)
+            val yMin = OfflineDownloadService.getTileY(maxLat, z)
+            val yMax = OfflineDownloadService.getTileY(minLat, z)
+            
+            val dx = abs(xMax - xMin) + 1
+            val dy = abs(yMax - yMin) + 1
+            totalTilesCount += dx * dy
+        }
+        
+        fillRegionBinding.tvEstimationTiles.text = "Tổng số tiles: $totalTilesCount"
+        val sizeMb = totalTilesCount * 0.015f // 15 KB/tile
+        fillRegionBinding.tvEstimationSize.text = "Dung lượng dự kiến: ${String.format("%.1f", sizeMb)} MB"
+    }
+
+    private fun showRegionNameDialog() {
+        val context = requireContext()
+        val input = EditText(context).apply {
+            setText("Bản đồ " + java.text.SimpleDateFormat("dd_MM_HH_mm", java.util.Locale.getDefault()).format(java.util.Date()))
+            selectAll()
+        }
+        
+        AlertDialog.Builder(context)
+            .setTitle("Tên vùng bản đồ")
+            .setMessage("Nhập tên cho vùng bản đồ ngoại tuyến tải về:")
+            .setView(input)
+            .setPositiveButton("Tải về") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    startOfflineDownload(name)
+                } else {
+                    Toast.makeText(context, "Tên không được để trống", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+       }
+
+       private fun startOfflineDownload(regionName: String) {
+           val context = requireContext()
+           val w = binding.mapView.width
+           val h = binding.mapView.height
+           val rectSize = Math.min(w, h) * 0.7f
+           val left = (w - rectSize) / 2
+           val top = (h - rectSize) / 2
+           val right = left + rectSize
+           val bottom = top + rectSize
+           
+           val pTopLeft = binding.mapView.projection.fromPixels(left.toInt(), top.toInt()) as? GeoPoint ?: return
+           val pBottomRight = binding.mapView.projection.fromPixels(right.toInt(), bottom.toInt()) as? GeoPoint ?: return
+           
+           val minLat = min(pTopLeft.latitude, pBottomRight.latitude)
+           val maxLat = max(pTopLeft.latitude, pBottomRight.latitude)
+           val minLon = min(pTopLeft.longitude, pBottomRight.longitude)
+           val maxLon = max(pTopLeft.longitude, pBottomRight.longitude)
+           
+           val zooms = mutableListOf<Int>()
+           if (offlineSelectionBinding?.cbZoom14?.isChecked == true) zooms.add(14)
+           if (offlineSelectionBinding?.cbZoom15?.isChecked == true) zooms.add(15)
+           if (offlineSelectionBinding?.cbZoom16?.isChecked == true) zooms.add(16)
+           
+           if (zooms.isEmpty()) {
+               Toast.makeText(context, "Hãy chọn ít nhất 1 mức zoom", Toast.LENGTH_SHORT).show()
+               return
+           }
+           
+           val regionId = UUID.randomUUID().toString().substring(0, 8)
+           val tileSourceIndex = PrefsHelper.getInt(context, "tile_source", 0)
+
+           val intent = Intent(context, OfflineDownloadService::class.java).apply {
+               action = OfflineDownloadService.ACTION_START_DOWNLOAD
+               putExtra("REGION_ID", regionId)
+               putExtra("REGION_NAME", regionName)
+               putExtra("ZOOMS", zooms.toIntArray())
+               putExtra("MIN_LAT", minLat)
+               putExtra("MAX_LAT", maxLat)
+               putExtra("MIN_LON", minLon)
+               putExtra("MAX_LON", maxLon)
+               putExtra("TILE_SOURCE_INDEX", tileSourceIndex)
+           }
+           
+           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+               context.startForegroundService(intent)
+           } else {
+               context.startService(intent)
+           }
+           
+           NavigationRepository.setOfflineSelectionMode(false)
+           
+           // Mở OfflineMapActivity
+           val mapIntent = Intent(context, OfflineMapActivity::class.java)
+           startActivity(mapIntent)
+       }
+
+       class SelectionOverlay(val context: Context) : org.osmdroid.views.overlay.Overlay() {
+           private val paint = Paint().apply {
+               color = Color.parseColor("#007AFF")
+               style = Paint.Style.STROKE
+               strokeWidth = 6f
+               pathEffect = DashPathEffect(floatArrayOf(15f, 10f), 0f)
+               isAntiAlias = true
+           }
+           private val fillPaint = Paint().apply {
+               color = Color.parseColor("#15007AFF")
+               style = Paint.Style.FILL
+               isAntiAlias = true
+           }
+
+           override fun draw(canvas: Canvas?, mapView: MapView?, shadow: Boolean) {
+               if (shadow || canvas == null || mapView == null) return
+               val w = mapView.width
+               val h = mapView.height
+               val rectSize = Math.min(w, h) * 0.7f
+               val left = (w - rectSize) / 2
+               val top = (h - rectSize) / 2
+               val right = left + rectSize
+               val bottom = top + rectSize
+               
+               canvas.drawRect(left, top, right, bottom, fillPaint)
+               canvas.drawRect(left, top, right, bottom, paint)
+           }
+       }
 
     override fun onResume() {
         super.onResume()

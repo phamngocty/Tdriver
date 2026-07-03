@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
@@ -102,6 +103,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
 
+        <activity
+            android:name=".ui.OfflineMapActivity"
+            android:exported="false"
+            android:label="Bản đồ ngoại tuyến"
+            android:theme="@style/Theme.TYMAP"
+            android:configChanges="uiMode" />
+
+        <service
+            android:name=".service.OfflineDownloadService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+    </application>
 </manifest>

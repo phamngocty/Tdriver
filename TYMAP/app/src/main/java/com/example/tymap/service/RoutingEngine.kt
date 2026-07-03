@@ -4,8 +4,7 @@ import android.content.Context
 import com.example.tymap.repository.RouteInfo
 import com.example.tymap.utils.PolylineDecoder
 import com.example.tymap.utils.PrefsHelper
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -14,6 +13,39 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class RoutingEngine(private val client: OkHttpClient) {
+
+    /**
+     * Fetches routes from both OSRM and Valhalla simultaneously.
+     */
+    suspend fun fetchOsrmAndValhalla(
+        context: Context,
+        startLat: Double, startLng: Double,
+        destLat: Double, destLng: Double
+    ): List<RouteInfo> = coroutineScope {
+        val vehicleType = PrefsHelper.getInt(context, "vehicle_type", 0)
+        val avoidHighways = vehicleType == 1
+        
+        val osrmDeferred = async {
+            try { fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways) } catch (e: Exception) { null }
+        }
+        val valhallaDeferred = async {
+            try { fetchValhallaRoute(startLat, startLng, destLat, destLng, avoidHighways) } catch (e: Exception) { null }
+        }
+        
+        val osrmRoutes = osrmDeferred.await()?.map { it.copy(engineName = "OSRM") } ?: emptyList()
+        val valhallaRoutes = valhallaDeferred.await()?.map { it.copy(engineName = "Valhalla") } ?: emptyList()
+        
+        val combined = mutableListOf<RouteInfo>()
+        // Ensure at least one is selected
+        osrmRoutes.forEachIndexed { i, r -> 
+            combined.add(r.copy(isSelected = (i == 0))) 
+        }
+        valhallaRoutes.forEachIndexed { i, r -> 
+            combined.add(r.copy(isSelected = (combined.isEmpty() && i == 0))) 
+        }
+        
+        combined
+    }
 
     /**
      * Fetches route with a fallback mechanism based on priority.
@@ -103,6 +135,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                 put("options", JSONObject().apply {
                     put("avoid_features", JSONArray().apply {
                         put("highways")
+                        put("motorways")
                     })
                 })
             }
@@ -253,7 +286,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0))
+            result.add(RouteInfo(points, distance, duration, steps, i == 0, "OSRM"))
         }
         result
     }
@@ -288,7 +321,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0))
+            result.add(RouteInfo(points, distance, duration, steps, i == 0, "OpenRouteService"))
         }
         result
     }
@@ -332,7 +365,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0))
+            result.add(RouteInfo(points, distance, duration, steps, i == 0, "GraphHopper"))
         }
         result
     }
@@ -365,7 +398,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0))
+            result.add(RouteInfo(points, distance, duration, steps, i == 0, "Valhalla"))
         }
         result
     }
@@ -398,7 +431,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0))
+            result.add(RouteInfo(points, distance, duration, steps, i == 0, "Mapbox"))
         }
         result
     }

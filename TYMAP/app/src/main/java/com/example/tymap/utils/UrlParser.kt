@@ -102,11 +102,13 @@ object UrlParser {
         val coordRegex = "([-+]?\\d+\\.\\d+)[,%2C]([-+]?\\d+\\.\\d+)"
         val googleDataRegex = "!3d([-+]?\\d+\\.\\d+)!4d([-+]?\\d+\\.\\d+)"
         
+        var bundle: Bundle? = null
+
         // 1. Highest Priority for Routes: Check if URL is a route but contains destination coordinate metadata (!3d...!4d...)
         if (url.contains("/dir/")) {
             val dataMatcher = Pattern.compile(googleDataRegex).matcher(url)
             if (dataMatcher.find()) {
-                return Bundle().apply {
+                bundle = Bundle().apply {
                     putString("SHARE_TYPE", "POI")
                     putDouble("DEST_LAT", dataMatcher.group(1)!!.toDouble())
                     putDouble("DEST_LON", dataMatcher.group(2)!!.toDouble())
@@ -116,52 +118,57 @@ object UrlParser {
         }
 
         // 2. Highest Priority for POIs: Extract exact location coordinates from POI data (!3d...!4d...)
-        val dataMatcher = Pattern.compile(googleDataRegex).matcher(url)
-        if (dataMatcher.find()) {
-            return Bundle().apply {
-                putString("SHARE_TYPE", "POI")
-                putDouble("DEST_LAT", dataMatcher.group(1)!!.toDouble())
-                putDouble("DEST_LON", dataMatcher.group(2)!!.toDouble())
-                putString("LABEL", "Điểm từ Google Maps")
+        if (bundle == null) {
+            val dataMatcher = Pattern.compile(googleDataRegex).matcher(url)
+            if (dataMatcher.find()) {
+                bundle = Bundle().apply {
+                    putString("SHARE_TYPE", "POI")
+                    putDouble("DEST_LAT", dataMatcher.group(1)!!.toDouble())
+                    putDouble("DEST_LON", dataMatcher.group(2)!!.toDouble())
+                    putString("LABEL", "Điểm từ Google Maps")
+                }
             }
         }
 
         // 3. Second Priority: Extract coordinates from @lat,lon or q=lat,lon
-        val poiMatcher = Pattern.compile("(@|q=|query=)$coordRegex").matcher(url)
-        if (poiMatcher.find()) {
-            return Bundle().apply {
-                putString("SHARE_TYPE", "POI")
-                putDouble("DEST_LAT", poiMatcher.group(2)!!.toDouble())
-                putDouble("DEST_LON", poiMatcher.group(3)!!.toDouble())
-                putString("LABEL", "Vị trí đã chọn")
+        if (bundle == null) {
+            val poiMatcher = Pattern.compile("(@|q=|query=)$coordRegex").matcher(url)
+            if (poiMatcher.find()) {
+                bundle = Bundle().apply {
+                    putString("SHARE_TYPE", "POI")
+                    putDouble("DEST_LAT", poiMatcher.group(2)!!.toDouble())
+                    putDouble("DEST_LON", poiMatcher.group(3)!!.toDouble())
+                    putString("LABEL", "Vị trí đã chọn")
+                }
             }
         }
 
         // 4. Third Priority: Extract any generic valid coordinates sequence in the URL
-        val genericMatcher = Pattern.compile(coordRegex).matcher(url)
-        if (genericMatcher.find()) {
-            val lat = genericMatcher.group(1)!!.toDouble()
-            val lon = genericMatcher.group(2)!!.toDouble()
-            if (lat in -90.0..90.0 && lon in -180.0..180.0) {
-                return Bundle().apply {
-                    putString("SHARE_TYPE", "POI")
-                    putDouble("DEST_LAT", lat)
-                    putDouble("DEST_LON", lon)
-                    putString("LABEL", "Tọa độ từ liên kết")
+        if (bundle == null) {
+            val genericMatcher = Pattern.compile(coordRegex).matcher(url)
+            if (genericMatcher.find()) {
+                val lat = genericMatcher.group(1)!!.toDouble()
+                val lon = genericMatcher.group(2)!!.toDouble()
+                if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    bundle = Bundle().apply {
+                        putString("SHARE_TYPE", "POI")
+                        putDouble("DEST_LAT", lat)
+                        putDouble("DEST_LON", lon)
+                        putString("LABEL", "Tọa độ từ liên kết")
+                    }
                 }
             }
         }
 
         // 5. Fourth Priority for Routes: If no coordinates could be parsed, check if it's a route with names
-        if (url.contains("/dir/")) {
-            // Check if matches route coords
+        if (bundle == null && url.contains("/dir/")) {
             val matcher = Pattern.compile(coordRegex).matcher(url)
             val matches = mutableListOf<Pair<Double, Double>>()
             while (matcher.find()) {
                 matches.add(Pair(matcher.group(1)!!.toDouble(), matcher.group(2)!!.toDouble()))
             }
             if (matches.size >= 2) {
-                return Bundle().apply {
+                bundle = Bundle().apply {
                     putString("SHARE_TYPE", "ROUTE")
                     putDouble("ORIGIN_LAT", matches[0].first)
                     putDouble("ORIGIN_LON", matches[0].second)
@@ -179,7 +186,7 @@ object UrlParser {
                         try {
                             val destName = URLDecoder.decode(destNameEncoded.replace("+", " "), "UTF-8")
                             if (destName.isNotEmpty() && destName.lowercase() != "vị trí của tôi" && destName.lowercase() != "my location") {
-                                return Bundle().apply {
+                                bundle = Bundle().apply {
                                     putString("SHARE_TYPE", "DIR_NAME")
                                     putString("DEST_NAME", destName)
                                     putString("LABEL", destName)
@@ -191,7 +198,16 @@ object UrlParser {
             }
         }
         
-        return null
+        // Auto-assign vehicle type if detected in the URL
+        if (bundle != null) {
+            if (url.contains("!3e9")) {
+                bundle.putInt("VEHICLE_TYPE", 1) // Motorcycle
+            } else if (url.contains("!3e0")) {
+                bundle.putInt("VEHICLE_TYPE", 0) // Car
+            }
+        }
+        
+        return bundle
     }
 
     fun cleanPlaceName(name: String): String {

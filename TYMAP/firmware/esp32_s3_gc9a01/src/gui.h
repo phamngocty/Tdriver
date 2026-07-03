@@ -60,6 +60,7 @@ extern String distToNext;
 extern String totalDist;
 extern String eta;
 extern String ete;
+extern int navDirIdx; // maneuver index từ mapManeuverToIcon() của app Android
 extern int gpsSpeed;
 extern uint8_t staticIconIndex;
 extern bool hasCustomIcon;

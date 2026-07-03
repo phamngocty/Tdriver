@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Đường xuống -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:pathData="M28,38 L28,26"/>
+    <!-- Vòng cung U-turn -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:pathData="M28,26 A10,10 0 0,0 20,18 A10,10 0 0,0 20,38"/>
+    <!-- Thân lên phía trên -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:pathData="M20,38 L20,22"/>
+    <!-- Đầu mũi tên lên -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,12 L26,22 L22,22 L22,26 L18,26 L18,22 L14,22 Z"/>
+</vector>

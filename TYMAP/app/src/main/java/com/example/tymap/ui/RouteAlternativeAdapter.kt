@@ -27,7 +27,9 @@ class RouteAlternativeAdapter(private val onRouteSelected: (Int) -> Unit) :
         val route = routes[position]
         val time = (route.duration / 60).toInt()
         val dist = String.format("%.1f km", route.distance / 1000)
-        holder.text1.text = "$time min ($dist)"
+        holder.text1.text = "${route.engineName}: $time min ($dist)"
+        
+        holder.itemView.setBackgroundColor(if (route.isSelected) 0x20007AFF else 0x00000000)
         
         holder.itemView.setOnClickListener { onRouteSelected(position) }
     }
