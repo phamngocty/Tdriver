@@ -54,3 +54,15 @@ String extractLeadingDistance(String &str)
  hiển thị full map không hieenjj thị khu vục cắt , sữ nút bản dồ hiện tại  ở tap notifile  thành ảnh vằ cắt ở tap map
  hiển thị full map không hieenjj thị khu vục cắt , sữ nút bản dồ hiện tại  ở tap notifile  thành ảnh vằ cắt ở tap map 
 thêm co chế  chup popup osm    giống goooogle mấp   và cải thieenj  share giông polylinr google map 
+
+
+TÔI MUỐN CÓ THÊM TAP  RENDER   NƠI NÀY HIỂN THỊ TẤT CẢ THÔNG TIN  VÀ DỮ LIỆU  CỦA APP SẼ GỮI ĐẾN ESP32  VÀ TẤT CẢ DỮ LIỆU ĐÃ GỮI ĐẾN ESP32 
+CÓ TÍNH NĂNG TƯƠNG TỰ NHƯ MENU NOTIFILE   
+
+HIỂN THỊ ẢNH  CHUẨN BỊ GỬI   ICON  
+ĐỒNG BỘ MƯC ZOOM CỦA APP VỚI ESP32 Ở TAP RENDER CUUNGX GIÃ LẬP 1 MÀN HÌNH TRÒN 240X240PX  NHƯ ESP32  VÀ CÓ THÊM KHUNG GIẢ LẬP CHẾ ĐỘ BẢN DỒ CUỐN CHIẾU THỂ HIỆNH TOÀN BẢN ĐỒ GỮI TỚI ESP32 VÀ KHUNG HIÊNT HỊ ĐANG Ở ĐÂU
+
+
+Thực hiện chế độ "Track Up" chuẩn Google Maps
+•
+Xoay bản đồ: Bản đồ sẽ xoay một góc -bearing (ngược chiều di chuyển) để đảm bảo tuyến đường (Polyline) luôn hướng thẳng lên phía 12h trên màn hình điện thoại.   sữa lại cập nhật cho cả esp32 và app 
