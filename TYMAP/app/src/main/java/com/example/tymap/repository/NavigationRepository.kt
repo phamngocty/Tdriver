@@ -71,6 +71,9 @@ object NavigationRepository {
     private val _mapModeState = MutableStateFlow(false)
     val mapModeState = _mapModeState.asStateFlow()
 
+    private val _isTrackUpMode = MutableStateFlow(false)
+    val isTrackUpMode = _isTrackUpMode.asStateFlow()
+
     private val _logs = MutableStateFlow<List<String>>(emptyList())
     val logs = _logs.asStateFlow()
 
@@ -125,6 +128,10 @@ object NavigationRepository {
 
     fun setMapModeActive(active: Boolean) {
         _mapModeState.value = active
+    }
+
+    fun setTrackUpMode(active: Boolean) {
+        _isTrackUpMode.value = active
     }
 
     fun updateDeviceStatus(status: Map<String, String>) {

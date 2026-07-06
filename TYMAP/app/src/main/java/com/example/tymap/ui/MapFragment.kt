@@ -101,7 +101,6 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private var offlineSelectionBinding: com.example.tymap.databinding.LayoutOfflineSelectionBinding? = null
 
     private var isFollowing = true
-    private var isTrackUp = true
     private var isFirstLocation = true
     private var lastHeading: Float = 0f
 
@@ -568,11 +567,12 @@ class MapFragment : Fragment(), IOrientationConsumer {
             if (!isFollowing) {
                 // Nếu đang ở chế độ xem tự do -> Bật chế độ đi theo (North Up mặc định)
                 isFollowing = true
-                isTrackUp = false
+                NavigationRepository.setTrackUpMode(false)
                 binding.btnRecenter.hide()
             } else {
                 // Nếu đang ở chế độ đi theo -> Chuyển đổi giữa North Up và Track Up
-                isTrackUp = !isTrackUp
+                val currentMode = NavigationRepository.isTrackUpMode.value
+                NavigationRepository.setTrackUpMode(!currentMode)
             }
             
             updateLocationButtonState()
@@ -580,6 +580,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             NavigationRepository.gpsLocation.value?.let {
                 val point = GeoPoint(it.latitude, it.longitude)
                 val targetZoom = binding.mapView.zoomLevelDouble
+                val isTrackUp = NavigationRepository.isTrackUpMode.value
                 val targetRotation = if (isTrackUp) -it.bearing else 0f
                 
                 binding.mapView.controller.animateTo(point, targetZoom, 200L)
@@ -681,6 +682,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     private fun updateLocationButtonState() {
         val context = requireContext()
+        val isTrackUp = NavigationRepository.isTrackUpMode.value
         if (!isFollowing) {
             binding.fabLocation.imageTintList = android.content.res.ColorStateList.valueOf(Color.BLACK)
             binding.fabLocation.setImageResource(R.drawable.ic_my_location)
@@ -737,6 +739,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
                         // Rule APP-25: Dùng animateTo với 200ms
                         binding.mapView.controller.animateTo(point, binding.mapView.zoomLevelDouble, 200L)
                         
+                        val isTrackUp = NavigationRepository.isTrackUpMode.value
                         if (isTrackUp) {
                             // Chế độ Track Up: Bản đồ xoay ngược bearing, Marker hướng thẳng (0)
                             animateMapRotation(binding.mapView.mapOrientation, -bearing)
