@@ -1028,17 +1028,17 @@ class NavigationService : Service() {
                 }
 
                 // 2. Update map center and orientation based on current location
+                val isTrackUp = NavigationRepository.isTrackUpMode.value
                 location?.let {
                     headlessMapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(it.latitude, it.longitude))
                     
-                    // Track Up: Use GPS bearing when moving, fallback to compass heading when stationary
-                    val speed = it.speed
-                    val heading = if (speed > 1.2f) {
-                        it.bearing
+                    if (isTrackUp) {
+                        val speed = it.speed
+                        val heading = if (speed > 1.5f && it.hasBearing()) it.bearing else NavigationRepository.compassHeading.value
+                        headlessMapView?.mapOrientation = -heading
                     } else {
-                        NavigationRepository.compassHeading.value
+                        headlessMapView?.mapOrientation = 0f
                     }
-                    headlessMapView?.mapOrientation = -heading
                 }
                 
                 // Set zoom level from repository (synchronized instantly from MapFragment)
@@ -1057,7 +1057,14 @@ class NavigationService : Service() {
                         headlessUserMarker = marker
                     }
                     marker.position = org.osmdroid.util.GeoPoint(loc.latitude, loc.longitude)
-                    marker.rotation = 0f // Keep oriented to screen, pointing straight up as the map is already rotated to heading
+                    
+                    if (isTrackUp) {
+                        marker.rotation = 0f // Hướng lên trên (12h) vì bản đồ đã xoay
+                    } else {
+                        val speed = loc.speed
+                        marker.rotation = if (speed > 1.5f && loc.hasBearing()) loc.bearing else NavigationRepository.compassHeading.value
+                    }
+
                     if (headlessMapView?.overlays?.contains(marker) == false) {
                         headlessMapView?.overlays?.add(marker)
                     }

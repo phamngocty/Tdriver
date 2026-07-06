@@ -65,7 +65,7 @@ HIỂN THỊ ẢNH  CHUẨN BỊ GỬI   ICON
 
 Thực hiện chế độ "Track Up" chuẩn Google Maps
 •
-Xoay bản đồ: Bản đồ sẽ xoay một góc -bearing (ngược chiều di chuyển) để đảm bảo tuyến đường (Polyline) luôn hướng thẳng lên phía 12h trên màn hình điện thoại.   sữa lại cập nhật cho cả esp32 và app  lỗi chưa xoay đúng 
+Xoay bản đồ: Bản đồ sẽ xoay một góc -bearing (ngược chiều di chuyển) để đảm bảo tuyến đường (Polyline) luôn hướng thẳng lên phía 12h trên màn hình điện thoại từ gps hiện tại và trong khoảng từ 500m từ vị trí của xe không phải điieer cuối cùng .   sữa lại cập nhật cho cả esp32 và app  lỗi chưa xoay đúng 
 
 dist  là khoảng cách đến ngã rẽ tiếp theo  
 ẩn tap render chỉ hiển thị khi tôi nhấp  cào tap cài đặt  và  nhấp vào chữ phiên bản 5 lần  để hiện tap render 

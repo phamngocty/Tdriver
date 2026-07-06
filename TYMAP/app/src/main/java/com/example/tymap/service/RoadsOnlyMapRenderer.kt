@@ -73,9 +73,10 @@ class RoadsOnlyMapRenderer(private val context: Context) {
             }
             
             // 4. Cấu hình tâm bản đồ, góc xoay và zoom
+            val isTrackUp = NavigationRepository.isTrackUpMode.value
             location?.let {
                 headlessMapView.controller?.setCenter(org.osmdroid.util.GeoPoint(it.latitude, it.longitude))
-                headlessMapView.mapOrientation = -heading
+                headlessMapView.mapOrientation = if (isTrackUp) -heading else 0f
             }
             headlessMapView.controller?.setZoom(zoom)
             
@@ -112,20 +113,38 @@ class RoadsOnlyMapRenderer(private val context: Context) {
         }
         bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
         
-        // 7. Vẽ marker vị trí xe (chấm xanh lá #00FF00, bán kính 6px) ở tâm màn hình (120, 120)
+        // 7. Vẽ marker vị trí xe (mũi tên hướng lên 12h hoặc xoay theo bearing) ở tâm màn hình (120, 120)
+        val isTrackUp = NavigationRepository.isTrackUpMode.value
         val finalCanvas = Canvas(bitmap)
         val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#00FF00")
             style = Paint.Style.FILL
         }
-        finalCanvas.drawCircle(120f, 120f, 6f, markerPaint)
+        
+        // Nếu ở chế độ Track Up, xe luôn hướng lên trên (0 độ so với màn hình)
+        // Nếu North Up, xe xoay theo bearing (góc địa lý, chiều kim đồng hồ)
+        val markerRotation = if (isTrackUp) 0f else heading
+        
+        finalCanvas.save()
+        finalCanvas.rotate(markerRotation, 120f, 120f)
+        
+        // Vẽ hình mũi tên tam giác
+        val path = android.graphics.Path().apply {
+            moveTo(120f, 110f)
+            lineTo(114f, 128f)
+            lineTo(120f, 124f)
+            lineTo(126f, 128f)
+            close()
+        }
+        finalCanvas.drawPath(path, markerPaint)
         
         val markerStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             style = Paint.Style.STROKE
             strokeWidth = 1f
         }
-        finalCanvas.drawCircle(120f, 120f, 6f, markerStrokePaint)
+        finalCanvas.drawPath(path, markerStrokePaint)
+        finalCanvas.restore()
         
         try {
             val copy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)

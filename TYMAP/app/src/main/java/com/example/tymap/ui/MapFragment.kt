@@ -669,7 +669,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             NavigationRepository.gpsLocation.value?.let {
                 val point = GeoPoint(it.latitude, it.longitude)
                 binding.mapView.controller.animateTo(point, PrefsHelper.getFloat(context, "default_zoom", 15f).toDouble(), 200L)
-                if (isTrackUp) binding.mapView.mapOrientation = -it.bearing
+                if (NavigationRepository.isTrackUpMode.value) binding.mapView.mapOrientation = -it.bearing
             }
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
         }
@@ -688,7 +688,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             binding.fabLocation.setImageResource(R.drawable.ic_my_location)
         } else {
             binding.fabLocation.imageTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(context, R.color.blue_primary))
-            if (isTrackUp) {
+            if (NavigationRepository.isTrackUpMode.value) {
                 // Chế độ Track Up: Icon mũi tên định hướng
                 binding.fabLocation.setImageResource(R.drawable.ic_navigation_arrow) 
             } else {
@@ -782,7 +782,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             NavigationRepository.navigationState.collect { running ->
                 if (running) {
                     isFollowing = true
-                    isTrackUp = true
+                    NavigationRepository.setTrackUpMode(true)
                     binding.btnRecenter.hide()
                     updateLocationButtonState()
                     binding.bottomSheet.layoutPlaceInfo.visibility = View.GONE
@@ -1041,7 +1041,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val context = requireContext()
         if (enabled) {
             isFollowing = false
-            isTrackUp = false
+            NavigationRepository.setTrackUpMode(false)
             binding.mapView.mapOrientation = 0f
             
             // Ẩn UI thông thường
@@ -1301,6 +1301,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             
             // Chỉ cập nhật nếu đang đứng yên hoặc tốc độ cực thấp
             if (speed <= 1.2) {
+                val isTrackUp = NavigationRepository.isTrackUpMode.value
                 if (isFollowing) {
                     if (isTrackUp) {
                         animateMapRotation(binding.mapView.mapOrientation, -orientation)
