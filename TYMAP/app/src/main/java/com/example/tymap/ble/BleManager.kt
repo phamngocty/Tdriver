@@ -253,6 +253,7 @@ class MyBleManager(context: Context) : BleManager(context) {
 
     fun writeNavigationData(data: String) {
         val char = navChar ?: return
+        NavigationRepository.updatePreparedBleData(data)
         NavigationRepository.addLog("BLE OUT: Nav Text ->\n$data")
         writeCharacteristic(char, data.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
     }
@@ -317,6 +318,16 @@ class MyBleManager(context: Context) : BleManager(context) {
 
     suspend fun writeMapImage(jpegData: ByteArray) {
         val char = mapImageChar ?: return
+        
+        try {
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(jpegData, 0, jpegData.size)
+            if (bitmap != null) {
+                NavigationRepository.updateLastSentMapImage(bitmap)
+            }
+        } catch (e: Exception) {
+            Log.e("BleManager", "Error decoding sent map image: ${e.message}")
+        }
+
         val sizeBuffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
         sizeBuffer.putInt(jpegData.size)
         

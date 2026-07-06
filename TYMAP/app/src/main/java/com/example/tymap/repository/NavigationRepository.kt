@@ -169,4 +169,78 @@ object NavigationRepository {
     fun setOfflineSelectionMode(active: Boolean) {
         _isOfflineSelectionMode.value = active
     }
+
+    private val _lastSentMapImage = MutableStateFlow<android.graphics.Bitmap?>(null)
+    val lastSentMapImage = _lastSentMapImage.asStateFlow()
+
+    private val _preparedBleData = MutableStateFlow<String>("")
+    val preparedBleData = _preparedBleData.asStateFlow()
+
+    fun updateLastSentMapImage(bitmap: android.graphics.Bitmap?) {
+        _lastSentMapImage.value = bitmap
+    }
+
+    fun updatePreparedBleData(data: String) {
+        _preparedBleData.value = data
+    }
+
+    data class MapPreviewInfo(
+        val fullMap: android.graphics.Bitmap? = null,
+        val cropX: Int = 0,
+        val cropY: Int = 0,
+        val cropSize: Int = 0,
+        val croppedMap: android.graphics.Bitmap? = null
+    )
+
+    private val _mapPreviewInfo = MutableStateFlow<MapPreviewInfo?>(null)
+    val mapPreviewInfo = _mapPreviewInfo.asStateFlow()
+
+    fun updateMapPreviewInfo(info: MapPreviewInfo?) {
+        _mapPreviewInfo.value = info
+    }
+
+    /**
+     * Trạng thái bản đồ cuốn chiếu (Rolling Map Tile Streaming).
+     * Mỗi tile được lưu theo key "tileX:tileY:z" → bitmap đã render.
+     * [centerTileX/Y/Z]: tile trung tâm mà ESP32 đang hiển thị.
+     * [vehiclePxInTile / vehiclePyInTile]: vị trí pixel xe trong tile trung tâm (0-255).
+     */
+    data class TileStreamingState(
+        val tiles: Map<String, android.graphics.Bitmap> = emptyMap(),
+        val centerTileX: Int = 0,
+        val centerTileY: Int = 0,
+        val centerTileZ: Int = 0,
+        val vehiclePxInTile: Int = 128,
+        val vehiclePyInTile: Int = 128
+    )
+
+    private val _tileStreamingState = MutableStateFlow(TileStreamingState())
+    val tileStreamingState = _tileStreamingState.asStateFlow()
+
+    fun updateTileStreamingCenter(tileX: Int, tileY: Int, tileZ: Int, px: Int, py: Int) {
+        _tileStreamingState.value = _tileStreamingState.value.copy(
+            centerTileX = tileX, centerTileY = tileY, centerTileZ = tileZ,
+            vehiclePxInTile = px, vehiclePyInTile = py
+        )
+    }
+
+    fun addStreamedTile(tileX: Int, tileY: Int, tileZ: Int, bitmap: android.graphics.Bitmap) {
+        val key = "$tileX:$tileY:$tileZ"
+        val current = _tileStreamingState.value.tiles.toMutableMap()
+        // Giữ tối đa 25 tile trong memory để tránh OOM
+        if (current.size >= 25) {
+            val oldest = current.keys.first()
+            current[oldest]?.recycle()
+            current.remove(oldest)
+        }
+        current[key] = bitmap
+        _tileStreamingState.value = _tileStreamingState.value.copy(tiles = current)
+    }
+
+    fun clearStreamedTiles() {
+        val current = _tileStreamingState.value.tiles
+        current.values.forEach { if (!it.isRecycled) it.recycle() }
+        _tileStreamingState.value = TileStreamingState()
+    }
 }
+

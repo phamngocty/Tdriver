@@ -134,13 +134,13 @@ class MapFragment : Fragment(), IOrientationConsumer {
         "© OpenStreetMap contributors, © CARTO")
 
     private val satelliteSource = object : XYTileSource("Satellite (ESRI)", 1, 20, 256, "",
-        arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"),
+        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"),
         "© ESRI") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
+            return "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
         }
     }
 
@@ -236,7 +236,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             userMarker = Marker(this).apply {
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                 icon = createUserIcon(context)
-                setFlat(true) // Rotation relative to map North
+                setFlat(false) // Rotation relative to Screen (0 = 12h)
                 infoWindow = null
                 setOnMarkerClickListener { _, _ -> true }
             }
@@ -290,6 +290,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 }
                 false
             }
+            
+            updateLocationButtonState()
         }
 
         val tileCallbackHandler = object : android.os.Handler(android.os.Looper.getMainLooper()) {
@@ -563,20 +565,25 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     private fun setupButtons() {
         binding.fabLocation.setOnClickListener {
-            isFollowing = true
-            binding.btnRecenter.hide()
-            if (NavigationRepository.navigationState.value) {
-                isTrackUp = !isTrackUp
-                updateLocationButtonState()
-                NavigationRepository.gpsLocation.value?.let {
-                    binding.mapView.controller.animateTo(GeoPoint(it.latitude, it.longitude))
-                    binding.mapView.mapOrientation = if (isTrackUp) -it.bearing else 0f
-                }
+            if (!isFollowing) {
+                // Nếu đang ở chế độ xem tự do -> Bật chế độ đi theo (North Up mặc định)
+                isFollowing = true
+                isTrackUp = false
+                binding.btnRecenter.hide()
             } else {
-                updateLocationButtonState()
-                NavigationRepository.gpsLocation.value?.let {
-                    binding.mapView.controller.animateTo(GeoPoint(it.latitude, it.longitude))
-                }
+                // Nếu đang ở chế độ đi theo -> Chuyển đổi giữa North Up và Track Up
+                isTrackUp = !isTrackUp
+            }
+            
+            updateLocationButtonState()
+            
+            NavigationRepository.gpsLocation.value?.let {
+                val point = GeoPoint(it.latitude, it.longitude)
+                val targetZoom = binding.mapView.zoomLevelDouble
+                val targetRotation = if (isTrackUp) -it.bearing else 0f
+                
+                binding.mapView.controller.animateTo(point, targetZoom, 200L)
+                animateMapRotation(binding.mapView.mapOrientation, targetRotation)
             }
         }
 
@@ -673,12 +680,42 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     private fun updateLocationButtonState() {
-        val color = if (NavigationRepository.navigationState.value) {
-            if (isFollowing && isTrackUp) ContextCompat.getColor(requireContext(), R.color.blue_primary) else Color.BLACK
+        val context = requireContext()
+        if (!isFollowing) {
+            binding.fabLocation.imageTintList = android.content.res.ColorStateList.valueOf(Color.BLACK)
+            binding.fabLocation.setImageResource(R.drawable.ic_my_location)
         } else {
-            if (isFollowing) ContextCompat.getColor(requireContext(), R.color.blue_primary) else Color.BLACK
+            binding.fabLocation.imageTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(context, R.color.blue_primary))
+            if (isTrackUp) {
+                // Chế độ Track Up: Icon mũi tên định hướng
+                binding.fabLocation.setImageResource(R.drawable.ic_navigation_arrow) 
+            } else {
+                // Chế độ North Up: Icon vị trí tiêu chuẩn
+                binding.fabLocation.setImageResource(R.drawable.ic_my_location)
+            }
         }
-        binding.fabLocation.imageTintList = android.content.res.ColorStateList.valueOf(color)
+    }
+
+    private var mapRotationAnimator: android.animation.ValueAnimator? = null
+    
+    private fun animateMapRotation(currentRotation: Float, targetRotation: Float) {
+        mapRotationAnimator?.cancel()
+        
+        // Normalize rotation diff to shortest path
+        var start = currentRotation
+        var end = targetRotation
+        var diff = end - start
+        while (diff < -180f) diff += 360f
+        while (diff > 180f) diff -= 360f
+        end = start + diff
+
+        mapRotationAnimator = android.animation.ValueAnimator.ofFloat(start, end).apply {
+            duration = 200
+            addUpdateListener { animator ->
+                binding.mapView.mapOrientation = animator.animatedValue as Float
+            }
+            start()
+        }
     }
 
     private fun observeNavigationData() {
@@ -692,27 +729,32 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     // 1. Cập nhật vị trí dấu chấm xanh
                     userMarker?.setPosition(point)
                     
-                    // 2. Cập nhật xoay của Marker
-                    if (location.speed > 1.2) {
-                        animateMarkerRotation(-location.bearing)
+                    // 2. Xử lý xoay bản đồ và Marker theo chế độ
+                    val speed = location.speed
+                    val bearing = if (speed > 1.5f && location.hasBearing()) location.bearing else lastHeading
+                    
+                    if (isFollowing) {
+                        // Rule APP-25: Dùng animateTo với 200ms
+                        binding.mapView.controller.animateTo(point, binding.mapView.zoomLevelDouble, 200L)
+                        
+                        if (isTrackUp) {
+                            // Chế độ Track Up: Bản đồ xoay ngược bearing, Marker hướng thẳng (0)
+                            animateMapRotation(binding.mapView.mapOrientation, -bearing)
+                            animateMarkerRotation(0f)
+                        } else {
+                            // Chế độ North Up: Bản đồ hướng Bắc (0), Marker xoay theo bearing
+                            animateMapRotation(binding.mapView.mapOrientation, 0f)
+                            animateMarkerRotation(bearing)
+                        }
                     } else {
-                        animateMarkerRotation(-lastHeading)
+                        // Khi không follow: Bản đồ không tự xoay, Marker xoay theo hướng thực tế
+                        animateMarkerRotation(bearing)
                     }
                     
                     if (isFirstLocation) {
                         val zoom = PrefsHelper.getFloat(requireContext(), "default_zoom", 15f).toDouble()
                         binding.mapView.controller.animateTo(point, zoom, 200L)
                         isFirstLocation = false
-                    }
-                    
-                    if (isFollowing) {
-                        // Rule APP-25: Dùng animateTo với 200ms
-                        binding.mapView.controller.animateTo(point, binding.mapView.zoomLevelDouble, 200L)
-                        if (NavigationRepository.navigationState.value && isTrackUp) {
-                            if (location.speed > 1.2) {
-                                binding.mapView.mapOrientation = -location.bearing
-                            }
-                        }
                     }
                     
                     val speedLimit = PrefsHelper.getInt(requireContext(), "speed_threshold", 60)
@@ -736,7 +778,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
         lifecycleScope.launch {
             NavigationRepository.navigationState.collect { running ->
                 if (running) {
-                    isFollowing = true; isTrackUp = true
+                    isFollowing = true
+                    isTrackUp = true
                     binding.btnRecenter.hide()
                     updateLocationButtonState()
                     binding.bottomSheet.layoutPlaceInfo.visibility = View.GONE
@@ -746,8 +789,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     NavigationRepository.gpsLocation.value?.let {
                         binding.mapView.controller.setZoom(PrefsHelper.getFloat(requireContext(), "default_zoom", 15f).toDouble())
                         binding.mapView.controller.animateTo(GeoPoint(it.latitude, it.longitude))
-                        binding.mapView.mapOrientation = -it.bearing
-                        animateMarkerRotation(-it.bearing)
+                        animateMapRotation(binding.mapView.mapOrientation, -it.bearing)
+                        animateMarkerRotation(0f)
                     }
                 } else {
                     binding.bottomSheet.layoutNavigation.visibility = View.GONE
@@ -827,6 +870,12 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     private fun triggerDrawRoutes(routes: List<com.example.tymap.repository.RouteInfo>) {
         drawRoutesJob?.cancel()
+        // Clear old polylines immediately on the main thread so they disappear instantly and don't linger
+        val toRemove = binding.mapView.overlays.filterIsInstance<Polyline>()
+        binding.mapView.overlays.removeAll(toRemove)
+        routePolylines.clear()
+        binding.mapView.postInvalidateDelayed(50)
+
         drawRoutesJob = lifecycleScope.launch {
             drawRoutes(routes)
         }
@@ -1247,15 +1296,19 @@ class MapFragment : Fragment(), IOrientationConsumer {
             val currentLoc = NavigationRepository.gpsLocation.value
             val speed = currentLoc?.speed ?: 0f
             
-            // Update Fan rotation on Marker directly
-            // Only use Compass if we are standing still (speed <= 1.2m/s)
+            // Chỉ cập nhật nếu đang đứng yên hoặc tốc độ cực thấp
             if (speed <= 1.2) {
-                animateMarkerRotation(-orientation)
-            }
-            
-            // Track Up logic when standing still
-            if (isFollowing && NavigationRepository.navigationState.value && isTrackUp && speed <= 1.2) {
-                binding.mapView.mapOrientation = -orientation
+                if (isFollowing) {
+                    if (isTrackUp) {
+                        animateMapRotation(binding.mapView.mapOrientation, -orientation)
+                        animateMarkerRotation(0f)
+                    } else {
+                        animateMapRotation(binding.mapView.mapOrientation, 0f)
+                        animateMarkerRotation(orientation)
+                    }
+                } else {
+                    animateMarkerRotation(orientation)
+                }
             }
             
             binding.mapView.postInvalidateDelayed(100)

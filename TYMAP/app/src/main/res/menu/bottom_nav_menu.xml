@@ -16,4 +16,8 @@
         android:id="@+id/nav_notifications"
         android:icon="@drawable/ic_notifications"
         android:title="@string/nav_notifications" />
+    <item
+        android:id="@+id/nav_render"
+        android:icon="@drawable/ic_layers"
+        android:title="Render" />
 </menu>

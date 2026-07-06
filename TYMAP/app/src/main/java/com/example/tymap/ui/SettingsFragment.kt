@@ -291,7 +291,8 @@ class SettingsFragment : Fragment() {
             "Bản đồ OSM tĩnh (Continuous)",
             "Chụp Google Maps (Liên tục)",
             "Chụp Google Maps (Theo ngã rẽ/Popup)",
-            "Bản đồ OSM cuốn chiếu (Tile Streaming)"
+            "Bản đồ OSM cuốn chiếu (Tile Streaming)",
+            "Ảnh chỉ đường (Roads Only)"
         )
         var initialMode = PrefsHelper.getInt(context, "map_capture_mode", 0)
         val isTileStreamingOld = PrefsHelper.getBoolean(context, "tile_streaming", false)
@@ -362,7 +363,7 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        val fpsList = arrayOf("1 FPS", "2 FPS", "3 FPS", "5 FPS", "7 FPS")
+        val fpsList = arrayOf("1 FPS", "2 FPS", "5 FPS", "10 FPS")
         setupSpinner(binding.spinnerMapFps, fpsList, PrefsHelper.getInt(context, "map_fps", 0)) {
             PrefsHelper.putInt(context, "map_fps", it)
         }

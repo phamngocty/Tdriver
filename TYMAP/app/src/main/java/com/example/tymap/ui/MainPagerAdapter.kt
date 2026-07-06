@@ -5,7 +5,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
 
 class MainPagerAdapter(activity: FragmentActivity) : FragmentStateAdapter(activity) {
-    override fun getItemCount(): Int = 4
+    override fun getItemCount(): Int = 5
 
     override fun createFragment(position: Int): Fragment {
         return when (position) {
@@ -13,6 +13,7 @@ class MainPagerAdapter(activity: FragmentActivity) : FragmentStateAdapter(activi
             1 -> MapFragment()
             2 -> SettingsFragment()
             3 -> NotificationsFragment()
+            4 -> RenderFragment()
             else -> throw IllegalArgumentException("Invalid position")
         }
     }

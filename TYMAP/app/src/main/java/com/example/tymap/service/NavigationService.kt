@@ -94,9 +94,12 @@ class NavigationService : Service() {
     private var lastSentIconHash: Long = -1
 
     private var headlessMapView: MapView? = null
+    private var headlessUserMarker: Marker? = null
+    private var headlessDestMarker: Marker? = null
     private var isMapModeActive = false
     private var isGmapsActive = false
     var screenCaptureManager: ScreenCaptureManager? = null
+    private var roadsOnlyMapRenderer: RoadsOnlyMapRenderer? = null
     private var mediaProjection: MediaProjection? = null
     private var lastMapUpdateLocation: android.location.Location? = null
     private var lastMapUpdateTime: Long = 0
@@ -339,6 +342,7 @@ class NavigationService : Service() {
         bleManager = MyBleManager(this)
         gpsManager = GpsManager(this)
         ttsManager = TtsManager(this)
+        roadsOnlyMapRenderer = RoadsOnlyMapRenderer(this)
         NavigationRepository.addLog("Dịch vụ BLE đã khởi tạo.")
         createNotificationChannel()
         setupHeadlessMap()
@@ -455,7 +459,9 @@ class NavigationService : Service() {
 
     private fun setupHeadlessMap() {
         headlessMapView = MapView(this)
+        // Rule APP-21: Bật cache tối thiểu 50MB cho headless map
         headlessMapView?.setTileSource(TileSourceFactory.MAPNIK)
+        headlessMapView?.setLayerType(View.LAYER_TYPE_SOFTWARE, null) // CRITICAL: Services don't have HW acceleration
         headlessMapView?.layoutParams = ViewGroup.LayoutParams(240, 240)
         headlessMapView?.measure(
             View.MeasureSpec.makeMeasureSpec(240, View.MeasureSpec.EXACTLY),
@@ -463,17 +469,34 @@ class NavigationService : Service() {
         )
         headlessMapView?.layout(0, 0, 240, 240)
         NavigationRepository.lastMapZoom = PrefsHelper.getFloat(this, "last_map_zoom", 15f).toDouble()
+
+        // Fallback for satellite tiles failing in background
+        val tileCallbackHandler = object : android.os.Handler(android.os.Looper.getMainLooper()) {
+            override fun handleMessage(msg: android.os.Message) {
+                if (msg.what == org.osmdroid.tileprovider.MapTileProviderBase.MAPTILE_FAIL_ID) {
+                    val currentSource = headlessMapView?.tileProvider?.tileSource
+                    if (currentSource != null && currentSource.name() == "Satellite (ESRI)") {
+                        headlessMapView?.setTileSource(mapCnPositron)
+                        PrefsHelper.putInt(this@NavigationService, "tile_source", 0)
+                        android.util.Log.w("NavigationService", "Satellite tile loading failed, falling back to CartoDB Positron")
+                    }
+                }
+            }
+        }
+        headlessMapView?.tileProvider?.tileRequestCompleteHandlers?.add(tileCallbackHandler)
     }
 
     private var currentDestination: Pair<Double, Double>? = null
     private var lastRerouteTime: Long = 0
     private var lastOffRouteCheckTime: Long = 0
 
+    private var isInitialized = false
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        android.util.Log.d("NavigationService", "onStartCommand")
+        android.util.Log.d("NavigationService", "onStartCommand: action=${intent?.action}, isInitialized=$isInitialized")
         val notification = createNotification()
         
-        // Xác định các loại dịch vụ có thể chạy dựa trên quyền đã được cấp
+        // ... (rest of type calculation)
         var foregroundServiceType = 0
         
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
@@ -516,23 +539,29 @@ class NavigationService : Service() {
 
         // Navigation state is initially FALSE. 
         // Only set to TRUE when we have a real destination.
-        gpsManager.startLocationUpdates()
-        // startMapRenderingLoop() được gọi sau khi ACTION_START_CAPTURE được xử lý
-        // để screenCaptureManager sẵn sàng trước khi vòng lặp chạy
-        startWeatherSync()
-        startTimeSync()
-        startNavigationLogic()
-        observeIconRequests()
-        observeMapMode()
-        observeConnectionState()
-        observeNavigationState()
-        startAutoReconnectLoop()
+        if (!isInitialized) {
+            isInitialized = true
+            gpsManager.startLocationUpdates()
+            // startMapRenderingLoop() được gọi sau khi ACTION_START_CAPTURE được xử lý
+            // để screenCaptureManager sẵn sàng trước khi vòng lặp chạy
+            startWeatherSync()
+            startTimeSync()
+            startNavigationLogic()
+            observeIconRequests()
+            observeMapMode()
+            observeConnectionState()
+            observeNavigationState()
+            startAutoReconnectLoop()
+            
+            // Start rendering loop once
+            startMapRenderingLoop()
+        }
 
         // Handle explicit or auto connection BLE
         val connectMac = intent?.getStringExtra("CONNECT_MAC")
         if (connectMac != null) {
             connectToMac(connectMac, useAutoConnect = false)
-        } else {
+        } else if (bleManager.bluetoothDevice == null) {
             autoConnectBle()
         }
 
@@ -569,9 +598,6 @@ class NavigationService : Service() {
             NavigationRepository.setNavigationRunning(true)
             fetchInitialRoute(destLat, destLon)
         }
-
-        // Start rendering loop AFTER screenCaptureManager may be initialized
-        startMapRenderingLoop()
         
         return START_STICKY
     }
@@ -694,10 +720,10 @@ class NavigationService : Service() {
     private fun startWeatherSync() {
         serviceScope.launch(Dispatchers.IO) {
             while (isActive) {
-                NavigationRepository.gpsLocation.collect { location ->
-                if (location == null) return@collect
-                try {
-                    val url = "https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true"
+                val location = NavigationRepository.gpsLocation.value
+                if (location != null) {
+                    try {
+                        val url = "https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true"
                         val request = Request.Builder().url(url).build()
                         httpClient.newCall(request).execute().use { response ->
                             val body = response.body.string()
@@ -711,9 +737,11 @@ class NavigationService : Service() {
                                 android.util.Log.e("NavigationService", "Weather API Error: ${response.code} - $body")
                             }
                         }
-                    } catch (e: Exception) { }
-                    delay(600_000)
+                    } catch (e: Exception) {
+                        android.util.Log.e("NavigationService", "Weather Sync Exception: ${e.message}")
+                    }
                 }
+                delay(600_000)
             }
         }
     }
@@ -787,7 +815,21 @@ class NavigationService : Service() {
             while (isActive) {
                 val captureMode = PrefsHelper.getInt(this@NavigationService, "map_capture_mode", 0)
                 if (isMapModeActive || isPopupActive) {
-                    val quality = PrefsHelper.getFloat(this@NavigationService, "jpeg_quality", 40f).toInt()
+                    val fpsVal = PrefsHelper.getInt(this@NavigationService, "map_fps", 0)
+                    val fps = when (fpsVal) {
+                        0 -> 1
+                        1 -> 2
+                        2 -> 5
+                        3 -> 10
+                        else -> 1
+                    }
+                    val quality = if (captureMode == 4) {
+                        65
+                    } else if (fps > 2) {
+                        40
+                    } else {
+                        PrefsHelper.getFloat(this@NavigationService, "jpeg_quality", 40f).toInt()
+                    }
                     
                     val deviceDisplay = NavigationRepository.deviceStatus.value["display"] ?: ""
                     val isOled = deviceDisplay.contains("OLED")
@@ -811,19 +853,24 @@ class NavigationService : Service() {
                             } catch (e: Exception) {}
                         }
                     }
-
-                    val fpsVal = PrefsHelper.getInt(this@NavigationService, "map_fps", 0)
-                    val fps = when (fpsVal) {
-                        1 -> 2
-                        2 -> 3
-                        3 -> 5
-                        4 -> 7
-                        else -> 1
-                    }
                     
                     var imageBytes: ByteArray? = null
                     
-                    if (captureMode == 1) {
+                    if (captureMode == 4) {
+                        try {
+                            val loc = NavigationRepository.gpsLocation.value
+                            val speed = loc?.speed ?: 0f
+                            val heading = if (speed > 1.2f) {
+                                loc?.bearing ?: 0f
+                            } else {
+                                NavigationRepository.compassHeading.value
+                            }
+                            val zoom = NavigationRepository.lastMapZoom
+                            imageBytes = roadsOnlyMapRenderer?.render(headlessMapView, loc, heading, zoom, quality)
+                        } catch (e: Exception) {
+                            android.util.Log.e("NavigationService", "Roads Only rendering error: ${e.message}", e)
+                        }
+                    } else if (captureMode == 1) {
                         // Mode 1: luôn chụp màn hình
                         imageBytes = screenCaptureManager?.captureAndProcess(quality, "gmaps_")
                     } else if (captureMode == 2 && isPopupActive) {
@@ -838,11 +885,15 @@ class NavigationService : Service() {
 
                     if (imageBytes != null) {
                         val imageHash = calculateCRC32(imageBytes)
-                        if (imageHash != lastSentMapImageHash) {
+                        val frameSkippingEnabled = PrefsHelper.getBoolean(this@NavigationService, "frame_skipping", true) || fps >= 5
+                        if (!frameSkippingEnabled || imageHash != lastSentMapImageHash) {
                             lastSentMapImageHash = imageHash
                             if (isOled) {
                                 val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                                bleManager.writeOledImage(convertToOled1Bit(bitmap))
+                                if (bitmap != null) {
+                                    bleManager.writeOledImage(convertToOled1Bit(bitmap))
+                                    bitmap.recycle()
+                                }
                             } else {
                                 bleManager.writeMapImage(imageBytes)
                             }
@@ -891,13 +942,13 @@ class NavigationService : Service() {
         "© OpenStreetMap contributors, © CARTO")
 
     private val satelliteSource = object : XYTileSource("Satellite (ESRI)", 1, 20, 256, "",
-        arrayOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"),
+        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"),
         "© ESRI") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
+            return "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
         }
     }
 
@@ -930,91 +981,110 @@ class NavigationService : Service() {
         
         val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.RGB_565)
         val canvas = Canvas(bitmap)
-        withContext(Dispatchers.Main) {
-            // Update Tile Source based on user setting
-            val tileSourceIndex = PrefsHelper.getInt(this@NavigationService, "tile_source", 0)
-            val tileSources = getTileSources()
-            val selectedTileSource = tileSources.getOrNull(tileSourceIndex) ?: TileSourceFactory.MAPNIK
-            if (headlessMapView?.tileProvider?.tileSource != selectedTileSource) {
-                headlessMapView?.setTileSource(selectedTileSource)
+        try {
+                // 1. Prepare simplified polylines on IO thread to keep Main thread responsive
+            val zoom = NavigationRepository.lastMapZoom
+            val tolerance = 3.0 * (360.0 / (256.0 * Math.pow(2.0, zoom)))
+            val routes = NavigationRepository.routes.value
+            
+            val simplifiedRoutes = routes.map { route ->
+                route to com.example.tymap.utils.PolylineDecoder.simplify(route.polyline, tolerance)
             }
 
-            // Clear old overlays to avoid memory bloat and duplicate routes
-            headlessMapView?.overlays?.clear()
+            withContext(Dispatchers.Main) {
+                // Update Tile Source based on user setting
+                val tileSourceIndex = PrefsHelper.getInt(this@NavigationService, "tile_source", 0)
+                val tileSources = getTileSources()
+                val selectedTileSource = tileSources.getOrNull(tileSourceIndex) ?: TileSourceFactory.MAPNIK
+                if (headlessMapView?.tileProvider?.tileSource != selectedTileSource) {
+                    headlessMapView?.setTileSource(selectedTileSource)
+                }
 
-            // 1. Draw all route polylines
-            val routes = NavigationRepository.routes.value
-            if (routes.isNotEmpty()) {
-                val zoom = headlessMapView?.zoomLevelDouble ?: 15.0
-                val tolerance = 3.0 * (360.0 / (256.0 * Math.pow(2.0, zoom)))
-                
-                val unselected = routes.filter { !it.isSelected }
-                val selected = routes.filter { it.isSelected }
-                
-                (unselected + selected).forEach { route ->
-                    val simplifiedPoints = com.example.tymap.utils.PolylineDecoder.simplify(route.polyline, tolerance)
-                    if (simplifiedPoints.size >= 2) {
-                        val polyline = Polyline(headlessMapView).apply {
-                            setPoints(simplifiedPoints.map { org.osmdroid.util.GeoPoint(it.first, it.second) })
-                            outlinePaint.isAntiAlias = true
-                            outlinePaint.color = if (route.isSelected) Color.parseColor("#007AFF") else Color.parseColor("#8E8E93")
-                            outlinePaint.strokeWidth = if (route.isSelected) 18f else 12f
-                            outlinePaint.alpha = if (route.isSelected) 255 else 180
-                            outlinePaint.strokeCap = Paint.Cap.ROUND
-                            outlinePaint.strokeJoin = Paint.Join.ROUND
+                // Clear old overlays except reused markers to avoid memory bloat
+                val overlays = headlessMapView?.overlays
+                if (overlays != null) {
+                    val toRemove = overlays.filter { it != headlessUserMarker && it != headlessDestMarker }
+                    overlays.removeAll(toRemove)
+                }
+
+                if (simplifiedRoutes.isNotEmpty()) {
+                    val unselected = simplifiedRoutes.filter { !it.first.isSelected }
+                    val selected = simplifiedRoutes.filter { it.first.isSelected }
+                    
+                    (unselected + selected).forEach { (route, points) ->
+                        if (points.size >= 2) {
+                            val polyline = Polyline(headlessMapView).apply {
+                                setPoints(points.map { org.osmdroid.util.GeoPoint(it.first, it.second) })
+                                outlinePaint.isAntiAlias = true
+                                outlinePaint.color = if (route.isSelected) Color.parseColor("#007AFF") else Color.parseColor("#8E8E93")
+                                outlinePaint.strokeWidth = if (route.isSelected) 18f else 12f
+                                outlinePaint.alpha = if (route.isSelected) 255 else 180
+                                outlinePaint.strokeCap = Paint.Cap.ROUND
+                                outlinePaint.strokeJoin = Paint.Join.ROUND
+                            }
+                            headlessMapView?.overlays?.add(polyline)
                         }
-                        headlessMapView?.overlays?.add(polyline)
                     }
                 }
-            }
 
-            // 2. Update map center and orientation based on current location
-            location?.let {
-                headlessMapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(it.latitude, it.longitude))
+                // 2. Update map center and orientation based on current location
+                location?.let {
+                    headlessMapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(it.latitude, it.longitude))
+                    
+                    // Track Up: Use GPS bearing when moving, fallback to compass heading when stationary
+                    val speed = it.speed
+                    val heading = if (speed > 1.2f) {
+                        it.bearing
+                    } else {
+                        NavigationRepository.compassHeading.value
+                    }
+                    headlessMapView?.mapOrientation = -heading
+                }
                 
-                // Track Up: Use GPS bearing when moving, fallback to compass heading when stationary
-                val speed = it.speed
-                val heading = if (speed > 1.2f) {
-                    it.bearing
-                } else {
-                    NavigationRepository.compassHeading.value
+                // Set zoom level from repository (synchronized instantly from MapFragment)
+                headlessMapView?.controller?.setZoom(NavigationRepository.lastMapZoom)
+                
+                // 3. Draw user position marker (Blue Dot + Fan)
+                location?.let { loc ->
+                    var marker = headlessUserMarker
+                    if (marker == null) {
+                        marker = Marker(headlessMapView).apply {
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                            icon = createUserIcon(this@NavigationService)
+                            setFlat(false)
+                            infoWindow = null
+                        }
+                        headlessUserMarker = marker
+                    }
+                    marker.position = org.osmdroid.util.GeoPoint(loc.latitude, loc.longitude)
+                    marker.rotation = 0f // Keep oriented to screen, pointing straight up as the map is already rotated to heading
+                    if (headlessMapView?.overlays?.contains(marker) == false) {
+                        headlessMapView?.overlays?.add(marker)
+                    }
                 }
-                headlessMapView?.mapOrientation = -heading
-            }
-            
-            // Set zoom level from repository (synchronized instantly from MapFragment)
-            headlessMapView?.controller?.setZoom(NavigationRepository.lastMapZoom)
-            
-            // 3. Draw user position marker (Blue Dot + Fan)
-            location?.let { loc ->
-                val userMarker = Marker(headlessMapView).apply {
-                    position = org.osmdroid.util.GeoPoint(loc.latitude, loc.longitude)
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    icon = createUserIcon(this@NavigationService)
-                    setFlat(false)
-                    rotation = 0f // Keep oriented to screen, pointing straight up as the map is already rotated to heading
-                    infoWindow = null
+                
+                // 4. Draw destination marker if available
+                currentDestination?.let { dest ->
+                    var marker = headlessDestMarker
+                    if (marker == null) {
+                        marker = Marker(headlessMapView).apply {
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                            icon = ContextCompat.getDrawable(this@NavigationService, R.drawable.ic_red_pin)
+                            infoWindow = null
+                        }
+                        headlessDestMarker = marker
+                    }
+                    marker.position = org.osmdroid.util.GeoPoint(dest.first, dest.second)
+                    if (headlessMapView?.overlays?.contains(marker) == false) {
+                        headlessMapView?.overlays?.add(marker)
+                    }
                 }
-                headlessMapView?.overlays?.add(userMarker)
-            }
-            
-            // 4. Draw destination marker if available
-            currentDestination?.let { dest ->
-                val destMarker = Marker(headlessMapView).apply {
-                    position = org.osmdroid.util.GeoPoint(dest.first, dest.second)
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    icon = ContextCompat.getDrawable(this@NavigationService, R.drawable.ic_red_pin)
-                    infoWindow = null
-                }
-                headlessMapView?.overlays?.add(destMarker)
+
+                // Resize headless map view for rendering
+                headlessMapView?.layout(0, 0, renderWidth, renderHeight)
+                headlessMapView?.draw(canvas)
             }
 
-            // Resize headless map view for rendering
-            headlessMapView?.layout(0, 0, renderWidth, renderHeight)
-            headlessMapView?.draw(canvas)
-        }
-
-        try {
             // Apply crop configuration for Map Tab
             val prefs = getSharedPreferences("tymap_settings", Context.MODE_PRIVATE)
             val normX = prefs.getFloat("map_tab_crop_x_norm", 0f)
@@ -1029,22 +1099,38 @@ class NavigationService : Service() {
             val safeY = absY.coerceIn(0, (renderHeight - absSize).coerceAtLeast(0))
             
             val cropped = Bitmap.createBitmap(bitmap, safeX, safeY, absSize, absSize)
-            val scaled = Bitmap.createScaledBitmap(cropped, 240, 240, true)
-
-            val outputStream = ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-            val bytes = outputStream.toByteArray()
-            
-            // Recycle safely to avoid Double Recycle or Canvas: trying to use a recycled bitmap exceptions
-            if (!bitmap.isRecycled) bitmap.recycle()
-            if (cropped != bitmap && !cropped.isRecycled) cropped.recycle()
-            if (scaled != cropped && scaled != bitmap && !scaled.isRecycled) scaled.recycle()
-
-            return bytes
+            try {
+                val fullMapCopy = bitmap.copy(bitmap.config ?: Bitmap.Config.RGB_565, false)
+                val croppedMapCopy = cropped.copy(cropped.config ?: Bitmap.Config.RGB_565, false)
+                NavigationRepository.updateMapPreviewInfo(
+                    NavigationRepository.MapPreviewInfo(
+                        fullMap = fullMapCopy,
+                        cropX = safeX,
+                        cropY = safeY,
+                        cropSize = absSize,
+                        croppedMap = croppedMapCopy
+                    )
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("NavigationService", "Error copying preview maps: ${e.message}")
+            }
+            try {
+                val scaled = Bitmap.createScaledBitmap(cropped, 240, 240, true)
+                try {
+                    val outputStream = ByteArrayOutputStream()
+                    scaled.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+                    return outputStream.toByteArray()
+                } finally {
+                    if (scaled != cropped && scaled != bitmap) scaled.recycle()
+                }
+            } finally {
+                if (cropped != bitmap) cropped.recycle()
+            }
         } catch (e: Exception) {
-            android.util.Log.e("NavigationService", "Error cropping/compressing OSM map: ${e.message}", e)
-            if (!bitmap.isRecycled) bitmap.recycle()
+            android.util.Log.e("NavigationService", "Error in renderOsmMap: ${e.message}", e)
             return null
+        } finally {
+            bitmap.recycle()
         }
     }
 
@@ -1269,6 +1355,12 @@ class NavigationService : Service() {
                             bleManager.sendRemoteCommand(0x11.toByte())
                         }
                         NavigationRepository.setMapModeActive(true)
+                    } else if (captureMode == 4) { // Roads Only Mode
+                        if (bleManager.isConnected) {
+                            android.util.Log.d("NavigationService", "Roads Only Navigation started, switching ESP32 to MAP_MODE")
+                            bleManager.sendRemoteCommand(0x11.toByte())
+                        }
+                        NavigationRepository.setMapModeActive(true)
                     }
                 } else {
                     if (bleManager.isConnected) {
@@ -1351,60 +1443,61 @@ class NavigationService : Service() {
         
         val centerPoint = org.osmdroid.util.GeoPoint(latCenter, lonCenter)
         
-        withContext(Dispatchers.Main) {
-            val tileSourceIndex = PrefsHelper.getInt(this@NavigationService, "tile_source", 0)
-            val tileSources = getTileSources()
-            val selectedTileSource = tileSources.getOrNull(tileSourceIndex) ?: org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK
-            if (headlessMapView?.tileProvider?.tileSource != selectedTileSource) {
-                headlessMapView?.setTileSource(selectedTileSource)
-            }
+        try {
+            withContext(Dispatchers.Main) {
+                val tileSourceIndex = PrefsHelper.getInt(this@NavigationService, "tile_source", 0)
+                val tileSources = getTileSources()
+                val selectedTileSource = tileSources.getOrNull(tileSourceIndex) ?: org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK
+                if (headlessMapView?.tileProvider?.tileSource != selectedTileSource) {
+                    headlessMapView?.setTileSource(selectedTileSource)
+                }
 
-            headlessMapView?.overlays?.clear()
+                headlessMapView?.overlays?.clear()
 
-            // 1. Vẽ tất cả lộ trình đi qua tile này
-            val routes = NavigationRepository.routes.value
-            if (routes.isNotEmpty()) {
-                val zoom = z.toDouble()
-                val tolerance = 3.0 * (360.0 / (256.0 * Math.pow(2.0, zoom)))
-                
-                val unselected = routes.filter { !it.isSelected }
-                val selected = routes.filter { it.isSelected }
+                // 1. Vẽ tất cả lộ trình đi qua tile này
+                val routes = NavigationRepository.routes.value
+                if (routes.isNotEmpty()) {
+                    val zoom = z.toDouble()
+                    val tolerance = 3.0 * (360.0 / (256.0 * Math.pow(2.0, zoom)))
+                    
+                    val unselected = routes.filter { !it.isSelected }
+                    val selected = routes.filter { it.isSelected }
 
-                (unselected + selected).forEach { route ->
-                    val simplifiedPoints = com.example.tymap.utils.PolylineDecoder.simplify(route.polyline, tolerance)
-                    if (simplifiedPoints.size >= 2) {
-                        val polyline = Polyline(headlessMapView).apply {
-                            setPoints(simplifiedPoints.map { org.osmdroid.util.GeoPoint(it.first, it.second) })
-                            outlinePaint.isAntiAlias = true
-                            outlinePaint.color = if (route.isSelected) Color.parseColor("#007AFF") else Color.parseColor("#8E8E93")
-                            outlinePaint.strokeWidth = if (route.isSelected) 12f else 8f
-                            outlinePaint.alpha = if (route.isSelected) 255 else 180
-                            outlinePaint.strokeCap = Paint.Cap.ROUND
-                            outlinePaint.strokeJoin = Paint.Join.ROUND
+                    (unselected + selected).forEach { route ->
+                        val simplifiedPoints = com.example.tymap.utils.PolylineDecoder.simplify(route.polyline, tolerance)
+                        if (simplifiedPoints.size >= 2) {
+                            val polyline = Polyline(headlessMapView).apply {
+                                setPoints(simplifiedPoints.map { org.osmdroid.util.GeoPoint(it.first, it.second) })
+                                outlinePaint.isAntiAlias = true
+                                outlinePaint.color = if (route.isSelected) Color.parseColor("#007AFF") else Color.parseColor("#8E8E93")
+                                outlinePaint.strokeWidth = if (route.isSelected) 12f else 8f
+                                outlinePaint.alpha = if (route.isSelected) 255 else 180
+                                outlinePaint.strokeCap = Paint.Cap.ROUND
+                                outlinePaint.strokeJoin = Paint.Join.ROUND
+                            }
+                            headlessMapView?.overlays?.add(polyline)
                         }
-                        headlessMapView?.overlays?.add(polyline)
                     }
                 }
+
+                // 2. Cấu hình bản đồ
+                headlessMapView?.controller?.setCenter(centerPoint)
+                headlessMapView?.controller?.setZoom(z.toDouble())
+                headlessMapView?.mapOrientation = 0f
+                
+                // 3. Layout và vẽ
+                headlessMapView?.layout(0, 0, renderSize, renderSize)
+                headlessMapView?.draw(canvas)
             }
 
-            // 2. Cấu hình bản đồ
-            headlessMapView?.controller?.setCenter(centerPoint)
-            headlessMapView?.controller?.setZoom(z.toDouble())
-            headlessMapView?.mapOrientation = 0f
-            
-            // 3. Layout và vẽ
-            headlessMapView?.layout(0, 0, renderSize, renderSize)
-            headlessMapView?.draw(canvas)
-        }
-
-        return try {
             val outputStream = java.io.ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
-            val bytes = outputStream.toByteArray()
-            if (!bitmap.isRecycled) bitmap.recycle()
-            bytes
+            return outputStream.toByteArray()
         } catch (e: Exception) {
-            null
+            android.util.Log.e("NavigationService", "Error in renderOsmTile: ${e.message}", e)
+            return null
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
         }
     }
 
@@ -1435,6 +1528,9 @@ class NavigationService : Service() {
             val speedKmh = (location.speed * 3.6).toInt()
             val bearingDeg = location.bearing.toInt()
             bleManager.writeGpsSpeedAndPosition(speedKmh, bearingDeg, px, py)
+
+            // Broadcast vị trí tile trung tâm cho Tab Render
+            NavigationRepository.updateTileStreamingCenter(curX, curY, z, px, py)
             
             if (curX != lastActiveX || curY != lastActiveY || z != lastActiveZ) {
                 val params = java.nio.ByteBuffer.allocate(9).order(java.nio.ByteOrder.LITTLE_ENDIAN)
@@ -1477,11 +1573,17 @@ class NavigationService : Service() {
                 if (!esp32Cache.contains(tileKey)) {
                     val jpeg = renderOsmTile(tx, ty, z, quality)
                     if (jpeg != null) {
+                        // Decode bitmap để hiển thị trên Tab Render (không ảnh hưởng BLE)
+                        try {
+                            val bmp = android.graphics.BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size)
+                            if (bmp != null) NavigationRepository.addStreamedTile(tx, ty, z, bmp)
+                        } catch (e: Exception) { /* bỏ qua lỗi decode preview */ }
+
                         val header = ByteArray(7)
                         header[0] = (tx and 0xFF).toByte()
                         header[1] = (ty and 0xFF).toByte()
                         header[2] = z.toByte()
-                        
+
                         val size = jpeg.size
                         java.nio.ByteBuffer.wrap(header, 3, 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).putInt(size)
                         

@@ -420,10 +420,11 @@ void setup() {
     
     // Khởi động màn hình OLED qua I2C: SDA=8, SCL=9 cho ESP32-C3
     Wire.begin(8, 9);
+    Wire.setClock(400000); // Tăng tốc I2C lên 400kHz (Fast Mode)
     u8g2.begin();
     u8g2.setFont(u8g2_font_6x10_tf);
     
-    rtc.setTime(1719403200); // Mặc định
+    rtc.setTime(1719360000); // Mặc định 00:00:00
 
     // Khởi tạo BLE
     NimBLEDevice::init("TYMAP-C3");

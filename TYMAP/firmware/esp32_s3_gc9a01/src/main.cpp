@@ -271,16 +271,21 @@ uint16_t* decodeTargetBuffer = nullptr;
 
 int drawJPEGToBuffer(JPEGDRAW *pDraw)
 {
-    if (decodeTargetBuffer)
+    if (!decodeTargetBuffer) return 1;
+    int yOffset = pDraw->y;
+    int xOffset = pDraw->x;
+    for (int y = 0; y < pDraw->iHeight; y++)
     {
-        int yOffset = pDraw->y;
-        int xOffset = pDraw->x;
-        for (int y = 0; y < pDraw->iHeight; y++)
-        {
-            memcpy(decodeTargetBuffer + (yOffset + y) * TILE_SIZE + xOffset,
-                   pDraw->pPixels + y * pDraw->iWidth,
-                   pDraw->iWidth * 2);
-        }
+        int dstRow = yOffset + y;
+        // Bỏ qua các hàng vượt ra ngoài kích thước buffer
+        if (dstRow < 0 || dstRow >= TILE_SIZE) continue;
+        if (xOffset < 0 || xOffset >= TILE_SIZE) continue;
+        int copyWidth = pDraw->iWidth;
+        if (xOffset + copyWidth > TILE_SIZE) copyWidth = TILE_SIZE - xOffset;
+        if (copyWidth <= 0) continue;
+        memcpy(decodeTargetBuffer + dstRow * TILE_SIZE + xOffset,
+               pDraw->pPixels + y * pDraw->iWidth,
+               copyWidth * 2);
     }
     return 1;
 }
@@ -339,6 +344,11 @@ void saveTileToCache(uint32_t tx, uint32_t ty, uint8_t tz, const uint8_t *jpegDa
     
     if (targetSlot != -1)
     {
+        if (!tileCache[targetSlot].rgb565Data)
+        {
+            Serial.println("Tile Cache: Slot rgb565Data is null! Skipping decode.");
+            return;
+        }
         decodeTargetBuffer = tileCache[targetSlot].rgb565Data;
         if (decodeTargetBuffer)
         {
@@ -470,6 +480,9 @@ void renderTileStreamingMap()
                 
                 int local_x = (tx < 0) ? (tx + TILE_SIZE) : ((tx >= TILE_SIZE) ? (tx - TILE_SIZE) : tx);
                 int local_y = (ty < 0) ? (ty + TILE_SIZE) : ((ty >= TILE_SIZE) ? (ty - TILE_SIZE) : ty);
+                
+                local_x = constrain(local_x, 0, TILE_SIZE - 1);
+                local_y = constrain(local_y, 0, TILE_SIZE - 1);
                 
                 uint16_t *neighborData = nullptr;
                 if (tile_dx == 0 && tile_dy == -1) neighborData = tileN;
@@ -829,24 +842,74 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
         }
         else if (uuid == CHA_MAP_IMAGE_UUID)
         {
+            // Null-guard
+            if (!jpegBuffer)
+            {
+                Serial.println("BLE ERROR: jpegBuffer is null! Ignoring MAP_IMAGE.");
+                return;
+            }
+
             if (!isReceivingJpeg)
             {
-                if (val.length() == 4)
+                // Header: 4 byte LE size. Packet có thể chỉ là 4 byte header,
+                // hoặc header + phần đầu của JPEG cùng một packet
+                if (val.length() >= 4)
                 {
                     memcpy(&jpegSize, val.data(), 4);
+                    if (jpegSize == 0 || jpegSize > 32 * 1024)
+                    {
+                        Serial.printf("BLE ERROR: Invalid jpegSize=%d! Ignoring.\n", jpegSize);
+                        return;
+                    }
                     jpegWritten = 0;
                     isReceivingJpeg = true;
+                    Serial.printf("BLE: JPEG Receive Start -> Size=%d bytes\n", jpegSize);
+
+                    // Nếu packet header chứa cả data đầu (> 4 bytes)
+                    int remainingBytes = (int)val.length() - 4;
+                    if (remainingBytes > 0)
+                    {
+                        uint32_t copyLen = min((uint32_t)remainingBytes, jpegSize);
+                        memcpy(jpegBuffer, val.data() + 4, copyLen);
+                        jpegWritten = copyLen;
+
+                        if (jpegWritten >= jpegSize)
+                        {
+                            isReceivingJpeg = false;
+                            newMapImageAvailable = true;
+                            screenNeedsRedraw = true;
+                            if (currentMode == HUD_MODE && popupEnabled)
+                            {
+                                isPopupActive = true;
+                                popupStartTime = millis();
+                            }
+                        }
+                    }
                 }
             }
             else
             {
-                memcpy(jpegBuffer + jpegWritten, val.data(), val.length());
-                jpegWritten += val.length();
+                // Nhận các chunk tiếp theo
+                uint32_t remaining = jpegSize - jpegWritten;
+                uint32_t copyLen = min((uint32_t)val.length(), remaining);
+                if (jpegWritten + copyLen <= 32 * 1024)
+                {
+                    memcpy(jpegBuffer + jpegWritten, val.data(), copyLen);
+                    jpegWritten += copyLen;
+                }
+                else
+                {
+                    Serial.println("BLE ERROR: JPEG overflowed 32KB! Aborting.");
+                    isReceivingJpeg = false;
+                    jpegWritten = 0;
+                    return;
+                }
+
                 if (jpegWritten >= jpegSize)
                 {
                     isReceivingJpeg = false;
                     newMapImageAvailable = true;
-                    screenNeedsRedraw = true; // Request redraw immediately on the Main Thread
+                    screenNeedsRedraw = true;
 
                     if (currentMode == HUD_MODE && popupEnabled)
                     {
@@ -858,6 +921,12 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
         }
         else if (uuid == CHA_MAP_TILE_UUID)
         {
+            // Null-guard: nếu tileBuffer chưa cấp phát được (OOM), bỏ qua toàn bộ tile streaming
+            if (!tileBuffer)
+            {
+                Serial.println("BLE ERROR: tileBuffer is null, Tile Streaming disabled.");
+                return;
+            }
             if (!isReceivingTile)
             {
                 if (val.length() >= 7)
@@ -866,6 +935,14 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     uint8_t ry = val[1];
                     recvTileZ = val[2];
                     memcpy(&tileBufferSize, val.data() + 3, 4);
+                    
+                    // Bảo vệ chống tràn bộ đệm (40KB tối đa)
+                    if (tileBufferSize > 40 * 1024)
+                    {
+                        Serial.printf("BLE ERROR: Tile size %d exceeds 40KB! Aborting.\n", tileBufferSize);
+                        isReceivingTile = false;
+                        return;
+                    }
                     
                     recvTileX = (activeTileX & 0xFFFFFF00) | rx;
                     int diffX = (int)(recvTileX & 0xFF) - (int)(activeTileX & 0xFF);
@@ -884,8 +961,17 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     int remainingBytes = val.length() - 7;
                     if (remainingBytes > 0)
                     {
-                        memcpy(tileBuffer, val.data() + 7, remainingBytes);
-                        tileBufferWritten = remainingBytes;
+                        if (tileBufferWritten + remainingBytes <= 40 * 1024)
+                        {
+                            memcpy(tileBuffer, val.data() + 7, remainingBytes);
+                            tileBufferWritten = remainingBytes;
+                        }
+                        else
+                        {
+                            isReceivingTile = false;
+                            Serial.println("BLE ERROR: Initial tile packet overflowed buffer! Aborted.");
+                            return;
+                        }
                     }
 
                     if (tileBufferWritten >= tileBufferSize)
@@ -898,8 +984,18 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
             }
             else
             {
-                memcpy(tileBuffer + tileBufferWritten, val.data(), val.length());
-                tileBufferWritten += val.length();
+                if (tileBufferWritten + val.length() <= 40 * 1024)
+                {
+                    memcpy(tileBuffer + tileBufferWritten, val.data(), val.length());
+                    tileBufferWritten += val.length();
+                }
+                else
+                {
+                    Serial.println("BLE ERROR: Continuing tile packet overflowed buffer! Aborted.");
+                    isReceivingTile = false;
+                    return;
+                }
+                
                 if (tileBufferWritten >= tileBufferSize)
                 {
                     isReceivingTile = false;
@@ -1104,11 +1200,19 @@ void setup()
     Serial.begin(115200);
     psramInit();
 
-    // Cấp phát buffer JPEG trong PSRAM
+    // Cấp phát buffer JPEG (32KB: đủ cho 240x240 JPEG quality 60, an toàn SRAM)
     jpegBuffer = (uint8_t *)ps_malloc(32 * 1024);
     if (!jpegBuffer)
     {
-        jpegBuffer = (uint8_t *)malloc(32 * 1024); // Fallback to SRAM
+        jpegBuffer = (uint8_t *)malloc(32 * 1024);
+    }
+    if (!jpegBuffer)
+    {
+        Serial.println("CRITICAL: Failed to allocate jpegBuffer! Static map display disabled.");
+    }
+    else
+    {
+        Serial.printf("jpegBuffer allocated: %d bytes\n", 32 * 1024);
     }
 
     // Khởi tạo tile cache trong PSRAM
@@ -1135,8 +1239,9 @@ void setup()
         
         if (i < MAX_TILES_DYNAMIC)
         {
-            tileCache[i].rgb565Data = (uint16_t*)ps_malloc(TILE_SIZE * TILE_SIZE * 2);
-            if (!tileCache[i].rgb565Data) {
+            if (hasPsram) {
+                tileCache[i].rgb565Data = (uint16_t*)ps_malloc(TILE_SIZE * TILE_SIZE * 2);
+            } else {
                 tileCache[i].rgb565Data = (uint16_t*)malloc(TILE_SIZE * TILE_SIZE * 2);
             }
             if (tileCache[i].rgb565Data) {
@@ -1149,9 +1254,16 @@ void setup()
     tileCacheInitialized = true;
     
     // Cấp phát buffer tile JPEG
-    tileBuffer = (uint8_t *)ps_malloc(32 * 1024);
+    // Dùng 40KB: đủ cho tile JPEG 256x256 nén trung bình, an toàn cho SRAM 320KB
+    tileBuffer = (uint8_t *)ps_malloc(40 * 1024);
     if (!tileBuffer) {
-        tileBuffer = (uint8_t *)malloc(32 * 1024);
+        tileBuffer = (uint8_t *)malloc(40 * 1024);
+    }
+    if (!tileBuffer) {
+        Serial.println("CRITICAL: Failed to allocate tileBuffer! Tile Streaming disabled.");
+        tileCacheInitialized = false; // Tắt tile streaming khi không đủ bộ nhớ
+    } else {
+        Serial.printf("tileBuffer allocated: %d bytes\n", 40 * 1024);
     }
 
     // Khởi tạo màn hình
@@ -1181,7 +1293,7 @@ void setup()
     }
 
     // Khởi tạo RTC thời gian mặc định
-    rtc.setTime(1719403200); // 2026-06-26 12:00:00
+    rtc.setTime(1719360000); // 2024-06-26 00:00:00
 
     // Tải cài đặt từ bộ nhớ NVS
     preferences.begin("tymap", false);
