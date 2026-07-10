@@ -87,6 +87,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private lateinit var bottomSheetBehavior: BottomSheetBehavior<View>
     private lateinit var suggestionAdapter: SuggestionAdapter
     private lateinit var routeAlternativeAdapter: RouteAlternativeAdapter
+    private lateinit var routeStepsAdapter: RouteStepsAdapter
     private val httpClient = OkHttpClient()
     private lateinit var routingEngine: RoutingEngine
 
@@ -427,6 +428,31 @@ class MapFragment : Fragment(), IOrientationConsumer {
         routeAlternativeAdapter = RouteAlternativeAdapter { selectRoute(it) }
         binding.bottomSheet.rvAlternatives.layoutManager = LinearLayoutManager(requireContext())
         binding.bottomSheet.rvAlternatives.adapter = routeAlternativeAdapter
+
+        routeStepsAdapter = RouteStepsAdapter()
+        binding.rvRouteSteps.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvRouteSteps.adapter = routeStepsAdapter
+
+        binding.bottomSheet.btnRouteInfo.setOnClickListener {
+            if (binding.layoutRouteSteps.visibility == View.VISIBLE) {
+                binding.layoutRouteSteps.visibility = View.GONE
+            } else {
+                binding.layoutRouteSteps.visibility = View.VISIBLE
+                val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
+                    ?: NavigationRepository.routes.value.firstOrNull()
+                activeRoute?.let { route ->
+                    routeStepsAdapter.submitList(route.steps)
+                }
+                NavigationRepository.hudPreviewData.value?.let { hud ->
+                    binding.tvStepsDuration.text = hud.duration
+                    binding.tvStepsSummary.text = if (hud.eta.isNotEmpty()) "${hud.distance} • ${hud.eta}" else hud.distance
+                }
+            }
+        }
+
+        binding.btnCloseSteps.setOnClickListener {
+            binding.layoutRouteSteps.visibility = View.GONE
+        }
 
         binding.bottomSheet.btnEndNav.setOnClickListener {
             // Thay vì dừng Service, chúng ta chỉ dừng chế độ dẫn đường
@@ -774,6 +800,12 @@ class MapFragment : Fragment(), IOrientationConsumer {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 NavigationRepository.routes.collect { routes ->
                     triggerDrawRoutes(routes)
+                    val activeRoute = routes.firstOrNull { it.isSelected } ?: routes.firstOrNull()
+                    if (activeRoute != null) {
+                        routeStepsAdapter.submitList(activeRoute.steps)
+                    } else {
+                        routeStepsAdapter.submitList(emptyList())
+                    }
                 }
             }
         }
@@ -816,6 +848,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     } else {
                         binding.bottomSheet.ivNavIcon.setImageResource(maneuverIconRes(hud.iconIndex))
                     }
+
+                    // Đồng bộ thông tin Header của danh sách ngã rẽ chi tiết
+                    if (binding.layoutRouteSteps.visibility == View.VISIBLE) {
+                        binding.tvStepsDuration.text = hud.duration
+                        binding.tvStepsSummary.text = if (hud.eta.isNotEmpty()) "${hud.distance} • ${hud.eta}" else hud.distance
+                    }
+                } else {
+                    binding.layoutRouteSteps.visibility = View.GONE
                 }
             }
         }

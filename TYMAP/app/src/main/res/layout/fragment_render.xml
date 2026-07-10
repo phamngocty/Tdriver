@@ -247,8 +247,7 @@
         <!-- BLE Logs Section -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="wrap_content"
             app:cardCornerRadius="16dp"
             app:cardElevation="4dp"
             app:cardBackgroundColor="#1E1E1E"
@@ -257,7 +256,7 @@
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="16dp">
 
@@ -269,6 +268,56 @@
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:layout_marginBottom="8dp"/>
+
+                <!-- Controls: Tạm dừng cuộn, Xóa log -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnPauseRenderLog"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="4dp"
+                        android:text="Tạm dừng cuộn"
+                        android:textSize="12sp"
+                        app:icon="@drawable/ic_stop"
+                        app:iconTint="#FFFFFF"
+                        android:textColor="#FFFFFF"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnClearRenderLogsTab"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="4dp"
+                        android:text="Xóa nhật ký"
+                        android:textSize="12sp"
+                        app:icon="@drawable/ic_delete"
+                        app:iconTint="#FFFFFF"
+                        android:textColor="#FFFFFF"/>
+                </LinearLayout>
+
+                <!-- Search Input -->
+                <EditText
+                    android:id="@+id/etSearchRenderLog"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="#121212"
+                    android:hint="Tìm kiếm nhật ký..."
+                    android:textColorHint="#666666"
+                    android:textColor="#FFFFFF"
+                    android:paddingHorizontal="12dp"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="8dp"
+                    android:drawableStart="@drawable/ic_search"
+                    android:drawablePadding="8dp"
+                    android:singleLine="true"/>
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rvRenderLogs"

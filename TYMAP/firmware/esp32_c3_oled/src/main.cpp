@@ -168,7 +168,15 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks {
                     String value = line.substring(eqIdx + 1);
                     if (key == "dist") distToNext = value;
                     else if (key == "inst" || key == "title") nextStreet = value;
-                    else if (key == "road" || key == "dir") totalDist = value;
+                    else if (key == "road") totalDist = value;
+                    else if (key == "dir") {
+                        if (value.length() > 0 && isDigit(value[0])) {
+                            staticIconIndex = value.toInt();
+                            hasCustomIcon = false;
+                        } else {
+                            totalDist = value;
+                        }
+                    }
                     else if (key == "eta") eta = value;
                     else if (key == "ete") ete = value;
                 }

@@ -143,11 +143,12 @@
                 </LinearLayout>
 
                 <ImageButton
-                    android:id="@+id/btnMute"
+                    android:id="@+id/btnRouteInfo"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/ic_favorite" />
+                    android:src="@drawable/ic_directions"
+                    app:tint="@color/blue_primary" />
             </LinearLayout>
 
             <View

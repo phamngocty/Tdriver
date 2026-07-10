@@ -53,7 +53,7 @@ class GMapsNotificationListener : NotificationListenerService() {
         var ete = ""
 
         // 1. Regex để nhận diện khoảng cách ở đầu chuỗi (ví dụ: "700 m · Chếch...", "1.2km Rẽ...", "150 m đi...")
-        val leadingDistRegex = Regex("""^(\d+(?:[.,]\d+)?\s*(?:m|km))\b""", RegexOption.IGNORE_CASE)
+        val leadingDistRegex = Regex("""^(\d+(?:[.,]\d+)?\s*(?:m|km))""", RegexOption.IGNORE_CASE)
         
         // Kiểm tra title trước
         val titleMatch = leadingDistRegex.find(rawTitle)

@@ -26,6 +26,8 @@ class RenderFragment : Fragment() {
     private val binding get() = _binding!!
     private lateinit var logAdapter: LogAdapter
     private val logList = mutableListOf<String>()
+    private var isLogPaused = false
+    private var searchQuery = ""
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -114,25 +116,77 @@ class RenderFragment : Fragment() {
         // 4. Observe system BLE logs
         lifecycleScope.launch {
             NavigationRepository.logs.collectLatest { logs ->
-                logList.clear()
-                logList.addAll(logs)
-                logAdapter.notifyDataSetChanged()
+                if (!isLogPaused) {
+                    logList.clear()
+                    val filtered = if (searchQuery.isEmpty()) {
+                        logs
+                    } else {
+                        logs.filter { it.contains(searchQuery, ignoreCase = true) }
+                    }
+                    logList.addAll(filtered)
+                    logAdapter.notifyDataSetChanged()
+                    if (logList.isNotEmpty()) {
+                        binding.rvRenderLogs.scrollToPosition(0)
+                    }
+                }
             }
         }
-
+ 
         // 5. Setup Action Buttons
         binding.btnSendCurrentMap.setOnClickListener {
             sendCurrentMapImage()
         }
-
+ 
         binding.btnSendDemoNav.setOnClickListener {
             sendDemoNavigationData()
         }
-
+ 
         binding.btnClearRenderLogs.setOnClickListener {
             NavigationRepository.clearLogs()
             Toast.makeText(requireContext(), "Đã xóa lịch sử log", Toast.LENGTH_SHORT).show()
         }
+
+        binding.btnClearRenderLogsTab.setOnClickListener {
+            NavigationRepository.clearLogs()
+            Toast.makeText(requireContext(), "Đã xóa lịch sử log", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnPauseRenderLog.setOnClickListener {
+            isLogPaused = !isLogPaused
+            binding.btnPauseRenderLog.text = if (isLogPaused) "Tiếp tục cuộn" else "Tạm dừng cuộn"
+            binding.btnPauseRenderLog.setIconResource(if (isLogPaused) R.drawable.ic_play else R.drawable.ic_stop)
+            if (!isLogPaused) {
+                val logs = NavigationRepository.logs.value
+                logList.clear()
+                val filtered = if (searchQuery.isEmpty()) {
+                    logs
+                } else {
+                    logs.filter { it.contains(searchQuery, ignoreCase = true) }
+                }
+                logList.addAll(filtered)
+                logAdapter.notifyDataSetChanged()
+                if (logList.isNotEmpty()) {
+                    binding.rvRenderLogs.scrollToPosition(0)
+                }
+            }
+        }
+
+        binding.etSearchRenderLog.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                searchQuery = s?.toString() ?: ""
+                val logs = NavigationRepository.logs.value
+                logList.clear()
+                val filtered = if (searchQuery.isEmpty()) {
+                    logs
+                } else {
+                    logs.filter { it.contains(searchQuery, ignoreCase = true) }
+                }
+                logList.addAll(filtered)
+                logAdapter.notifyDataSetChanged()
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
     }
 
     private fun setupLogRecyclerView() {
@@ -165,7 +219,7 @@ class RenderFragment : Fragment() {
     private fun sendDemoNavigationData() {
         val bleManager = NavigationService.bleManager
         if (bleManager != null && bleManager.isConnected) {
-            val demoData = "active=1\nnav=1\ndist=350m\ntitle=Rẽ trái vào Nguyễn Huệ\ndir=Nguyễn Huệ\neta=18:30\nete=5 min"
+            val demoData = "active=1\nnav=1\ndist=350m\ntitle=Rẽ trái vào Nguyễn Huệ\nroad=Nguyễn Huệ\ndir=5\neta=18:30\nete=5 min"
             bleManager.writeNavigationData(demoData)
             
             // Cập nhật lên UI

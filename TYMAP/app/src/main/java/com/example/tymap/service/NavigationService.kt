@@ -245,7 +245,8 @@ class NavigationService : Service() {
         }
 
         if (shouldSendNavData) {
-            val bleData = "active=1\nnav=1\ndist=$distance\ntitle=$instruction\ndir=$roadName\neta=$eta\nete=$ete"
+            val cleanDist = cleanDistanceString(distance)
+            val bleData = "active=1\nnav=1\ndist=$cleanDist\ntitle=$instruction\nroad=$roadName\ndir=$iconIndex\neta=$eta\nete=$ete"
             bleManager.writeNavigationData(bleData)
         }
         
@@ -284,6 +285,13 @@ class NavigationService : Service() {
                 clean.replace("m", "").trim().toInt()
             }
         } catch (e: Exception) { -1 }
+    }
+
+    private fun cleanDistanceString(distStr: String): String {
+        val clean = distStr.trim()
+        val regex = Regex("""^(\d+(?:[.,]\d+)?\s*(?:m|km))""", RegexOption.IGNORE_CASE)
+        val match = regex.find(clean)
+        return match?.groups?.get(1)?.value?.trim() ?: clean
     }
 
     private fun checkAndTriggerPopup(distMeters: Int) {
@@ -430,7 +438,8 @@ class NavigationService : Service() {
             ))
 
             // Send to ESP32 in a structured format
-            val bleData = "dist=$finalDist\ninst=$finalInstruction\nroad=$road\neta=$eta\nete=$ete\ndir=$iconIndex"
+            val cleanDist = cleanDistanceString(finalDist)
+            val bleData = "active=1\nnav=1\ndist=$cleanDist\ntitle=$finalInstruction\nroad=$road\ndir=$iconIndex\neta=$eta\nete=$ete"
             bleManager.writeNavigationData(bleData)
         }
     }
@@ -674,47 +683,70 @@ class NavigationService : Service() {
 
     private fun updateHudFromSteps(location: android.location.Location, steps: List<com.example.tymap.repository.StepInfo>) {
         if (steps.isEmpty()) return
-        val nextStep = steps.firstOrNull { step ->
+        
+        // 1. Tìm bước closestIndex có điểm bắt đầu gần xe nhất
+        var closestIndex = 0
+        var minDistance = Double.MAX_VALUE
+        for (i in steps.indices) {
             val results = FloatArray(1)
-            android.location.Location.distanceBetween(location.latitude, location.longitude, step.location.first, step.location.second, results)
-            results[0] > 10
-        }
-        if (nextStep != null) {
-            val distResults = FloatArray(1)
-            android.location.Location.distanceBetween(location.latitude, location.longitude, nextStep.location.first, nextStep.location.second, distResults)
-            val dist = distResults[0]
-            val distanceStr = if (dist > 1000) String.format(Locale.getDefault(), "%.1f km", dist / 1000) else "${dist.toInt()} m"
-            
-            // Tính toán quãng đường và thời gian còn lại (remaining) từ bước này đến cuối lộ trình
-            var remainingDist = dist.toDouble()
-            var remainingDur = nextStep.duration * (dist / nextStep.distance.coerceAtLeast(1.0))
-            val nextStepIdx = steps.indexOf(nextStep)
-            if (nextStepIdx >= 0 && nextStepIdx < steps.size - 1) {
-                for (i in (nextStepIdx + 1) until steps.size) {
-                    remainingDist += steps[i].distance
-                    remainingDur += steps[i].duration
-                }
+            android.location.Location.distanceBetween(location.latitude, location.longitude, steps[i].location.first, steps[i].location.second, results)
+            val d = results[0].toDouble()
+            if (d < minDistance) {
+                minDistance = d
+                closestIndex = i
             }
-            
-            // Định dạng ETE và ETA cho OSM navigation
-            val hours = (remainingDur / 3600).toInt()
-            val minutes = ((remainingDur % 3600) / 60).toInt()
-            val eteStr = if (hours > 0) "${hours}h${minutes}p" else "${minutes}p"
-            
-            val cal = Calendar.getInstance()
-            cal.add(Calendar.SECOND, remainingDur.toInt())
-            val etaStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(cal.time)
-            
-            handleHudUpdate(
-                title = nextStep.instruction, 
-                details = distanceStr, 
-                isGmaps = false, 
-                forcedIconIndex = nextStep.maneuverIcon,
-                osmRoadName = nextStep.roadName,
-                osmEta = etaStr,
-                osmEte = eteStr
-            )
         }
+
+        // 2. Xác định chặng mục tiêu tiếp theo (targetIndex = closestIndex + 1)
+        var targetIndex = closestIndex + 1
+        if (targetIndex >= steps.size) {
+            targetIndex = steps.size - 1
+        } else {
+            // Kiểm tra xem xe đã đến rất gần điểm kết thúc của chặng hiện tại (điểm bắt đầu của targetIndex) chưa
+            val results = FloatArray(1)
+            android.location.Location.distanceBetween(location.latitude, location.longitude, steps[targetIndex].location.first, steps[targetIndex].location.second, results)
+            val distToTarget = results[0]
+            if (distToTarget <= 15 && targetIndex < steps.size - 1) {
+                // Nếu cách ngã rẽ tiếp theo <= 15m, chuyển sang ngã rẽ sau đó nữa để chuẩn bị hiển thị chỉ dẫn mới
+                targetIndex++
+            }
+        }
+
+        val nextStep = steps[targetIndex]
+        val distResults = FloatArray(1)
+        android.location.Location.distanceBetween(location.latitude, location.longitude, nextStep.location.first, nextStep.location.second, distResults)
+        val dist = distResults[0]
+        val distanceStr = if (dist > 1000) String.format(Locale.getDefault(), "%.1f km", dist / 1000) else "${dist.toInt()} m"
+        
+        // Tính toán quãng đường và thời gian còn lại (remaining) từ bước này đến cuối lộ trình
+        var remainingDist = dist.toDouble()
+        var remainingDur = nextStep.duration * (dist / nextStep.distance.coerceAtLeast(1.0))
+        val nextStepIdx = steps.indexOf(nextStep)
+        if (nextStepIdx >= 0 && nextStepIdx < steps.size - 1) {
+            for (i in (nextStepIdx + 1) until steps.size) {
+                remainingDist += steps[i].distance
+                remainingDur += steps[i].duration
+            }
+        }
+        
+        // Định dạng ETE và ETA cho OSM navigation
+        val hours = (remainingDur / 3600).toInt()
+        val minutes = ((remainingDur % 3600) / 60).toInt()
+        val eteStr = if (hours > 0) "${hours}h${minutes}p" else "${minutes}p"
+        
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.SECOND, remainingDur.toInt())
+        val etaStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(cal.time)
+        
+        handleHudUpdate(
+            title = nextStep.instruction, 
+            details = distanceStr, 
+            isGmaps = false, 
+            forcedIconIndex = nextStep.maneuverIcon,
+            osmRoadName = nextStep.roadName,
+            osmEta = etaStr,
+            osmEte = eteStr
+        )
     }
 
     private fun startWeatherSync() {
@@ -1332,7 +1364,7 @@ class NavigationService : Service() {
     private fun triggerImmediateHudUpdate() {
         val lastHud = NavigationRepository.hudPreviewData.value ?: return
         if (lastHud.active) {
-            val bleData = "active=1\nnav=${if (lastHud.isNavigation) 1 else 0}\ndist=${lastHud.distance}\ntitle=${lastHud.title}\ndir=${lastHud.directions}\neta=${lastHud.eta}\nete=${lastHud.duration}"
+            val bleData = "active=1\nnav=${if (lastHud.isNavigation) 1 else 0}\ndist=${lastHud.distance}\ntitle=${lastHud.title}\nroad=${lastHud.directions}\ndir=${lastHud.iconIndex}\neta=${lastHud.eta}\nete=${lastHud.duration}"
             serviceScope.launch {
                 bleManager.writeNavigationData(bleData)
                 // Gửi lại tốc độ GPS hiện tại ngay lập tức

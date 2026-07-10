@@ -71,3 +71,12 @@ dist  là khoảng cách đến ngã rẽ tiếp theo
 ẩn tap render chỉ hiển thị khi tôi nhấp  cào tap cài đặt  và  nhấp vào chữ phiên bản 5 lần  để hiện tap render 
 
 nhật khi sự kiện luôn tắt  khi tôi nhấn hiện mới hiện và xóa nhật ký ở tab kết nối  cũng nhưng thêm chức năng dùng  nhật ký để cuộn ở tab render  thêm nút tìm và xóa nhật ký 
+
+ dist  là khoảng cách đến ngã rẽ tiếp theo      thêm chức năng thông tin ngẵ rẽ đường đi  đi hiển thị 2 thông tin  điền vào 
+
+
+ dẩy tối dã tốc dộ gửi ảnh sang esp chế dộ smart  nếu có thể 
+
+ thêm chế dộ hup popup map osm 
+
+ thêm cơ chế bám sat google map  popup[ osm ]

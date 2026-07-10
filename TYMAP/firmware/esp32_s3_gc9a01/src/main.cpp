@@ -621,7 +621,13 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     else if (key == "road")
                         totalDist = value; // tổng quãng đường
                     else if (key == "dir")
-                        navDirIdx = value.toInt(); // maneuver index từ app Android
+                    {
+                        if (value.length() > 0 && isDigit(value[0])) {
+                            navDirIdx = value.toInt(); // maneuver index từ app Android
+                        } else {
+                            totalDist = value; // nếu app cũ gửi tên đường qua dir
+                        }
+                    }
                     else if (key == "eta")
                         eta = value;
                     else if (key == "ete")

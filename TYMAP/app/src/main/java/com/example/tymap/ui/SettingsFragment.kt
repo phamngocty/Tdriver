@@ -26,6 +26,7 @@ import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.example.tymap.R
+import com.example.tymap.MainActivity
 import com.example.tymap.databinding.FragmentSettingsBinding
 import com.example.tymap.service.NavigationService
 import com.example.tymap.utils.PrefsHelper
@@ -495,6 +496,26 @@ class SettingsFragment : Fragment() {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         } catch (e: Exception) { "1.0" }
         binding.tvVersion.text = "Phiên bản: $version"
+
+        var versionClickCount = 0
+        binding.tvVersion.setOnClickListener {
+            val ctx = context ?: return@setOnClickListener
+            val isAlreadyUnlocked = PrefsHelper.getBoolean(ctx, "render_tab_unlocked", false)
+            if (isAlreadyUnlocked) {
+                Toast.makeText(ctx, "Tab Render Debug đã được mở khóa", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            versionClickCount++
+            if (versionClickCount >= 5) {
+                PrefsHelper.putBoolean(ctx, "render_tab_unlocked", true)
+                Toast.makeText(ctx, "Đã mở khóa Tab Render Debug!", Toast.LENGTH_SHORT).show()
+                (activity as? MainActivity)?.updateRenderTabVisibility()
+                versionClickCount = 0
+            } else {
+                val remaining = 5 - versionClickCount
+                Toast.makeText(ctx, "Nhấn thêm $remaining lần để mở khóa tab Render", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun areAllPermissionsGranted(): Boolean {

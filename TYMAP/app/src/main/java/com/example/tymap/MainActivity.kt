@@ -43,6 +43,8 @@ class MainActivity : AppCompatActivity() {
 
         setupViewPager()
         setupBottomNavigation()
+        com.example.tymap.utils.PrefsHelper.putBoolean(this, "render_tab_unlocked", false)
+        updateRenderTabVisibility()
         handleIntent(intent)
         requestBatteryOptimizationExemption()
         
@@ -163,5 +165,15 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Vui lòng tắt tối ưu pin cho TYMAP trong cài đặt", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    fun updateRenderTabVisibility() {
+        val isUnlocked = com.example.tymap.utils.PrefsHelper.getBoolean(this, "render_tab_unlocked", false)
+        binding.bottomNavigation.menu.findItem(R.id.nav_render)?.isVisible = isUnlocked
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        com.example.tymap.utils.PrefsHelper.putBoolean(this, "render_tab_unlocked", false)
     }
 }
