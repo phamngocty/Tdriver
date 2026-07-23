@@ -111,7 +111,16 @@ class NavigationService : Service() {
     // Tracking for Turn Screenshots
     private var lastTriggeredStepIndex: Int = -1
     private var isPopupActive: Boolean = false
+    private var popupStartTime: Long = 0L
     private var lastPopupTriggerDist: Int = -1 // 500 or 200
+    private var lastPopupTriggerLevel: Int = 0 // 0: none, 1: trigger1, 2: trigger2
+    private var lastTurnIconHash: Long = -1L
+    private var lastTurnInstruction: String = ""
+    private var isNearTurnCompleted: Boolean = false
+    private var currentDistanceToNextMeters: Int = -1
+
+    // Intelligent Chaser Engine (ICE)
+    private val chaserEngine = ChaserEngine(offRouteThresholdMeters = 15f, cooldownMs = 2000L)
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -158,6 +167,7 @@ class NavigationService : Service() {
 
     private fun handleGmapsStop() {
         isGmapsActive = false
+        currentDistanceToNextMeters = -1
         android.util.Log.d("NavigationService", "Google Maps navigation stopped, resetting HUD mode")
         NavigationRepository.updateHudPreview(null)
         lastSentIconHash = -1
@@ -171,7 +181,7 @@ class NavigationService : Service() {
             // 2. Only command ESP32 to switch to STATUS_MODE if in Google Maps capture modes (1 or 2)
             // OR in OSM mode (0) but ONLY if the app itself is not currently navigating
             val isAppNavigating = NavigationRepository.navigationState.value
-            if (captureMode == 1 || captureMode == 2 || (captureMode == 0 && !isAppNavigating)) {
+            if (captureMode == 1 || captureMode == 2 || captureMode == 5 || (captureMode == 0 && !isAppNavigating)) {
                 bleManager.sendRemoteCommand(0x12.toByte())
             }
         }
@@ -204,8 +214,8 @@ class NavigationService : Service() {
                     android.util.Log.d("NavigationService", "Google Maps started, switching ESP32 to HUD_MODE")
                     bleManager.sendRemoteCommand(0x10.toByte())
                     NavigationRepository.setMapModeActive(false)
-                } else if ((captureMode == 0 || captureMode == 3) && !isAppNavigating) {
-                    android.util.Log.d("NavigationService", "Google Maps started in OSM/Streaming mode, switching ESP32 to HUD_MODE since app is not navigating")
+                } else if ((captureMode == 0 || captureMode == 3 || captureMode == 5) && !isAppNavigating) {
+                    android.util.Log.d("NavigationService", "Google Maps started in Mode $captureMode, switching ESP32 to HUD_MODE since app is not navigating")
                     bleManager.sendRemoteCommand(0x10.toByte())
                     NavigationRepository.setMapModeActive(false)
                 }
@@ -214,8 +224,18 @@ class NavigationService : Service() {
 
 
 
+        // Tự động nhận diện ngã rẽ mới qua ảnh bitmap mũi tên hoặc instruction rẽ mới
+        if ((iconHash != -1L && iconHash != lastTurnIconHash) || (instruction.isNotEmpty() && instruction != lastTurnInstruction)) {
+            lastTurnIconHash = iconHash
+            lastTurnInstruction = instruction
+            lastPopupTriggerLevel = 0
+            isNearTurnCompleted = false
+            android.util.Log.d("NavigationService", "New turn arrow bitmap/instruction received ($instruction), reset popup trigger level to 0")
+        }
+
         // Parse distance to meters for popup trigger
         val distInMeters = parseDistance(distance)
+        currentDistanceToNextMeters = distInMeters
         checkAndTriggerPopup(distInMeters)
 
         NavigationRepository.updateHudPreview(NavigationRepository.HudData(
@@ -297,47 +317,69 @@ class NavigationService : Service() {
     private fun checkAndTriggerPopup(distMeters: Int) {
         if (distMeters <= 0) return
         val captureMode = PrefsHelper.getInt(this, "map_capture_mode", 0)
-        // Chỉ kích hoạt khi bật chế độ "Google Maps Turn Screenshot" (captureMode == 2)
-        if (captureMode != 2) return
+
+        // Chỉ kích hoạt popup tự động khi ở Chế độ 2 (GMaps Popup) hoặc Chế độ 5 (Google Maps Popup OSM)
+        if (captureMode != 2 && captureMode != 5) return
 
         // Read dynamic trigger distances from slider settings
         val trigger1 = PrefsHelper.getInt(this, "popup_trigger_1", 500)
         val trigger2 = PrefsHelper.getInt(this, "popup_trigger_2", 200)
-        val triggers = listOf(trigger1, trigger2)
 
-        var matchedTrigger = -1
-        for (t in triggers) {
-            if (distMeters in (t - 10)..(t + 10)) {
-                matchedTrigger = t
-                break
-            }
+        var triggeredLevel = -1
+        var triggerDist = -1
+
+        // Kiểm tra điều kiện báo rẽ lần 2 (vd <= 200m) trước
+        if (distMeters <= trigger2 && lastPopupTriggerLevel < 2) {
+            triggeredLevel = 2
+            triggerDist = trigger2
+        } else if (distMeters <= trigger1 && lastPopupTriggerLevel < 1) {
+            // Nếu chưa bật lần 1 và khoảng cách <= trigger1 (vd 500m)
+            triggeredLevel = 1
+            triggerDist = trigger1
         }
 
-        if (matchedTrigger != -1 && matchedTrigger != lastPopupTriggerDist) {
-            lastPopupTriggerDist = matchedTrigger
-            // Kích hoạt popup mode và chuyển ESP32 sang HUD MODE để hiển thị ảnh chụp
+        if (triggeredLevel != -1) {
+            lastPopupTriggerLevel = triggeredLevel
+            lastPopupTriggerDist = triggerDist
             isPopupActive = true
+            popupStartTime = System.currentTimeMillis()
             if (bleManager.isConnected) {
                 bleManager.sendRemoteCommand(0x10.toByte()) // HUD MODE
-                android.util.Log.d("NavigationService", "Popup triggered at $matchedTrigger m, switching ESP32 to HUD_MODE")
+                android.util.Log.d("NavigationService", "Continuous Popup triggered at level $triggeredLevel ($distMeters m <= $triggerDist m)")
             }
-            // Chụp ảnh ngay lập tức và gửi
+            // Chụp / Render ảnh ngay lập tức và gửi
             serviceScope.launch(Dispatchers.IO) {
                 val quality = PrefsHelper.getFloat(this@NavigationService, "jpeg_quality", 70f).toInt()
-                val jpeg = screenCaptureManager?.captureAndProcess(quality, "gmaps_")
-                if (jpeg != null) {
+                val imageBytes: ByteArray? = when (captureMode) {
+                    5 -> {
+                        val hasCropMapTab = PrefsHelper.getInt(this@NavigationService, "crop_w_maptab", 0) > 0
+                        if (hasCropMapTab && screenCaptureManager?.isCapturing == true) {
+                            screenCaptureManager?.captureAndProcess(quality, "maptab_")
+                        } else {
+                            renderOsmMap(quality)
+                        }
+                    }
+                    2 -> screenCaptureManager?.captureAndProcess(quality, "gmaps_")
+                    else -> renderOsmMap(quality)
+                }
+
+                if (imageBytes != null) {
                     val deviceDisplay = NavigationRepository.deviceStatus.value["display"] ?: "GC9A01"
                     val isOled = deviceDisplay.contains("OLED")
                     if (isOled) {
-                        val bitmap = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size)
-                        if (bitmap != null) bleManager.writeOledImage(convertToOled1Bit(bitmap))
+                        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+                        if (bitmap != null) {
+                            bleManager.writeOledImage(convertToOled1Bit(bitmap))
+                            bitmap.recycle()
+                        }
                     } else {
-                        bleManager.writeMapImage(jpeg)
+                        bleManager.writeMapImage(imageBytes)
                     }
-                    android.util.Log.d("NavigationService", "Sent Turn Screenshot at $matchedTrigger m")
+                    android.util.Log.d("NavigationService", "Sent Popup Map Image at level $triggeredLevel ($triggerDist m)")
                 }
             }
-        } else if (distMeters > (triggers.maxOrNull() ?: 0) + 50) {
+        } else if (distMeters > maxOf(trigger1, trigger2) + 50) {
+            lastPopupTriggerLevel = 0
             lastPopupTriggerDist = -1
         }
     }
@@ -351,6 +393,33 @@ class NavigationService : Service() {
         gpsManager = GpsManager(this)
         ttsManager = TtsManager(this)
         roadsOnlyMapRenderer = RoadsOnlyMapRenderer(this)
+        
+        // Cấu hình Intelligent Chaser Engine (ICE)
+        chaserEngine.onRouteDeviationListener = { devLocation ->
+            serviceScope.launch(Dispatchers.IO) {
+                val dest = currentDestination
+                if (dest != null) {
+                    if (PrefsHelper.getBoolean(this@NavigationService, "voice_off_route", true)) {
+                        ttsManager.speak("Đang đồng bộ lại lộ trình")
+                    }
+                    val routingEngine = RoutingEngine(httpClient)
+                    val vehicleType = PrefsHelper.getInt(this@NavigationService, "vehicle_type", 0)
+                    val avoidHighways = vehicleType == 1
+                    val newRoutes = routingEngine.fetchFastOsrmReroute(
+                        devLocation.latitude, devLocation.longitude,
+                        dest.first, dest.second,
+                        avoidHighways
+                    )
+                    if (!newRoutes.isNullOrEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            NavigationRepository.updateRoutes(newRoutes)
+                            NavigationRepository.addLog("ICE: Đã tự động đồng bộ lại lộ trình OSRM trong <= 2s")
+                        }
+                    }
+                }
+            }
+        }
+
         NavigationRepository.addLog("Dịch vụ BLE đã khởi tạo.")
         createNotificationChannel()
         setupHeadlessMap()
@@ -376,7 +445,7 @@ class NavigationService : Service() {
     ) {
         val source = PrefsHelper.getInt(this, "hud_source", 0) 
         val shouldSend = when (source) {
-            0 -> true 
+            0 -> if (isGmapsActive) isGmaps else true // Chế độ Tự động (0): ƯU TIÊN Google Maps khi có thông báo Google Maps
             1 -> isGmaps
             2 -> !isGmaps
             else -> true
@@ -645,28 +714,21 @@ class NavigationService : Service() {
                     val routes = NavigationRepository.routes.value
                     val selectedRoute = routes.find { it.isSelected } ?: routes.firstOrNull()
                     if (selectedRoute != null) {
-                        val now = System.currentTimeMillis()
-                        if (now - lastOffRouteCheckTime >= 2000) {
-                            lastOffRouteCheckTime = now
-                            val distanceToRoute = computeDistanceToPolyline(location, selectedRoute.polyline)
-                            val offRouteThreshold = PrefsHelper.getFloat(this@NavigationService, "off_route_dist", 30f)
-                            
-                            if (distanceToRoute > offRouteThreshold) {
-                                // Reroute after 10s cooldown to avoid spamming
-                                if (now - lastRerouteTime > 10000) {
-                                    lastRerouteTime = now
-                                    if (PrefsHelper.getBoolean(this@NavigationService, "voice_off_route", true)) {
-                                        ttsManager.speak("Bạn đã đi chệch hướng, đang tìm lại đường")
-                                    }
-                                    currentDestination?.let { fetchInitialRoute(it.first, it.second) }
-                                }
-                            }
+                        if (selectedRoute.polyline.isNotEmpty()) {
+                            currentDestination = selectedRoute.polyline.last()
                         }
+                        val offRouteThreshold = PrefsHelper.getFloat(this@NavigationService, "off_route_dist", 15f)
+                        chaserEngine.setOffRouteThreshold(offRouteThreshold)
+                        chaserEngine.checkDeviation(location, selectedRoute.polyline)
 
                         val source = PrefsHelper.getInt(this@NavigationService, "hud_source", 0)
                         if (source == 2 || source == 0) {
                             updateHudFromSteps(location, selectedRoute.steps)
                         }
+                    }
+                } else {
+                    if (!isGmapsActive) {
+                        currentDistanceToNextMeters = -1
                     }
                 }
             }
@@ -683,6 +745,10 @@ class NavigationService : Service() {
 
     private fun updateHudFromSteps(location: android.location.Location, steps: List<com.example.tymap.repository.StepInfo>) {
         if (steps.isEmpty()) return
+        val source = PrefsHelper.getInt(this, "hud_source", 0)
+        // Khi dang co thong bao Google Maps va nguon HUD dang chon Tu dong (0) hoac Google Maps (1),
+        // khong ghi de du lieu HUD bang OSM steps
+        if (isGmapsActive && (source == 0 || source == 1)) return
         
         // 1. Tìm bước closestIndex có điểm bắt đầu gần xe nhất
         var closestIndex = 0
@@ -712,10 +778,19 @@ class NavigationService : Service() {
             }
         }
 
+        if (targetIndex != lastTriggeredStepIndex) {
+            lastTriggeredStepIndex = targetIndex
+            lastPopupTriggerLevel = 0
+            isNearTurnCompleted = false
+            android.util.Log.d("NavigationService", "New OSM step index ($targetIndex), reset popup trigger level to 0")
+        }
+
         val nextStep = steps[targetIndex]
         val distResults = FloatArray(1)
         android.location.Location.distanceBetween(location.latitude, location.longitude, nextStep.location.first, nextStep.location.second, distResults)
         val dist = distResults[0]
+        currentDistanceToNextMeters = dist.toInt()
+        checkAndTriggerPopup(dist.toInt())
         val distanceStr = if (dist > 1000) String.format(Locale.getDefault(), "%.1f km", dist / 1000) else "${dist.toInt()} m"
         
         // Tính toán quãng đường và thời gian còn lại (remaining) từ bước này đến cuối lộ trình
@@ -846,13 +921,16 @@ class NavigationService : Service() {
             var wasTileStreamingActive = false
             while (isActive) {
                 val captureMode = PrefsHelper.getInt(this@NavigationService, "map_capture_mode", 0)
-                if (isMapModeActive || isPopupActive) {
+                val isOsmOnlyInMode5 = captureMode == 5 && !isGmapsActive && NavigationRepository.navigationState.value
+                if (isMapModeActive || isPopupActive || isOsmOnlyInMode5) {
                     val fpsVal = PrefsHelper.getInt(this@NavigationService, "map_fps", 0)
                     val fps = when (fpsVal) {
                         0 -> 1
                         1 -> 2
                         2 -> 5
                         3 -> 10
+                        4 -> 20 // MAX
+                        5 -> 20 // Smart peak
                         else -> 1
                     }
                     val quality = if (captureMode == 4) {
@@ -910,6 +988,15 @@ class NavigationService : Service() {
                         if (isGoogleMapsForeground()) {
                             imageBytes = screenCaptureManager?.captureAndProcess(quality, "gmaps_")
                         }
+                    } else if (captureMode == 5 && (isPopupActive || isMapModeActive || !isGmapsActive)) {
+                        // Mode 5: Popup OSM (khi có Google Maps) hoặc Map Mode truyền liên tục (khi bật thủ công hoặc không có Google Maps)
+                        val hasCropMapTab = PrefsHelper.getInt(this@NavigationService, "crop_w_maptab", 0) > 0
+                        if (hasCropMapTab && screenCaptureManager?.isCapturing == true) {
+                            imageBytes = screenCaptureManager?.captureAndProcess(quality, "maptab_")
+                        }
+                        if (imageBytes == null) {
+                            imageBytes = renderOsmMap(quality)
+                        }
                     } else if (captureMode == 0) {
                         // Mode 0: Vẽ bản đồ OSM ngầm của App
                         imageBytes = renderOsmMap(quality)
@@ -934,25 +1021,53 @@ class NavigationService : Service() {
                         }
                     }
                     
-                    // Nếu là popup thì chỉ gửi 1 ảnh hoặc delay lâu hơn
+                    // Nếu đang trong chế độ Popup: truyền ảnh liên tục (continuous stream) như chế độ bản đồ
                     if (isPopupActive && !isMapModeActive) {
-                        delay(PrefsHelper.getInt(this@NavigationService, "popup_duration", 5) * 1000L)
-                        isPopupActive = false
-                        // Khi popup kết thúc: nếu vẫn đang dẫn đường, ở lại HUD; nếu không, về STATUS
-                        if (bleManager.isConnected) {
-                            if (isGmapsActive) {
-                                bleManager.sendRemoteCommand(0x10.toByte()) // Giữ HUD để hiển thị thông tin HUD
-                                android.util.Log.d("NavigationService", "Popup expired, keeping HUD_MODE (still navigating)")
-                            } else {
-                                bleManager.sendRemoteCommand(0x12.toByte()) // Về STATUS_MODE
-                                android.util.Log.d("NavigationService", "Popup expired, switching back to STATUS_MODE")
+                        val popupDurMs = PrefsHelper.getInt(this@NavigationService, "popup_duration", 5) * 1000L
+                        val popupElapsed = System.currentTimeMillis() - popupStartTime
+                        val distToTurn = currentDistanceToNextMeters
+
+                        val isTurnCompleted = distToTurn in 1..25
+                        val isTimedOut = popupElapsed >= popupDurMs
+
+                        if (isTurnCompleted || isTimedOut) {
+                            isPopupActive = false
+                            android.util.Log.d("NavigationService", "Continuous Popup finished: turnCompleted=$isTurnCompleted, timeout=$isTimedOut")
+                            if (bleManager.isConnected) {
+                                val isNavigating = isGmapsActive || NavigationRepository.navigationState.value
+                                if (isNavigating) {
+                                    bleManager.sendRemoteCommand(0x10.toByte()) // Giữ HUD_MODE để tiếp tục hiện chữ/icon HUD
+                                    android.util.Log.d("NavigationService", "Popup ended, keeping HUD_MODE (still navigating)")
+                                } else {
+                                    bleManager.sendRemoteCommand(0x12.toByte()) // Về STATUS_MODE
+                                    android.util.Log.d("NavigationService", "Popup ended, switching back to STATUS_MODE")
+                                }
                             }
+                            triggerImmediateHudUpdate()
                         }
-                        // Trigger immediate HUD text and icon update once popup expires
-                        triggerImmediateHudUpdate()
-                    } else {
-                        delay(1000L / fps)
                     }
+
+                    val delayMs = when (fpsVal) {
+                            4 -> 50L // MAX: ~20 FPS (50ms delay)
+                            5 -> { // Smart: Dynamic delay based on speed and distance to turn
+                                val loc = NavigationRepository.gpsLocation.value
+                                val speedKmH = (loc?.speed ?: 0f) * 3.6f
+                                val distToNext = currentDistanceToNextMeters
+
+                                when {
+                                    speedKmH < 3f -> 5000L // 0.2 FPS when stationary
+                                    distToNext <= 0 -> 1000L // 1 FPS when no route / unknown
+                                    distToNext > 800 -> 3000L // 0.33 FPS when far
+                                    distToNext > 400 -> 2000L // 0.5 FPS
+                                    distToNext > 200 -> 1000L // 1 FPS
+                                    distToNext > 100 -> 500L  // 2 FPS
+                                    distToNext > 50 -> 200L   // 5 FPS
+                                    else -> 50L               // MAX ~20 FPS when turning
+                                }
+                            }
+                            else -> 1000L / fps
+                        }
+                        delay(delayMs)
                 } else { 
                     lastSentMapImageHash = -1L // Reset hash when map mode is inactive
                     delay(2000) 
@@ -1353,7 +1468,19 @@ class NavigationService : Service() {
                 val oldActive = isMapModeActive
                 isMapModeActive = active
                 android.util.Log.d("NavigationService", "Map Mode Active: $active")
-                if (oldActive && !active) {
+                if (active) {
+                    if (bleManager.isConnected) {
+                        bleManager.sendRemoteCommand(0x11.toByte()) // MAP MODE
+                    }
+                } else if (oldActive && !active) {
+                    if (bleManager.isConnected) {
+                        val isNavigating = isGmapsActive || NavigationRepository.navigationState.value
+                        if (isNavigating) {
+                            bleManager.sendRemoteCommand(0x10.toByte()) // HUD MODE
+                        } else {
+                            bleManager.sendRemoteCommand(0x12.toByte()) // STATUS MODE
+                        }
+                    }
                     // Vừa thoát MAP sang HUD: Kích hoạt gửi HUD và Icon tức thì để màn hình cập nhật ngay lập tức
                     triggerImmediateHudUpdate()
                 }
@@ -1388,15 +1515,9 @@ class NavigationService : Service() {
             NavigationRepository.navigationState.collect { running ->
                 val captureMode = PrefsHelper.getInt(this@NavigationService, "map_capture_mode", 0)
                 if (running) {
-                    if (captureMode == 0) { // Chỉ tự động chuyển sang MAP_MODE khi truyền ảnh OSM liên tục
+                    if (captureMode == 0 || captureMode == 4 || (captureMode == 5 && !isGmapsActive)) {
                         if (bleManager.isConnected) {
-                            android.util.Log.d("NavigationService", "OSM Navigation started, switching ESP32 to MAP_MODE")
-                            bleManager.sendRemoteCommand(0x11.toByte())
-                        }
-                        NavigationRepository.setMapModeActive(true)
-                    } else if (captureMode == 4) { // Roads Only Mode
-                        if (bleManager.isConnected) {
-                            android.util.Log.d("NavigationService", "Roads Only Navigation started, switching ESP32 to MAP_MODE")
+                            android.util.Log.d("NavigationService", "Navigation started (Mode $captureMode, isGmapsActive=$isGmapsActive), switching ESP32 to MAP_MODE")
                             bleManager.sendRemoteCommand(0x11.toByte())
                         }
                         NavigationRepository.setMapModeActive(true)

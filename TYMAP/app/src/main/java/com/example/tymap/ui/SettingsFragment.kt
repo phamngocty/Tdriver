@@ -233,10 +233,21 @@ class SettingsFragment : Fragment() {
         }
 
         val initialOffRoute = PrefsHelper.getFloat(context, "off_route_dist", 20f)
-        binding.sliderOffRouteDist.value = initialOffRoute
+        binding.sliderOffRouteDist.value = initialOffRoute.coerceIn(10f, 50f)
         binding.tvValueOffRouteDist.text = "${initialOffRoute.toInt()} m"
+        binding.sliderMode5OffRouteDist.value = initialOffRoute.coerceIn(10f, 50f)
+        binding.tvValueMode5OffRouteDist.text = "${initialOffRoute.toInt()} m"
+
         binding.sliderOffRouteDist.addOnChangeListener { _, value, _ -> 
             PrefsHelper.putFloat(context, "off_route_dist", value)
+            binding.tvValueOffRouteDist.text = "${value.toInt()} m"
+            binding.sliderMode5OffRouteDist.value = value.coerceIn(10f, 50f)
+            binding.tvValueMode5OffRouteDist.text = "${value.toInt()} m"
+        }
+        binding.sliderMode5OffRouteDist.addOnChangeListener { _, value, _ ->
+            PrefsHelper.putFloat(context, "off_route_dist", value)
+            binding.tvValueMode5OffRouteDist.text = "${value.toInt()} m"
+            binding.sliderOffRouteDist.value = value.coerceIn(10f, 50f)
             binding.tvValueOffRouteDist.text = "${value.toInt()} m"
         }
 
@@ -273,8 +284,15 @@ class SettingsFragment : Fragment() {
         }
 
         binding.switchOffRouteAlert.isChecked = PrefsHelper.getBoolean(context, "voice_off_route", true)
+        binding.switchMode5VoiceOffRoute.isChecked = PrefsHelper.getBoolean(context, "voice_off_route", true)
+
         binding.switchOffRouteAlert.setOnCheckedChangeListener { _, isChecked -> 
             PrefsHelper.putBoolean(context, "voice_off_route", isChecked)
+            binding.switchMode5VoiceOffRoute.isChecked = isChecked
+        }
+        binding.switchMode5VoiceOffRoute.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "voice_off_route", isChecked)
+            binding.switchOffRouteAlert.isChecked = isChecked
         }
 
         binding.switchSpeedWarningVoice.isChecked = PrefsHelper.getBoolean(context, "voice_speed_warning", true)
@@ -293,7 +311,8 @@ class SettingsFragment : Fragment() {
             "Chụp Google Maps (Liên tục)",
             "Chụp Google Maps (Theo ngã rẽ/Popup)",
             "Bản đồ OSM cuốn chiếu (Tile Streaming)",
-            "Ảnh chỉ đường (Roads Only)"
+            "Ảnh chỉ đường (Roads Only)",
+            "Google Maps Popup OSM (Popup OSM ngã rẽ)"
         )
         var initialMode = PrefsHelper.getInt(context, "map_capture_mode", 0)
         val isTileStreamingOld = PrefsHelper.getBoolean(context, "tile_streaming", false)
@@ -364,7 +383,7 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        val fpsList = arrayOf("1 FPS", "2 FPS", "5 FPS", "10 FPS")
+        val fpsList = arrayOf("1 FPS", "2 FPS", "5 FPS", "10 FPS", "MAX", "Smart")
         setupSpinner(binding.spinnerMapFps, fpsList, PrefsHelper.getInt(context, "map_fps", 0)) {
             PrefsHelper.putInt(context, "map_fps", it)
         }
@@ -701,6 +720,11 @@ class SettingsFragment : Fragment() {
     }
 
     private fun updateCropVisibility(mode: Int) {
+        if (mode == 5 || mode == 0) {
+            binding.layoutMode5IceSettings.visibility = View.VISIBLE
+        } else {
+            binding.layoutMode5IceSettings.visibility = View.GONE
+        }
         when (mode) {
             1, 2 -> {
                 binding.btnConfigCropGmaps.visibility = View.VISIBLE
@@ -708,13 +732,13 @@ class SettingsFragment : Fragment() {
                 binding.btnConfigCropMapTab.visibility = View.GONE
                 binding.tvCropSummaryMapTab.visibility = View.GONE
             }
-            0 -> {
+            0, 5 -> {
                 binding.btnConfigCropGmaps.visibility = View.GONE
                 binding.tvCropSummaryGmaps.visibility = View.GONE
                 binding.btnConfigCropMapTab.visibility = View.VISIBLE
                 binding.tvCropSummaryMapTab.visibility = View.VISIBLE
             }
-            else -> { // mode == 3 (Tile Streaming)
+            else -> { // mode == 3 (Tile Streaming), 4 (Roads Only)
                 binding.btnConfigCropGmaps.visibility = View.GONE
                 binding.tvCropSummaryGmaps.visibility = View.GONE
                 binding.btnConfigCropMapTab.visibility = View.GONE

@@ -51,16 +51,6 @@
         </service>
 
         <service
-            android:name=".service.MyNotificationListenerService"
-            android:label="TYMAP App Notifications"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <service
             android:name=".service.CropOverlayService"
             android:exported="false" />
 

@@ -328,15 +328,12 @@ class MyBleManager(context: Context) : BleManager(context) {
             Log.e("BleManager", "Error decoding sent map image: ${e.message}")
         }
 
-        val sizeBuffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-        sizeBuffer.putInt(jpegData.size)
-        
-        NavigationRepository.addLog("BLE OUT: Map JPEG Start -> Size=${jpegData.size} bytes")
-        // Write size first
-        writeCharacteristic(char, sizeBuffer.array(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).suspend()
+        val payload = ByteArray(4 + jpegData.size)
+        ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN).putInt(jpegData.size)
+        System.arraycopy(jpegData, 0, payload, 4, jpegData.size)
 
-        // Then write image in chunks using Nordic BLE Library's split mechanism
-        writeCharacteristic(char, jpegData, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+        NavigationRepository.addLog("BLE OUT: Map JPEG Start -> Size=${jpegData.size} bytes (Payload: ${payload.size} bytes)")
+        writeCharacteristic(char, payload, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
             .split()
             .suspend()
     }

@@ -150,34 +150,16 @@ class GMapsNotificationListener : NotificationListenerService() {
         val iconBitmap = icon?.loadDrawable(this)?.let { IconUtils.drawableToBitmap(it) }
         val icon1bppBytes = iconBitmap?.let { IconUtils.convertTo1bpp(it, 48, 48) }
 
-        // Bóc tách dữ liệu sử dụng bộ phân tích robust mới
+        val logIncoming = "Maps raw: title='$title', text='$text', subText='$subText'"
+        Log.d("GMapsListener", logIncoming)
+
+        // Bóc tách dữ liệu sử dụng bộ phân tích robust
         val parsedData = parseGmapsNotification(title, text, subText)
 
-        // CHẨN ĐOÁN: Chỉ coi là DỪNG nếu thông báo Maps cực kỳ ngắn và không có icon dẫn đường
-        val hasTurnIcon = sbn.notification.getLargeIcon() != null
-        val instr = parsedData.instruction.lowercase()
-        val isNav = hasTurnIcon 
-                || parsedData.distance.isNotEmpty() 
-                || instr.contains("hướng")
-                || instr.contains("rẽ")
-                || instr.contains("chếch")
-                || instr.contains("quay đầu")
-                || instr.contains("đi thẳng")
-                || instr.contains("vòng xuyến")
-                || instr.contains("cầu")
-                || instr.contains("hầm")
-                || instr.contains("lộ trình")
-                || instr.contains("đi về")
-                || instr.contains("turn")
-                || instr.contains("head")
-                || instr.contains("keep")
-                || instr.contains("exit")
-                || instr.contains("merge")
-                || instr.contains("roundabout")
-                || instr.contains("straight")
-
+        // Chấp nhận thông báo nếu có khoảng cách, câu hướng dẫn, hoặc là thông báo đang chạy (isOngoing)
+        val isNav = parsedData.distance.isNotEmpty() || parsedData.instruction.isNotEmpty() || sbn.isOngoing
         if (!isNav) {
-            Log.d("GMapsListener", "Maps notification seems static. Not starting HUD.")
+            Log.d("GMapsListener", "Maps notification empty. Ignoring.")
             return
         }
 

@@ -14,6 +14,7 @@ import android.view.WindowManager
 import java.io.ByteArrayOutputStream
 
 class ScreenCaptureManager(private val context: Context) {
+    val isCapturing: Boolean get() = virtualDisplay != null
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null

@@ -20,6 +20,16 @@
 4. **ESP32‑S3:** Không cần thay đổi firmware (vẫn nhận JPEG như cũ).
 5. **ESP32‑C3:** Không cần thay đổi firmware (vẫn nhận JPEG và chuyển đổi 1-bit).
 
+## Giai đoạn 2.5: Tích hợp "Intelligent Chaser Engine" (ICE)
+1. **Refactor `NavigationService`:**
+   - Tạo `ChaserEngine` class chịu trách nhiệm giám sát và đồng bộ lộ trình.
+   - Giảm ngưỡng `offRouteThreshold` xuống 15m và thời gian cooldown xuống 2 giây.
+2. **Nâng cấp `RoutingEngine`:**
+   - Thêm logic để ưu tiên gọi OSRM (tốc độ cao) cho cơ chế "bám đuôi".
+3. **Tích hợp Popup:**
+   - Trong `MapRenderer` / `NavigationService`, thêm trigger popup dựa trên `distToNext` từ lộ trình đã đồng bộ.
+   - Render popup bằng chính `MapRenderer` hiện tại (hoặc `RoadsOnlyMapRenderer`).
+
 ## Giai đoạn 3: Giải pháp C (Tile Streaming) + Sửa lỗi còn lại
 1. **Settings:** Thêm toggle "Tile Streaming".
 2. **Android:** TileStreamingManager, gửi tile qua `CHA_MAP_TILE`, `CHA_MAP_CTRL`.

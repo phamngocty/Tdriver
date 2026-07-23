@@ -79,4 +79,7 @@ nhật khi sự kiện luôn tắt  khi tôi nhấn hiện mới hiện và xóa
 
  thêm chế dộ hup popup map osm 
 
- thêm cơ chế bám sat google map  popup[ osm ]
+ thêm cơ chế bám sat google map  popup[ osm
+
+
+ /sữa lỗi  googlem map popup osm tối ưu lại cơ chế hiển thị hup  và map /

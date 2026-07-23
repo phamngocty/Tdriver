@@ -312,7 +312,7 @@
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Kiểu chỉ dẫn" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
                     <Spinner android:id="@+id/spinnerVoiceStyle" android:layout_width="match_parent" android:layout_height="48dp" />
 
-                    <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/switchOffRouteAlert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cảnh báo chệch hướng" />
+                    <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/switchOffRouteAlert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Thông báo giọng nói khi đồng bộ lộ trình (ICE)" />
                     <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/switchSpeedWarningVoice" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Nhắc nhở tốc độ" />
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Ngôn ngữ giọng nói" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
@@ -355,6 +355,62 @@
 
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Chế độ truyền ảnh bản đồ" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
                     <Spinner android:id="@+id/spinnerMapCaptureMode" android:layout_width="match_parent" android:layout_height="48dp" />
+
+                    <!-- Cấu hình đồng bộ lộ trình khi chệch hướng cho Chế độ Google Maps Popup OSM (ICE) -->
+                    <LinearLayout
+                        android:id="@+id/layoutMode5IceSettings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="8dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Cấu hình đồng bộ lộ trình ICE (Popup OSM)"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="?attr/colorPrimary" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="8dp">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Ngưỡng chệch hướng để đồng bộ lại (m)"
+                                android:textSize="12sp"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            <TextView
+                                android:id="@+id/tvValueMode5OffRouteDist"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="?attr/colorPrimary" />
+                        </LinearLayout>
+
+                        <com.google.android.material.slider.Slider
+                            android:id="@+id/sliderMode5OffRouteDist"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:valueFrom="10"
+                            android:valueTo="50"
+                            android:stepSize="5" />
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchMode5VoiceOffRoute"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Âm thanh TTS thông báo đồng bộ lộ trình"
+                            android:textSize="12sp" />
+                    </LinearLayout>
 
 
 

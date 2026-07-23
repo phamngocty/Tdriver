@@ -77,6 +77,8 @@ uint32_t jpegSize = 0;
 uint32_t jpegWritten = 0;
 bool isReceivingJpeg = false;
 volatile bool newMapImageAvailable = false;
+uint8_t *jpegBufferRender = nullptr;
+volatile uint32_t jpegSizeRender = 0;
 
 // Trạng thái Popup Bản đồ trong HUD
 bool isPopupActive = false;
@@ -882,7 +884,12 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                         if (jpegWritten >= jpegSize)
                         {
                             isReceivingJpeg = false;
-                            newMapImageAvailable = true;
+                            if (jpegBufferRender)
+                            {
+                                memcpy(jpegBufferRender, jpegBuffer, jpegSize);
+                                jpegSizeRender = jpegSize;
+                                newMapImageAvailable = true;
+                            }
                             screenNeedsRedraw = true;
                             if (currentMode == HUD_MODE && popupEnabled)
                             {
@@ -914,7 +921,12 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                 if (jpegWritten >= jpegSize)
                 {
                     isReceivingJpeg = false;
-                    newMapImageAvailable = true;
+                    if (jpegBufferRender)
+                    {
+                        memcpy(jpegBufferRender, jpegBuffer, jpegSize);
+                        jpegSizeRender = jpegSize;
+                        newMapImageAvailable = true;
+                    }
                     screenNeedsRedraw = true;
 
                     if (currentMode == HUD_MODE && popupEnabled)
@@ -1221,6 +1233,16 @@ void setup()
         Serial.printf("jpegBuffer allocated: %d bytes\n", 32 * 1024);
     }
 
+    jpegBufferRender = (uint8_t *)ps_malloc(32 * 1024);
+    if (!jpegBufferRender)
+    {
+        jpegBufferRender = (uint8_t *)malloc(32 * 1024);
+    }
+    if (!jpegBufferRender)
+    {
+        Serial.println("CRITICAL: Failed to allocate jpegBufferRender!");
+    }
+
     // Khởi tạo tile cache trong PSRAM
     // Tự động cấu hình kích thước và số lượng tile cache theo tài nguyên PSRAM
     bool hasPsram = psramFound();
@@ -1336,7 +1358,7 @@ void setup()
     pWeatherChar = pService->createCharacteristic(CHA_WEATHER_UUID, NIMBLE_PROPERTY::WRITE);
     pWeatherChar->setCallbacks(sCallbacks);
 
-    pMapImageChar = pService->createCharacteristic(CHA_MAP_IMAGE_UUID, NIMBLE_PROPERTY::WRITE);
+    pMapImageChar = pService->createCharacteristic(CHA_MAP_IMAGE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pMapImageChar->setCallbacks(sCallbacks);
 
     pDeviceCtrlChar = pService->createCharacteristic(CHA_DEVICE_CTRL_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
@@ -1353,7 +1375,7 @@ void setup()
     pPhoneBatteryChar = pService->createCharacteristic(CHA_PHONE_BATTERY_UUID, NIMBLE_PROPERTY::WRITE);
     pPhoneBatteryChar->setCallbacks(sCallbacks);
 
-    pMapTileChar = pService->createCharacteristic(CHA_MAP_TILE_UUID, NIMBLE_PROPERTY::WRITE);
+    pMapTileChar = pService->createCharacteristic(CHA_MAP_TILE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pMapTileChar->setCallbacks(sCallbacks);
 
     pMapCtrlChar = pService->createCharacteristic(CHA_MAP_CTRL_UUID, NIMBLE_PROPERTY::WRITE);
@@ -1552,15 +1574,14 @@ void loop()
         }
         else
         {
-            // Đang vẽ ảnh chụp bản đồ (JPEG) phủ đè lên HUD
-            if (newMapImageAvailable && jpegSize > 0 && !isReceivingJpeg)
+            if (newMapImageAvailable && jpegSizeRender > 0)
             {
-                renderJpegImage(jpegBuffer, jpegSize);
+                renderJpegImage(jpegBufferRender, jpegSizeRender);
                 newMapImageAvailable = false;
             }
-            else if (screenNeedsRedraw && jpegSize > 0 && !isReceivingJpeg)
+            else if (screenNeedsRedraw && jpegSizeRender > 0)
             {
-                renderJpegImage(jpegBuffer, jpegSize);
+                renderJpegImage(jpegBufferRender, jpegSizeRender);
             }
         }
     }
@@ -1592,14 +1613,14 @@ void loop()
                 }
                 else
                 {
-                    if (newMapImageAvailable && jpegSize > 0 && !isReceivingJpeg)
+                    if (newMapImageAvailable && jpegSizeRender > 0)
                     {
-                        renderJpegImage(jpegBuffer, jpegSize);
+                        renderJpegImage(jpegBufferRender, jpegSizeRender);
                         newMapImageAvailable = false;
                     }
-                    else if (screenNeedsRedraw && jpegSize > 0 && !isReceivingJpeg)
+                    else if (screenNeedsRedraw && jpegSizeRender > 0)
                     {
-                        renderJpegImage(jpegBuffer, jpegSize);
+                        renderJpegImage(jpegBufferRender, jpegSizeRender);
                     }
                 }
                 break;

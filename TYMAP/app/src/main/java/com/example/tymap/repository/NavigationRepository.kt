@@ -32,6 +32,9 @@ object NavigationRepository {
     private val _gpsLocation = MutableStateFlow<Location?>(null)
     val gpsLocation: StateFlow<Location?> = _gpsLocation.asStateFlow()
 
+    private val _currentSpeedKmh = MutableStateFlow(0)
+    val currentSpeedKmh: StateFlow<Int> = _currentSpeedKmh.asStateFlow()
+
     private val _routes = MutableStateFlow<List<RouteInfo>>(emptyList())
     val routes = _routes.asStateFlow()
 
@@ -104,6 +107,12 @@ object NavigationRepository {
 
     fun updateLocation(location: Location) {
         _gpsLocation.value = location
+        val speedKmh = (location.speed * 3.6f).toInt().coerceAtLeast(0)
+        _currentSpeedKmh.value = speedKmh
+    }
+
+    fun updateSpeed(speedKmh: Int) {
+        _currentSpeedKmh.value = speedKmh.coerceAtLeast(0)
     }
 
     fun updateRoutes(routes: List<RouteInfo>) {

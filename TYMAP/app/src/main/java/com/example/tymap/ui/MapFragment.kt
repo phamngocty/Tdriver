@@ -786,11 +786,23 @@ class MapFragment : Fragment(), IOrientationConsumer {
                         isFirstLocation = false
                     }
                     
+                    val speedKmh = (location.speed * 3.6f).toInt().coerceAtLeast(0)
+                    binding.tvGpsSpeedValue.text = "$speedKmh"
+
                     val speedLimit = PrefsHelper.getInt(requireContext(), "speed_threshold", 60)
-                    binding.ivSpeedWarning.visibility = if (location.speed * 3.6 > speedLimit) View.VISIBLE else View.GONE
+                    binding.ivSpeedWarning.visibility = if (speedKmh > speedLimit) View.VISIBLE else View.GONE
                     
                     // Rule APP-23: invalidate tối đa 1 lần mỗi 100ms
                     binding.mapView.postInvalidateDelayed(100)
+                }
+            }
+        }
+
+        // Quan sát biến tốc độ GPS để cập nhật đồng hồ tốc độ trên Tab Map
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                NavigationRepository.currentSpeedKmh.collect { speedKmh ->
+                    binding.tvGpsSpeedValue.text = "$speedKmh"
                 }
             }
         }
@@ -1053,8 +1065,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 // Gọi RoutingEngine với tọa độ xuất phát cố định
                 fetchCustomRoute(originLat, originLon, destLat, destLon)
             } else if (type == "POI") {
-                // Ghim điểm và để người dùng nhấn "Bắt đầu" (sẽ lấy GPS hiện tại)
+                // Ghim điểm trên bản đồ
                 onPlaceSelected(destLat, destLon, label)
+            }
+
+            // TỰ ĐỘNG BẬT DẪN ĐƯỜNG NGAY LẬP TỨC khi ứng dụng nhận tọa độ chia sẻ từ Google Maps
+            if (destLat != 0.0 && destLon != 0.0) {
+                android.util.Log.d("MapFragment", "Auto-starting navigation for shared Google location ($destLat, $destLon)")
+                startNavigation(destLat, destLon)
             }
         }
     }

@@ -29,7 +29,13 @@ TYMAP là hệ thống dẫn đường xe máy gồm:
   - **Marker vị trí xe:** Chấm xanh (#00FF00), bán kính 6px.
   - **Bỏ qua:** Địa hình, nước, công viên, nhà cửa, label.
 - **Định dạng:** Ảnh JPEG 240×240, chất lượng 60-70%, dung lượng ước tính 1-3 KB.
-- **Tùy chọn:** Thêm "Ảnh chỉ đường (Roads Only)" vào `spinnerMapCaptureMode` trong Settings, thay thế hoàn toàn chế độ Vector.
+- **Tùy chọn Chế độ gửi ảnh (Map Capture Mode):**
+  - Chế độ 0: Bản đồ OSM tĩnh (Continuous)
+  - Chế độ 1: Chụp Google Maps (Liên tục)
+  - Chế độ 2: Chụp Google Maps (Popup ngã rẽ)
+  - Chế độ 3: Bản đồ OSM cuốn chiếu (Tile Streaming)
+  - Chế độ 4: Ảnh chỉ đường (Roads Only)
+  - Chế độ 5: Google Maps Popup OSM (Bản đồ OSM Popup ngã rẽ - bình thường ở màn hình HUD, tới ngã rẽ 500m/200m tự bật Popup OSM, qua ngã rẽ >50m quay lại HUD).
 - **Tương thích:** ESP32-S3 hiển thị ảnh JPEG, ESP32-C3 chuyển đổi sang 1-bit nếu cần.
 
 ### 2.4. Giải pháp C: Tile Streaming (Ưu tiên 3, chỉ ESP32‑S3)
@@ -44,6 +50,20 @@ TYMAP là hệ thống dẫn đường xe máy gồm:
 - Xem trước ảnh 240×240, hiển thị dung lượng ước tính, tiến trình tải.
 - Quản lý vùng tải trong `OfflineMapActivity`.
 - Tự động dùng offline nếu có tile phù hợp, có tùy chọn "Ưu tiên offline".
+
+### 2.6. Giải pháp "Intelligent Chaser Engine" (ICE) (Ưu tiên 2.5)
+- **Tổng quan:** ICE là cơ chế đồng bộ hóa lộ trình thông minh, cho phép OSM của TYMAP "bắt chước" lộ trình của Google Maps trong thời gian thực dựa trên định vị GPS mà không truy cập dữ liệu nội bộ của Google Maps.
+- **Nguyên lý "Kẻ Bám Đuôi Thông Minh":**
+  1. **Khởi tạo:** Khi người dùng bắt đầu dẫn đường (bởi Google Maps hoặc TYMAP), TYMAP sử dụng OSRM để tạo lộ trình dự kiến.
+  2. **Giám sát:** Ứng dụng liên tục so sánh vị trí GPS thực tế với lộ trình OSRM hiện tại.
+  3. **Phát hiện & Thích nghi:** Phát hiện ngay lập tức sự kiện "lệch tuyến" khi người dùng di chuyển lệch quá 15m.
+  4. **Đồng bộ hóa thông minh:** Tự động gọi lại OSRM với vị trí GPS hiện tại làm điểm xuất phát mới trong vòng <= 2 giây, giúp lộ trình mới tự điều chỉnh bám theo đường người dùng đang di chuyển.
+  5. **Popup OSM Thông minh:** Khi khoảng cách tới ngã rẽ đạt ngưỡng 500m hoặc 200m, ứng dụng render ảnh bản đồ ngã rẽ và gửi hiển thị popup lên ESP32. Sau khi qua ngã rẽ (> 50m) hoặc hết thời gian `popupDuration`, ESP32 tự quay lại chế độ HUD.
+- **Yêu cầu chức năng:**
+  - **FR-ICE-01:** Cơ chế phát hiện lệch tuyến có độ trễ tối đa 2 giây và ngưỡng kích hoạt 15 mét.
+  - **FR-ICE-02:** Tự động gọi lại OSRM trong vòng 1 giây khi lệch tuyến.
+  - **FR-ICE-03:** Ảnh popup OSM render bằng chế độ bản đồ hiện tại (OSM đầy đủ, Roads Only, hoặc Vector).
+  - **FR-ICE-04:** Popup tự động ẩn và quay về HUD sau khi qua ngã rẽ (> 50m) hoặc sau `popupDuration` giây.
 
 ## 3. Yêu cầu phi chức năng
 - ESP32‑S3 hỗ trợ JPEG, Roads Only, Tile Streaming.

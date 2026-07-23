@@ -28,6 +28,19 @@ Bạn là chuyên gia phát triển Android (Kotlin) và ESP32 (C++/Arduino). H�
 3. **NavigationService:** Khi chọn "Roads Only", gọi `RoadsOnlyMapRenderer` thay vì `MapRenderer` thông thường. Gửi ảnh qua `CHA_MAP_IMAGE` như cũ.
 4. **ESP32‑S3 & C3:** KHÔNG cần thay đổi firmware. ESP32 nhận JPEG như bình thường, giải mã và hiển thị.
 
+## Công việc 2.5: Triển khai "Intelligent Chaser Engine" (ICE)
+1. **Tạo `ChaserEngine.kt`** trong `service/`:
+   - Class nhận GPS location và lộ trình hiện tại từ `NavigationRepository`.
+   - Logic: Nếu khoảng cách từ GPS đến polyline > 15m, kích hoạt sự kiện `onRouteDeviation`.
+   - `NavigationService` lắng nghe sự kiện này và gọi lại `RoutingEngine` với vị trí GPS hiện tại.
+2. **Sửa đổi `NavigationService.kt` và `RoutingEngine.kt`**:
+   - Cho phép gọi lại OSRM nhanh chóng khi có sự kiện từ `ChaserEngine`.
+   - Đảm bảo thời gian phản hồi (từ lúc phát hiện lệch đến lúc có lộ trình mới) dưới 2 giây.
+3. **Tích hợp Popup OSM**:
+   - Sử dụng cơ chế Popup HUD hiện tại.
+   - Khi `distToNext` (từ lộ trình đã đồng bộ) đạt 500m hoặc 200m, kích hoạt chụp/gửi ảnh map (sử dụng `MapRenderer` hoặc `RoadsOnlyMapRenderer`).
+   - ESP32 không cần thay đổi gì.
+
 ## Công việc 3: Giải pháp C (Tile Streaming) + Sửa lỗi còn lại
 1. **Settings:** Thêm toggle "Tile Streaming".
 2. **Android:** TileStreamingManager, gửi tile qua `CHA_MAP_TILE` (UUID: d1e2f3a4-...), `CHA_MAP_CTRL` (UUID: e2f3a4b5-...).

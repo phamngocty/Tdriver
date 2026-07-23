@@ -95,6 +95,19 @@ class RoutingEngine(private val client: OkHttpClient) {
         }
     }
 
+    /**
+     * Fast OSRM reroute for Intelligent Chaser Engine (ICE)
+     */
+    suspend fun fetchFastOsrmReroute(
+        startLat: Double, startLng: Double,
+        destLat: Double, destLng: Double,
+        avoidHighways: Boolean = false
+    ): List<RouteInfo>? {
+        return fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways)?.mapIndexed { i, r ->
+            r.copy(engineName = "OSRM", isSelected = (i == 0))
+        }
+    }
+
     private suspend fun fetchOsrmRoute(
         startLat: Double, startLng: Double,
         destLat: Double, destLng: Double,

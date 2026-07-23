@@ -21,3 +21,9 @@
 ## 4. QUY TẮC ANDROID
 - **APP‑1**: Phải có 4 tab: Connection, Map, Settings, Notifications.
 - **APP‑2**: Mọi tác vụ nặng (parse polyline, off‑route) phải chạy trên background thread.
+
+## 5. QUY TẮC DẪN ĐƯỜNG & ĐỒNG BỘ (ICE RULES)
+- **ICE‑1**: Tuyệt đối không truy cập vào tiến trình hoặc dữ liệu nội bộ của ứng dụng Google Maps.
+- **ICE‑2**: Mọi đồng bộ lộ trình phải được thực hiện gián tiếp thông qua GPS và OSRM.
+- **ICE‑3**: Ngưỡng phát hiện lệch tuyến cho ICE là 15 mét, thời gian chờ (debounce/cooldown) là 2 giây.
+- **ICE‑4**: Khi kích hoạt popup ngã rẽ, ảnh phải được render từ OSM engine của ứng dụng, phản ánh chính xác lộ trình đã đồng bộ.
