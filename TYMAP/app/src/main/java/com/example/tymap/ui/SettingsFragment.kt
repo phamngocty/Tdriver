@@ -174,10 +174,12 @@ class SettingsFragment : Fragment() {
         }
 
         // 2. MAP
-        val mapSources = arrayOf("CartoDB Positron", "OSM Mapnik", "CartoDB Dark Matter", "CartoDB Voyager", "Vệ tinh", "Tùy chỉnh (MapCN)")
-        setupSpinner(binding.spinnerTileSource, mapSources, PrefsHelper.getInt(context, "tile_source", 0)) {
+        val mapSources = arrayOf("CartoDB Positron", "OSM Mapnik", "CartoDB Dark Matter", "CartoDB Voyager", "Stadia Alidade Smooth Dark", "Esri Canvas Dark", "Esri Canvas Light", "Vệ tinh (ESRI)", "Tùy chỉnh (MapCN/Self-Hosted)")
+        val initialTileSource = PrefsHelper.getInt(context, "tile_source", 0)
+        binding.tilCustomTileUrl.visibility = if (initialTileSource == 8) View.VISIBLE else View.GONE
+        setupSpinner(binding.spinnerTileSource, mapSources, initialTileSource) {
             PrefsHelper.putInt(context, "tile_source", it)
-            binding.tilCustomTileUrl.visibility = if (it == 5) View.VISIBLE else View.GONE
+            binding.tilCustomTileUrl.visibility = if (it == 8) View.VISIBLE else View.GONE
         }
 
         binding.etCustomTileUrl.setText(PrefsHelper.getString(context, "custom_tile_url", ""))
@@ -214,9 +216,22 @@ class SettingsFragment : Fragment() {
         }
 
         // 3. ROUTING
-        val engines = arrayOf("OSRM Demo", "OpenRouteService", "GraphHopper", "Valhalla", "Mapbox")
-        setupSpinner(binding.spinnerRoutingEngine, engines, PrefsHelper.getInt(context, "routing_engine", 0)) {
+        val engines = arrayOf("OSRM Demo", "OpenRouteService", "GraphHopper", "Valhalla", "Tùy chỉnh (Self-Hosted OSRM)")
+        val initialEngine = PrefsHelper.getInt(context, "routing_engine", 0)
+        binding.tilCustomRoutingUrl.visibility = if (initialEngine == 4) View.VISIBLE else View.GONE
+        setupSpinner(binding.spinnerRoutingEngine, engines, initialEngine) {
             PrefsHelper.putInt(context, "routing_engine", it)
+            binding.tilCustomRoutingUrl.visibility = if (it == 4) View.VISIBLE else View.GONE
+        }
+
+        binding.etCustomRoutingUrl.setText(PrefsHelper.getString(context, "custom_routing_url", ""))
+        binding.etCustomRoutingUrl.addTextChangedListener {
+            PrefsHelper.putString(context, "custom_routing_url", it.toString())
+        }
+
+        binding.etCustomSearchUrl.setText(PrefsHelper.getString(context, "custom_search_url", ""))
+        binding.etCustomSearchUrl.addTextChangedListener {
+            PrefsHelper.putString(context, "custom_search_url", it.toString())
         }
 
         val vehicles = arrayOf("Ô tô", "Xe máy")
@@ -410,8 +425,104 @@ class SettingsFragment : Fragment() {
             }
         }
 
+        // 6. GITHUB RELEASES OTA UPDATE
+        val savedGithubUrl = PrefsHelper.getString(context, "github_update_url", "")
+        binding.etGithubUpdateUrl.setText(if (savedGithubUrl.isNotEmpty()) savedGithubUrl else "https://raw.githubusercontent.com/phamn/TYMAP/main/version.json")
+        binding.etGithubUpdateUrl.addTextChangedListener {
+            PrefsHelper.putString(context, "github_update_url", it.toString().trim())
+        }
+
+        var cachedUpdateInfo: com.example.tymap.utils.UpdateInfo? = null
+
+        binding.btnCheckUpdate.setOnClickListener {
+            binding.tvUpdateStatus.text = "Đang kết nối GitHub kiểm tra bản cập nhật..."
+            binding.tvUpdateStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.blue_primary))
+            binding.progressUpdate.visibility = View.VISIBLE
+            binding.btnApplyAppUpdate.visibility = View.GONE
+            binding.btnApplyFwUpdate.visibility = View.GONE
+
+            lifecycleScope.launch {
+                val result = com.example.tymap.utils.UpdateManager.checkUpdate(requireContext())
+                binding.progressUpdate.visibility = View.GONE
+                when (result) {
+                    is com.example.tymap.utils.UpdateCheckResult.Success -> {
+                        val info = result.info
+                        cachedUpdateInfo = info
+                        val sb = StringBuilder()
+                        if (info.hasAppUpdate) {
+                            sb.append("🎉 Đã có bản cập nhật App TYMAP v${info.appVersionName}!\n${info.appChangelog}\n\n")
+                            binding.btnApplyAppUpdate.visibility = View.VISIBLE
+                            binding.btnApplyAppUpdate.text = "Tải & Cài đặt App v${info.appVersionName}"
+                        } else {
+                            sb.append("✓ App TYMAP đang ở phiên bản mới nhất.\n")
+                        }
+
+                        if (info.hasFirmwareUpdate) {
+                            sb.append("📟 Đã có bản nâng cấp Firmware HUD ESP32 v${info.firmwareVersionName}!\n${info.firmwareChangelog}")
+                            binding.btnApplyFwUpdate.visibility = View.VISIBLE
+                            binding.btnApplyFwUpdate.text = "Nâng cấp Firmware HUD v${info.firmwareVersionName} (BLE OTA)"
+                        } else {
+                            sb.append("✓ Firmware HUD ESP32 đang ở bản mới nhất.")
+                        }
+
+                        binding.tvUpdateStatus.text = sb.toString()
+                    }
+                    is com.example.tymap.utils.UpdateCheckResult.Error -> {
+                        binding.tvUpdateStatus.text = "Lỗi tra cứu bản cập nhật: ${result.message}"
+                    }
+                }
+            }
+        }
+
+        binding.btnApplyAppUpdate.setOnClickListener {
+            val info = cachedUpdateInfo ?: return@setOnClickListener
+            binding.btnApplyAppUpdate.isEnabled = false
+            binding.progressUpdate.visibility = View.VISIBLE
+            binding.progressUpdate.progress = 0
+            lifecycleScope.launch {
+                val success = com.example.tymap.utils.UpdateManager.downloadAndInstallApk(requireContext(), info.appApkUrl) { progress ->
+                    binding.progressUpdate.progress = progress
+                }
+                binding.btnApplyAppUpdate.isEnabled = true
+                binding.progressUpdate.visibility = View.GONE
+                if (!success) {
+                    Toast.makeText(requireContext(), "Tải file APK từ GitHub thất bại", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        binding.btnApplyFwUpdate.setOnClickListener {
+            val info = cachedUpdateInfo ?: return@setOnClickListener
+            binding.btnApplyFwUpdate.isEnabled = false
+            binding.progressUpdate.visibility = View.VISIBLE
+            binding.progressUpdate.progress = 0
+            binding.tvUpdateStatus.text = "Đang tải firmware.bin từ GitHub..."
+            lifecycleScope.launch {
+                val binBytes = com.example.tymap.utils.UpdateManager.downloadFirmwareBin(info.firmwareBinUrl)
+                if (binBytes != null) {
+                    binding.tvUpdateStatus.text = "Đang truyền dữ liệu nạp Firmware sang ESP32 qua BLE..."
+                    val success = NavigationService.bleManager?.writeEsp32FirmwareOta(binBytes) { progress: Int ->
+                        binding.progressUpdate.progress = progress
+                    } ?: false
+                    binding.progressUpdate.visibility = View.GONE
+                    binding.btnApplyFwUpdate.isEnabled = true
+                    if (success) {
+                        PrefsHelper.putInt(requireContext(), "esp32_fw_version_code", info.firmwareVersionCode)
+                        Toast.makeText(requireContext(), "Nạp Firmware OTA ESP32 thành công!", Toast.LENGTH_LONG).show()
+                        binding.tvUpdateStatus.text = "✓ Nạp Firmware HUD v${info.firmwareVersionName} thành công. ESP32 đang reboot."
+                    } else {
+                        Toast.makeText(requireContext(), "Nạp Firmware qua BLE thất bại. Hãy đảm bảo HUD đang kết nối BLE.", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    binding.progressUpdate.visibility = View.GONE
+                    binding.btnApplyFwUpdate.isEnabled = true
+                    Toast.makeText(requireContext(), "Tải file firmware.bin thất bại", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
         binding.btnOta.setOnClickListener {
-            Toast.makeText(context, "Tính năng OTA đang phát triển", Toast.LENGTH_SHORT).show()
+            binding.btnCheckUpdate.performClick()
         }
         val version = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName

@@ -21,6 +21,7 @@ import android.graphics.RectF
 import android.location.Location
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.config.Configuration
 import android.os.Build
 import android.os.IBinder
 import android.view.View
@@ -540,6 +541,7 @@ class NavigationService : Service() {
     }
 
     private fun setupHeadlessMap() {
+        Configuration.getInstance().userAgentValue = "Mozilla/5.0 (Android; Mobile; TYMAP/1.0)"
         headlessMapView = MapView(this)
         // Rule APP-21: Bật cache tối thiểu 50MB cho headless map
         headlessMapView?.setTileSource(TileSourceFactory.MAPNIK)
@@ -923,7 +925,10 @@ class NavigationService : Service() {
         serviceScope.launch(Dispatchers.IO) {
             var lastSentMapImageHash = -1L
             var wasTileStreamingActive = false
+            var adaptiveQualityPenalty = 0 // Tự động giảm chất lượng nếu BLE/CPU bị quá tải
+
             while (isActive) {
+                val loopStartTime = System.currentTimeMillis()
                 val captureMode = PrefsHelper.getInt(this@NavigationService, "map_capture_mode", 0)
                 val isOsmOnlyInMode5 = captureMode == 5 && !isGmapsActive && NavigationRepository.navigationState.value
                 if (isMapModeActive || isPopupActive || isOsmOnlyInMode5) {
@@ -937,13 +942,12 @@ class NavigationService : Service() {
                         5 -> 20 // Smart peak
                         else -> 1
                     }
-                    val quality = if (captureMode == 4) {
-                        65
-                    } else if (fps > 2) {
-                        40
-                    } else {
-                        PrefsHelper.getFloat(this@NavigationService, "jpeg_quality", 40f).toInt()
-                    }
+
+                    // 1. Đọc chất lượng do người dùng cấu hình từ PrefsHelper
+                    val userQuality = PrefsHelper.getFloat(this@NavigationService, "jpeg_quality", 60f).toInt()
+                    
+                    // 2. Tính toán chất lượng thực tế theo Cơ chế an toàn (Adaptive Load Safety)
+                    val effectiveQuality = (userQuality - adaptiveQualityPenalty).coerceIn(15, 100)
                     
                     val deviceDisplay = NavigationRepository.deviceStatus.value["display"] ?: ""
                     val isOled = deviceDisplay.contains("OLED")
@@ -953,7 +957,7 @@ class NavigationService : Service() {
                     if (isTileStreamingActive) {
                         wasTileStreamingActive = true
                         try {
-                            runTileStreamingLoop(quality)
+                            runTileStreamingLoop(effectiveQuality)
                         } catch (e: Exception) {
                             android.util.Log.e("NavigationService", "Tile streaming loop error: ${e.message}", e)
                         }
@@ -980,30 +984,30 @@ class NavigationService : Service() {
                                 NavigationRepository.compassHeading.value
                             }
                             val zoom = NavigationRepository.lastMapZoom
-                            imageBytes = roadsOnlyMapRenderer?.render(headlessMapView, loc, heading, zoom, quality)
+                            imageBytes = roadsOnlyMapRenderer?.render(headlessMapView, loc, heading, zoom, effectiveQuality)
                         } catch (e: Exception) {
                             android.util.Log.e("NavigationService", "Roads Only rendering error: ${e.message}", e)
                         }
                     } else if (captureMode == 1) {
                         // Mode 1: luôn chụp màn hình
-                        imageBytes = screenCaptureManager?.captureAndProcess(quality, "gmaps_")
+                        imageBytes = screenCaptureManager?.captureAndProcess(effectiveQuality, "gmaps_")
                     } else if (captureMode == 2 && isPopupActive) {
                         // Mode 2: chỉ chụp khi có popup ngã rẽ, Google Maps phải ở foreground
                         if (isGoogleMapsForeground()) {
-                            imageBytes = screenCaptureManager?.captureAndProcess(quality, "gmaps_")
+                            imageBytes = screenCaptureManager?.captureAndProcess(effectiveQuality, "gmaps_")
                         }
                     } else if (captureMode == 5 && (isPopupActive || isMapModeActive || !isGmapsActive)) {
                         // Mode 5: Popup OSM (khi có Google Maps) hoặc Map Mode truyền liên tục (khi bật thủ công hoặc không có Google Maps)
                         val hasCropMapTab = PrefsHelper.getInt(this@NavigationService, "crop_w_maptab", 0) > 0
                         if (hasCropMapTab && screenCaptureManager?.isCapturing == true) {
-                            imageBytes = screenCaptureManager?.captureAndProcess(quality, "maptab_")
+                            imageBytes = screenCaptureManager?.captureAndProcess(effectiveQuality, "maptab_")
                         }
                         if (imageBytes == null) {
-                            imageBytes = renderOsmMap(quality)
+                            imageBytes = renderOsmMap(effectiveQuality)
                         }
                     } else if (captureMode == 0) {
                         // Mode 0: Vẽ bản đồ OSM ngầm của App
-                        imageBytes = renderOsmMap(quality)
+                        imageBytes = renderOsmMap(effectiveQuality)
                     }
 
                     if (imageBytes != null) {
@@ -1051,24 +1055,38 @@ class NavigationService : Service() {
                     }
 
                     val delayMs = when (fpsVal) {
-                            4 -> 20L // MAX: Max throughput (~50 FPS / min hardware delay)
-                            5 -> { // Smart High-FPS: Max FPS when moving or turning
-                                val loc = NavigationRepository.gpsLocation.value
-                                val speedKmH = (loc?.speed ?: 0f) * 3.6f
-                                val distToNext = currentDistanceToNextMeters
+                        4 -> 20L // MAX: Max throughput (~50 FPS / min hardware delay)
+                        5 -> { // Smart High-FPS: Max FPS when moving or turning
+                            val loc = NavigationRepository.gpsLocation.value
+                            val speedKmH = (loc?.speed ?: 0f) * 3.6f
+                            val distToNext = currentDistanceToNextMeters
 
-                                when {
-                                    speedKmH < 1f -> 3000L // 0.33 FPS when stopped
-                                    distToNext > 500 -> 1000L // 1 FPS when far
-                                    distToNext > 200 -> 300L  // 3.3 FPS
-                                    else -> 30L              // MAX ~33 FPS when approaching/in turn
-                                }
+                            when {
+                                speedKmH < 1f -> 3000L // 0.33 FPS when stopped
+                                distToNext > 500 -> 1000L // 1 FPS when far
+                                distToNext > 200 -> 300L  // 3.3 FPS
+                                else -> 30L              // MAX ~33 FPS when approaching/in turn
                             }
-                            else -> 1000L / fps
                         }
-                        delay(delayMs)
+                        else -> 1000L / fps
+                    }
+
+                    // 3. Cơ chế an toàn Chống Quá Tải (Adaptive Load Safety):
+                    val elapsedTimeMs = System.currentTimeMillis() - loopStartTime
+                    val targetPeriodMs = (1000 / fps).toLong()
+                    if (elapsedTimeMs > targetPeriodMs + 60) {
+                        if (adaptiveQualityPenalty < 40) {
+                            adaptiveQualityPenalty += 5
+                            NavigationRepository.addLog("AUTOSAFE: BLE/CPU quá tải ($elapsedTimeMs ms > target $targetPeriodMs ms). Tự động hạ JPEG Quality -> $effectiveQuality%")
+                        }
+                    } else if (elapsedTimeMs < targetPeriodMs * 0.75 && adaptiveQualityPenalty > 0) {
+                        adaptiveQualityPenalty = (adaptiveQualityPenalty - 2).coerceAtLeast(0)
+                    }
+
+                    delay(delayMs)
                 } else { 
                     lastSentMapImageHash = -1L // Reset hash when map mode is inactive
+                    adaptiveQualityPenalty = 0
                     delay(2000) 
                 }
             }
@@ -1087,7 +1105,42 @@ class NavigationService : Service() {
         arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/", "https://b.basemaps.cartocdn.com/rastertiles/voyager/", "https://c.basemaps.cartocdn.com/rastertiles/voyager/"),
         "© OpenStreetMap contributors, © CARTO")
 
-    private val satelliteSource = object : XYTileSource("Satellite (ESRI)", 1, 20, 256, "",
+    private val stadiaDark = object : XYTileSource("Stadia Alidade Smooth Dark", 1, 20, 256, ".png",
+        arrayOf("https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/"),
+        "© Stadia Maps, © OpenMapTiles © OpenStreetMap contributors") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            val key = PrefsHelper.getSecureString(this@NavigationService, "api_key_stadia", "")
+            val keyParam = if (key.isNotEmpty()) "?api_key=$key" else ""
+            return "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/$z/$x/$y.png$keyParam"
+        }
+    }
+
+    private val esriCanvasDark = object : XYTileSource("Esri Canvas Dark", 1, 16, 256, "",
+        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/"),
+        "© ESRI") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            return "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/$z/$y/$x"
+        }
+    }
+
+    private val esriCanvasLight = object : XYTileSource("Esri Canvas Light", 1, 16, 256, "",
+        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/"),
+        "© ESRI") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            return "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/$z/$y/$x"
+        }
+    }
+
+    private val satelliteSource = object : XYTileSource("Satellite (ESRI)", 1, 19, 256, "",
         arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"),
         "© ESRI") {
         override fun getTileURLString(pMapTileIndex: Long): String {
@@ -1104,6 +1157,9 @@ class NavigationService : Service() {
         list.add(TileSourceFactory.MAPNIK)
         list.add(mapCnDark)
         list.add(mapCnVoyager)
+        list.add(stadiaDark)
+        list.add(esriCanvasDark)
+        list.add(esriCanvasLight)
         list.add(satelliteSource)
 
         val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")

@@ -21,76 +21,74 @@ class RoutingEngine(private val client: OkHttpClient) {
         context: Context,
         startLat: Double, startLng: Double,
         destLat: Double, destLng: Double
-    ): List<RouteInfo> = coroutineScope {
-        val vehicleType = PrefsHelper.getInt(context, "vehicle_type", 0)
-        val avoidHighways = vehicleType == 1
-        
-        val osrmDeferred = async {
-            try { fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways) } catch (e: Exception) { null }
-        }
-        val valhallaDeferred = async {
-            try { fetchValhallaRoute(startLat, startLng, destLat, destLng, avoidHighways) } catch (e: Exception) { null }
-        }
-        
-        val osrmRoutes = osrmDeferred.await()?.map { it.copy(engineName = "OSRM") } ?: emptyList()
-        val valhallaRoutes = valhallaDeferred.await()?.map { it.copy(engineName = "Valhalla") } ?: emptyList()
-        
-        val combined = mutableListOf<RouteInfo>()
-        // Ensure at least one is selected
-        osrmRoutes.forEachIndexed { i, r -> 
-            combined.add(r.copy(isSelected = (i == 0))) 
-        }
-        valhallaRoutes.forEachIndexed { i, r -> 
-            combined.add(r.copy(isSelected = (combined.isEmpty() && i == 0))) 
-        }
-        
-        combined
+    ): List<RouteInfo> {
+        return fetchRouteWithFallback(context, startLat, startLng, destLat, destLng) ?: emptyList()
     }
 
     /**
-     * Fetches route with a fallback mechanism based on priority.
-     * @param context required to fetch API keys for fallback engines
-     * @param priorityList list of engines to try in order (e.g. ["Mapbox", "GraphHopper", "OSRM"])
+     * Parallel multi-engine route calculation across ALL engines:
+     * OSRM (Self-Hosted/Demo), Valhalla, GraphHopper, and ORS.
+     * Merges all results and sorts by shortest distance (meters) first.
      */
     suspend fun fetchRouteWithFallback(
         context: Context,
         startLat: Double, startLng: Double,
         destLat: Double, destLng: Double,
-        priorityList: List<String>
-    ): List<RouteInfo>? {
+        priorityList: List<String> = emptyList()
+    ): List<RouteInfo>? = coroutineScope {
         val vehicleType = PrefsHelper.getInt(context, "vehicle_type", 0)
-        for (engine in priorityList) {
-            val key = when (engine) {
-                "OpenRouteService" -> PrefsHelper.getSecureString(context, "api_key_ors", "")
-                "GraphHopper" -> PrefsHelper.getSecureString(context, "api_key_gh", "")
-                "Mapbox" -> PrefsHelper.getSecureString(context, "api_key_mapbox", "")
-                else -> null
-            }
-            
-            android.util.Log.d("RoutingEngine", "Trying engine: $engine")
-            val result = fetchRoute(startLat, startLng, destLat, destLng, engine, key, vehicleType)
-            if (result != null && result.isNotEmpty()) {
-                android.util.Log.d("RoutingEngine", "Success with: $engine")
-                return result
+        val engines = mutableListOf(
+            "OSRM Backend",
+            "Valhalla Routing",
+            "GraphHopper Routing",
+            "OpenRouteService (ORS)"
+        )
+        val customUrl = PrefsHelper.getString(context, "custom_routing_url", "").trim()
+        if (customUrl.isNotEmpty()) {
+            engines.add(0, "Tùy chỉnh (Self-Hosted OSRM)")
+        }
+
+        val deferreds = engines.map { engine ->
+            async(Dispatchers.IO) {
+                val key = when {
+                    engine.contains("OpenRouteService") || engine.contains("ORS") -> PrefsHelper.getSecureString(context, "api_key_ors", "")
+                    engine.contains("GraphHopper") -> PrefsHelper.getSecureString(context, "api_key_gh", "")
+                    else -> null
+                }
+                try {
+                    fetchRoute(context, startLat, startLng, destLat, destLng, engine, key, vehicleType)
+                } catch (e: Exception) {
+                    null
+                }
             }
         }
-        return null
+
+        val allResults = deferreds.awaitAll().filterNotNull().flatten()
+        if (allResults.isEmpty()) return@coroutineScope null
+
+        // Sort all routes from all engines by shortest distance first
+        val sortedRoutes = allResults.sortedBy { it.distance }
+
+        // Set shortest route as selected (index 0)
+        sortedRoutes.mapIndexed { index, route ->
+            route.copy(isSelected = (index == 0))
+        }
     }
 
     suspend fun fetchRoute(
+        context: Context,
         startLat: Double, startLng: Double,
         destLat: Double, destLng: Double,
-        engine: String = "OSRM",
+        engine: String = "OSRM Backend",
         apiKey: String? = null,
         vehicleType: Int = 0
     ): List<RouteInfo>? {
         val avoidHighways = vehicleType == 1
-        return when (engine) {
-            "OSRM" -> fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways)
-            "OpenRouteService" -> fetchOrsRoute(startLat, startLng, destLat, destLng, apiKey, avoidHighways)
-            "GraphHopper" -> fetchGraphHopperRoute(startLat, startLng, destLat, destLng, apiKey, vehicleType)
-            "Valhalla" -> fetchValhallaRoute(startLat, startLng, destLat, destLng, avoidHighways)
-            "Mapbox" -> fetchMapboxRoute(startLat, startLng, destLat, destLng, apiKey, avoidHighways)
+        return when {
+            engine == "Tùy chỉnh (Self-Hosted OSRM)" -> fetchCustomOsrmRoute(context, startLat, startLng, destLat, destLng, avoidHighways)
+            engine.contains("OpenRouteService") || engine == "ORS" -> fetchOrsRoute(startLat, startLng, destLat, destLng, apiKey, avoidHighways)
+            engine.contains("GraphHopper") -> fetchGraphHopperRoute(startLat, startLng, destLat, destLng, apiKey, vehicleType)
+            engine.contains("Valhalla") -> fetchValhallaRoute(startLat, startLng, destLat, destLng, avoidHighways)
             else -> fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways)
         }
     }
@@ -242,31 +240,32 @@ class RoutingEngine(private val client: OkHttpClient) {
         }
     }
 
-    private suspend fun fetchMapboxRoute(
+    private suspend fun fetchCustomOsrmRoute(
+        context: Context,
         startLat: Double, startLng: Double,
         destLat: Double, destLng: Double,
-        apiKey: String?,
         avoidHighways: Boolean
     ): List<RouteInfo>? {
-        val key = apiKey?.trim() ?: return null
-        if (key.isEmpty()) return null
-        var url = "https://api.mapbox.com/directions/v5/mapbox/driving/$startLng,$startLat;$destLng,$destLat?steps=true&geometries=polyline&access_token=$key&language=vi"
-        if (avoidHighways) {
-            url += "&exclude=motorway"
+        val customUrl = PrefsHelper.getString(context, "custom_routing_url", "").trim()
+        if (customUrl.isEmpty()) {
+            return fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways)
         }
+        val baseUrl = customUrl.removeSuffix("/")
+        val url = "$baseUrl/route/v1/driving/$startLng,$startLat;$destLng,$destLat?steps=true&geometries=polyline&overview=full&alternatives=true"
         val request = Request.Builder().url(url).build()
 
         return try {
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string() ?: return null
                 if (!response.isSuccessful) {
-                    android.util.Log.e("RoutingEngine", "Mapbox Error: ${response.code}")
-                    return null
+                    android.util.Log.e("RoutingEngine", "Custom OSRM Error: ${response.code}, falling back to OSRM demo")
+                    return fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways)
                 }
-                parseMapboxResponse(body)
+                parseOsrmResponse(body)
             }
         } catch (e: Exception) {
-            null
+            android.util.Log.e("RoutingEngine", "Custom OSRM Exception: ${e.message}, falling back to OSRM demo")
+            fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways)
         }
     }
 
@@ -412,39 +411,6 @@ class RoutingEngine(private val client: OkHttpClient) {
                 }
             }
             result.add(RouteInfo(points, distance, duration, steps, i == 0, "Valhalla"))
-        }
-        result
-    }
-
-    private suspend fun parseMapboxResponse(body: String): List<RouteInfo> = withContext(Dispatchers.Default) {
-        val json = JSONObject(body)
-        val routesJson = json.getJSONArray("routes")
-        val result = mutableListOf<RouteInfo>()
-        for (i in 0 until routesJson.length()) {
-            val route = routesJson.getJSONObject(i)
-            val geometry = route.getString("geometry")
-            val points = PolylineDecoder.decode(geometry, 5).map { it.latitude to it.longitude }
-            val distance = route.getDouble("distance")
-            val duration = route.getDouble("duration")
-            
-            val steps = mutableListOf<com.example.tymap.repository.StepInfo>()
-            val legs = route.getJSONArray("legs")
-            if (legs.length() > 0) {
-                val stepsJson = legs.getJSONObject(0).getJSONArray("steps")
-                for (j in 0 until stepsJson.length()) {
-                    val step = stepsJson.getJSONObject(j)
-                    val maneuver = step.getJSONObject("maneuver")
-                    steps.add(com.example.tymap.repository.StepInfo(
-                        instruction = step.optString("name", "Tiếp tục"),
-                        distance = step.getDouble("distance"),
-                        duration = step.getDouble("duration"),
-                        maneuverIcon = mapManeuverToIcon("Mapbox", maneuver),
-                        roadName = step.optString("name", ""),
-                        location = maneuver.getJSONArray("location").let { it.getDouble(1) to it.getDouble(0) }
-                    ))
-                }
-            }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0, "Mapbox"))
         }
         result
     }

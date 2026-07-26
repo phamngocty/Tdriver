@@ -139,14 +139,22 @@ class ConnectionFragment : Fragment() {
         binding.rvDevices.layoutManager = LinearLayoutManager(requireContext())
 
         val context = requireContext()
+        val orsKey = PrefsHelper.getSecureString(context, "api_key_ors", "")
+        val ghKey = PrefsHelper.getSecureString(context, "api_key_gh", "")
+        val stadiaKey = PrefsHelper.getSecureString(context, "api_key_stadia", "")
+
         val apiServices = listOf(
-            ApiService("osrm", "OSRM Demo", "Định tuyến miễn phí, không cần key.", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
-            ApiService("ors", "OpenRouteService", "Yêu cầu API key.", "https://openrouteservice.org/dev/#/signup", true, apiKey = PrefsHelper.getSecureString(context, "api_key_ors", "")),
-            ApiService("gh", "GraphHopper", "Yêu cầu API key.", "https://www.graphhopper.com/", true, apiKey = PrefsHelper.getSecureString(context, "api_key_gh", "")),
-            ApiService("mapbox", "Mapbox", "Yêu cầu Access Token.", "https://www.mapbox.com/", true, apiKey = PrefsHelper.getSecureString(context, "api_key_mapbox", "")),
-            ApiService("photon", "Photon (Search)", "Tìm kiếm ưu tiên, miễn phí.", "https://photon.komoot.io/", false, status = ServiceStatus.FREE),
-            ApiService("nominatim", "Nominatim (Search)", "Tìm kiếm dự phòng, miễn phí.", "https://nominatim.org/", false, status = ServiceStatus.FREE),
-            ApiService("carto", "CartoDB Basemap", "Cung cấp bản đồ nền MapCN.", "https://carto.com/signup/", false, status = ServiceStatus.FREE)
+            ApiService("osrm", "OSRM Backend", "Dẫn đường cực nhanh (Tự host / Demo miễn phí).", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
+            ApiService("valhalla", "Valhalla Routing Engine", "Dẫn đường đa phương tiện / tránh đường cao tốc.", "https://valhalla.opentripplanner.org/", false, status = ServiceStatus.FREE),
+            ApiService("ors", "OpenRouteService (ORS)", "Dẫn đường chuyên sâu, yêu cầu API key.", "https://openrouteservice.org/dev/#/signup", true, apiKey = orsKey, status = if (orsKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("gh", "GraphHopper Routing", "Dẫn đường tối ưu xe máy, yêu cầu API key.", "https://www.graphhopper.com/", true, apiKey = ghKey, status = if (ghKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("photon", "Photon Autocomplete (Komoot)", "Tìm kiếm địa chỉ nhanh của Komoot, miễn phí.", "https://photon.komoot.io/", false, status = ServiceStatus.FREE),
+            ApiService("pelias", "Pelias Geocoder", "Tìm kiếm địa chỉ nguồn mở (Geocode Earth).", "https://pelias.io/", false, status = ServiceStatus.FREE),
+            ApiService("nominatim", "Nominatim Geocoder (OSM)", "Tìm kiếm vị trí mặc định từ OpenStreetMap.", "https://nominatim.org/", false, status = ServiceStatus.FREE),
+            ApiService("open_meteo", "Open-Meteo Weather", "Dự báo thời tiết 10.000 req/ngày miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
+            ApiService("esri", "Esri World Canvas", "Bản đồ nền mượt OLED, miễn phí vô hạn.", "https://www.esri.com/", false, status = ServiceStatus.FREE),
+            ApiService("stadia", "Stadia Alidade Smooth Dark", "Bản đồ tối mượt Alidade Smooth Dark cho OLED.", "https://stadiamaps.com/", true, apiKey = stadiaKey, status = if (stadiaKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("carto", "CartoDB Basemap", "Cung cấp bản đồ nền MapCN (Positron / Dark Matter / Voyager).", "https://carto.com/signup/", false, status = ServiceStatus.FREE)
         )
         
         apiServiceAdapter = ApiServiceAdapter(
@@ -158,13 +166,17 @@ class ConnectionFragment : Fragment() {
             },
             onKeyChanged = { service, newKey ->
                 service.apiKey = newKey
+                service.status = if (newKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED
                 val keyName = when(service.id) {
                     "ors" -> "api_key_ors"
                     "gh" -> "api_key_gh"
-                    "mapbox" -> "api_key_mapbox"
+                    "stadia" -> "api_key_stadia"
                     else -> null
                 }
-                keyName?.let { PrefsHelper.putSecureString(context, it, newKey) }
+                keyName?.let { 
+                    PrefsHelper.putSecureString(context, it, newKey)
+                    android.util.Log.d("ConnectionFragment", "Saved API Key for $it: ${newKey.take(5)}...")
+                }
             }
         )
         binding.rvApiServices.adapter = apiServiceAdapter
@@ -181,7 +193,7 @@ class ConnectionFragment : Fragment() {
         val keyName = when(service.id) {
             "ors" -> "api_key_ors"
             "gh" -> "api_key_gh"
-            "mapbox" -> "api_key_mapbox"
+            "stadia" -> "api_key_stadia"
             else -> null
         }
         keyName?.let { PrefsHelper.putSecureString(context, it, service.apiKey) }
@@ -191,7 +203,11 @@ class ConnectionFragment : Fragment() {
                 "osrm" -> true
                 "ors" -> testOrsKey(service.apiKey)
                 "gh" -> testGhKey(service.apiKey)
-                "mapbox" -> testMapboxKey(service.apiKey)
+                "stadia" -> testStadiaKey(service.apiKey)
+                "open_meteo" -> testOpenMeteo()
+                "photon" -> testPhoton()
+                "pelias" -> testPelias()
+                "esri" -> testEsri()
                 else -> true
             }
             
@@ -215,9 +231,28 @@ class ConnectionFragment : Fragment() {
         return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
-    private fun testMapboxKey(key: String): Boolean {
-        if (key.isEmpty()) return false
-        val url = "https://api.mapbox.com/directions/v5/mapbox/driving/106.660172,10.762622;106.661000,10.763000?access_token=$key"
+    private fun testStadiaKey(key: String): Boolean {
+        val url = "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/0/0/0.png" + if (key.isNotEmpty()) "?api_key=$key" else ""
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testOpenMeteo(): Boolean {
+        val url = "https://api.open-meteo.com/v1/forecast?latitude=10.762622&longitude=106.660172&current_weather=true"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testPhoton(): Boolean {
+        val url = "https://photon.komoot.io/api/?q=Ho+Chi+Minh&limit=1"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testPelias(): Boolean {
+        val url = "https://api.geocode.earth/v1/autocomplete?text=Ho+Chi+Minh&size=1"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful || it.code == 401 } } catch (e: Exception) { false }
+    }
+
+    private fun testEsri(): Boolean {
+        val url = "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/0/0/0"
         return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 

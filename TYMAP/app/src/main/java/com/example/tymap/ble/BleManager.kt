@@ -6,6 +6,10 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
 import android.util.Log
 import com.example.tymap.repository.NavigationRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.PhyRequest
 import no.nordicsemi.android.ble.ktx.suspend
@@ -384,5 +388,41 @@ class MyBleManager(context: Context) : BleManager(context) {
         val currentStatus = NavigationRepository.deviceStatus.value.toMutableMap()
         currentStatus.putAll(statusMap)
         NavigationRepository.updateDeviceStatus(currentStatus)
+    }
+
+    suspend fun writeEsp32FirmwareOta(binData: ByteArray, onProgress: (Int) -> Unit): Boolean {
+        val char = mapImageChar ?: return false
+        val totalSize = binData.size
+        NavigationRepository.addLog("BLE OTA: Khởi động nạp Firmware ESP32 ($totalSize bytes)")
+        
+        // 1. Send OTA Start Command (Command 0x30 + 4 bytes total size)
+        val startHeader = ByteArray(4)
+        ByteBuffer.wrap(startHeader).order(ByteOrder.LITTLE_ENDIAN).putInt(totalSize)
+        writeMapCtrl(0x30.toByte(), startHeader)
+        kotlinx.coroutines.delay(500)
+
+        // 2. Stream Binary Chunks via BLE
+        val chunkSize = 512
+        var offset = 0
+        while (offset < totalSize) {
+            val length = Math.min(chunkSize, totalSize - offset)
+            val chunk = ByteArray(length)
+            System.arraycopy(binData, offset, chunk, 0, length)
+
+            writeCharacteristic(char, chunk, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+                .split()
+                .suspend()
+
+            offset += length
+            val progress = ((offset.toLong() * 100) / totalSize).toInt()
+            withContext(Dispatchers.Main) { onProgress(progress) }
+            kotlinx.coroutines.delay(20)
+        }
+
+        // 3. Send OTA Finish & Reboot Command (Command 0x31)
+        kotlinx.coroutines.delay(300)
+        writeMapCtrl(0x31.toByte(), ByteArray(0))
+        NavigationRepository.addLog("BLE OTA: Đã hoàn tất nạp Firmware ESP32. Đợi ESP32 Reboot...")
+        return true
     }
 }

@@ -61,14 +61,23 @@ class ApiServiceAdapter(
             // API Key field
             if (service.isKeyRequired) {
                 binding.tilApiKey.visibility = View.VISIBLE
+                (binding.etApiKey.tag as? android.text.TextWatcher)?.let {
+                    binding.etApiKey.removeTextChangedListener(it)
+                }
                 binding.etApiKey.setText(service.apiKey)
-                binding.etApiKey.addTextChangedListener {
-                    val newKey = it?.toString() ?: ""
-                    if (service.apiKey != newKey) {
-                        service.apiKey = newKey // Update local object
-                        onKeyChanged(service, newKey) // Trigger save
+                val textWatcher = object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                    override fun afterTextChanged(s: android.text.Editable?) {
+                        val newKey = s?.toString()?.trim() ?: ""
+                        if (service.apiKey != newKey) {
+                            service.apiKey = newKey
+                            onKeyChanged(service, newKey)
+                        }
                     }
                 }
+                binding.etApiKey.addTextChangedListener(textWatcher)
+                binding.etApiKey.tag = textWatcher
                 binding.btnRegisterService.visibility = View.VISIBLE
             } else {
                 binding.tilApiKey.visibility = View.GONE

@@ -83,3 +83,6 @@ nhật khi sự kiện luôn tắt  khi tôi nhấn hiện mới hiện và xóa
 
 
  /sữa lỗi  googlem map popup osm tối ưu lại cơ chế hiển thị hup  và map /
+
+
+ - sửa lại cách hiển thị  của route  thành đường rải đều trên map 

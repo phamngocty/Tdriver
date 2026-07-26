@@ -17,16 +17,21 @@ object PrefsHelper {
 
     private fun getSecurePrefs(context: Context): SharedPreferences {
         if (securePrefs == null) {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            securePrefs = EncryptedSharedPreferences.create(
-                context,
-                SECURE_PREFS_NAME,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
+            try {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                securePrefs = EncryptedSharedPreferences.create(
+                    context,
+                    SECURE_PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("PrefsHelper", "EncryptedSharedPreferences init failed, falling back: ${e.message}")
+                securePrefs = getPrefs(context)
+            }
         }
         return securePrefs!!
     }
@@ -47,9 +52,25 @@ object PrefsHelper {
     fun putStringSet(context: Context, key: String, value: Set<String>) = getPrefs(context).edit().putStringSet(key, value).apply()
     fun getStringSet(context: Context, key: String, default: Set<String>) = getPrefs(context).getStringSet(key, default) ?: default
 
-    // Secure Keys
-    fun putSecureString(context: Context, key: String, value: String) = getSecurePrefs(context).edit().putString(key, value).apply()
-    fun getSecureString(context: Context, key: String, default: String) = getSecurePrefs(context).getString(key, default) ?: default
+    // Secure Keys (With fail-safe mirroring to guarantee persistence across app restarts)
+    fun putSecureString(context: Context, key: String, value: String) {
+        try {
+            getSecurePrefs(context).edit().putString(key, value).commit()
+        } catch (e: Exception) {
+            android.util.Log.e("PrefsHelper", "putSecureString failed: ${e.message}")
+        }
+        putString(context, key, value)
+    }
+
+    fun getSecureString(context: Context, key: String, default: String): String {
+        val secureVal = try {
+            getSecurePrefs(context).getString(key, "") ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+        if (secureVal.isNotEmpty()) return secureVal
+        return getString(context, key, default)
+    }
 
     // Specialized
     fun addPairedDevice(context: Context, deviceEntry: String) {

@@ -23,6 +23,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import kotlinx.coroutines.*
+import com.example.tymap.ui.maneuverIconRes
 import com.example.tymap.R
 import com.example.tymap.databinding.FragmentMapBinding
 import com.example.tymap.repository.NavigationRepository
@@ -133,7 +135,42 @@ class MapFragment : Fragment(), IOrientationConsumer {
         arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/", "https://b.basemaps.cartocdn.com/rastertiles/voyager/", "https://c.basemaps.cartocdn.com/rastertiles/voyager/"),
         "© OpenStreetMap contributors, © CARTO")
 
-    private val satelliteSource = object : XYTileSource("Satellite (ESRI)", 1, 20, 256, "",
+    private val stadiaDark = object : XYTileSource("Stadia Alidade Smooth Dark", 1, 20, 256, ".png",
+        arrayOf("https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/"),
+        "© Stadia Maps, © OpenMapTiles © OpenStreetMap contributors") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            val key = PrefsHelper.getSecureString(requireContext(), "api_key_stadia", "")
+            val keyParam = if (key.isNotEmpty()) "?api_key=$key" else ""
+            return "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/$z/$x/$y.png$keyParam"
+        }
+    }
+
+    private val esriCanvasDark = object : XYTileSource("Esri Canvas Dark", 1, 16, 256, "",
+        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/"),
+        "© ESRI") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            return "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/$z/$y/$x"
+        }
+    }
+
+    private val esriCanvasLight = object : XYTileSource("Esri Canvas Light", 1, 16, 256, "",
+        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/"),
+        "© ESRI") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            return "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/$z/$y/$x"
+        }
+    }
+
+    private val satelliteSource = object : XYTileSource("Satellite (ESRI)", 1, 19, 256, "",
         arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"),
         "© ESRI") {
         override fun getTileURLString(pMapTileIndex: Long): String {
@@ -150,6 +187,9 @@ class MapFragment : Fragment(), IOrientationConsumer {
         list.add(TileSourceFactory.MAPNIK)
         list.add(mapCnDark)
         list.add(mapCnVoyager)
+        list.add(stadiaDark)
+        list.add(esriCanvasDark)
+        list.add(esriCanvasLight)
         list.add(satelliteSource)
 
         val customUrl = PrefsHelper.getString(requireContext(), "custom_tile_url", "")
@@ -168,6 +208,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         savedInstanceState: Bundle?
     ): View {
         Configuration.getInstance().load(requireContext(), requireContext().getSharedPreferences("tymap_osmdroid", Context.MODE_PRIVATE))
+        Configuration.getInstance().userAgentValue = "Mozilla/5.0 (Android; Mobile; TYMAP/1.0)"
         // Rule APP-21: Bật cache tối thiểu 50MB
         Configuration.getInstance().cacheMapTileCount = 50 
         Configuration.getInstance().tileDownloadThreads = 2
@@ -494,6 +535,17 @@ class MapFragment : Fragment(), IOrientationConsumer {
         })
     }
 
+    private fun calculateDistanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371000.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return r * c
+    }
+
     private fun performSearch(query: String) {
         if (query.length < 2) {
             binding.suggestionsCard.visibility = View.GONE
@@ -503,56 +555,124 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val currentLoc = NavigationRepository.gpsLocation.value
         
         lifecycleScope.launch(Dispatchers.IO) {
-            val results = mutableListOf<JSONObject>()
+            val rawResults = mutableListOf<JSONObject>()
             if (getString(R.string.current_location).contains(query, true)) {
                 currentLoc?.let {
-                    results.add(JSONObject().apply {
+                    rawResults.add(JSONObject().apply {
                         put("display_name", getString(R.string.current_location))
                         put("lat", it.latitude); put("lon", it.longitude); put("is_current_location", true)
+                        put("dist_meters", 0.0)
                     })
                 }
             }
 
-            val photonUrl = "https://photon.komoot.io/api/?q=$query&limit=5" +
-                    (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: "")
-            var photonSuccess = false
-            try {
-                httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
-                    .newCall(Request.Builder().url(photonUrl).build()).execute().use { response ->
-                        if (response.isSuccessful) {
-                            val json = JSONObject(response.body.string())
-                            val features = json.getJSONArray("features")
-                            for (i in 0 until features.length()) {
-                                val feat = features.getJSONObject(i)
-                                val prop = feat.getJSONObject("properties")
-                                val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
-                                val displayName = listOfNotNull(prop.optString("name"), prop.optString("city"), prop.optString("country"))
-                                    .joinToString(", ")
-                                results.add(JSONObject().apply {
-                                    put("display_name", displayName)
-                                    put("lat", geom.getDouble(1)); put("lon", geom.getDouble(0))
-                                })
-                            }
-                            photonSuccess = true
-                        }
-                    }
-            } catch (e: Exception) {}
-
-            if (!photonSuccess) {
-                val nominatimUrl = "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5"
+            // Run Photon, Pelias, Nominatim search engines simultaneously in parallel
+            val photonDeferred = async {
+                val list = mutableListOf<JSONObject>()
+                val customSearchUrl = PrefsHelper.getString(requireContext(), "custom_search_url", "").trim()
+                val baseUrl = if (customSearchUrl.isNotEmpty()) customSearchUrl.removeSuffix("/") else "https://photon.komoot.io/api"
+                val photonUrl = (if (baseUrl.contains("?")) "$baseUrl&q=$query&limit=5" else "$baseUrl?q=$query&limit=5") +
+                        (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: "")
                 try {
-                    httpClient.newCall(Request.Builder().url(nominatimUrl).header("User-Agent", "TYMAP").build()).execute().use { response ->
-                        if (response.isSuccessful) {
-                            val array = JSONArray(response.body.string())
-                            for (i in 0 until array.length()) results.add(array.getJSONObject(i))
+                    httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                        .newCall(Request.Builder().url(photonUrl).build()).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val json = JSONObject(response.body.string())
+                                val features = json.getJSONArray("features")
+                                for (i in 0 until features.length()) {
+                                    val feat = features.getJSONObject(i)
+                                    val prop = feat.getJSONObject("properties")
+                                    val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
+                                    val displayName = listOfNotNull(prop.optString("name"), prop.optString("city"), prop.optString("country"))
+                                        .filter { it.isNotBlank() }.joinToString(", ")
+                                    val lat = geom.getDouble(1)
+                                    val lon = geom.getDouble(0)
+                                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+                                    if (displayName.isNotEmpty()) {
+                                        list.add(JSONObject().apply {
+                                            put("display_name", displayName)
+                                            put("provider", "Photon Autocomplete")
+                                            put("lat", lat); put("lon", lon)
+                                            put("dist_meters", dist)
+                                        })
+                                    }
+                                }
+                            }
                         }
-                    }
                 } catch (e: Exception) {}
+                list
             }
 
+            val peliasDeferred = async {
+                val list = mutableListOf<JSONObject>()
+                val peliasUrl = "https://api.geocode.earth/v1/autocomplete?text=$query&size=5"
+                try {
+                    httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                        .newCall(Request.Builder().url(peliasUrl).build()).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val json = JSONObject(response.body.string())
+                                val features = json.getJSONArray("features")
+                                for (i in 0 until features.length()) {
+                                    val feat = features.getJSONObject(i)
+                                    val prop = feat.getJSONObject("properties")
+                                    val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
+                                    val displayName = prop.optString("label", prop.optString("name", ""))
+                                    val lat = geom.getDouble(1)
+                                    val lon = geom.getDouble(0)
+                                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+                                    if (displayName.isNotEmpty()) {
+                                        list.add(JSONObject().apply {
+                                            put("display_name", displayName)
+                                            put("provider", "Pelias Geocoder")
+                                            put("lat", lat); put("lon", lon)
+                                            put("dist_meters", dist)
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                } catch (e: Exception) {}
+                list
+            }
+
+            val nominatimDeferred = async {
+                val list = mutableListOf<JSONObject>()
+                val nominatimUrl = "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5"
+                try {
+                    httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                        .newCall(Request.Builder().url(nominatimUrl).header("User-Agent", "TYMAP").build()).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val array = JSONArray(response.body.string())
+                                for (i in 0 until array.length()) {
+                                    val item = array.getJSONObject(i)
+                                    val lat = item.getDouble("lat")
+                                    val lon = item.getDouble("lon")
+                                    val displayName = item.optString("display_name", "")
+                                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+                                    if (displayName.isNotEmpty()) {
+                                        list.add(JSONObject().apply {
+                                            put("display_name", displayName)
+                                            put("provider", "Nominatim OSM")
+                                            put("lat", lat); put("lon", lon)
+                                            put("dist_meters", dist)
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                } catch (e: Exception) {}
+                list
+            }
+
+            val allFetched = photonDeferred.await() + peliasDeferred.await() + nominatimDeferred.await()
+            rawResults.addAll(allFetched)
+
+            // Sort search results by distance to current GPS location (nearest location first)
+            val sortedResults = rawResults.sortedBy { it.optDouble("dist_meters", Double.MAX_VALUE) }
+
             withContext(Dispatchers.Main) {
-                suggestionAdapter.submitList(results)
-                binding.suggestionsCard.visibility = if (results.isNotEmpty()) View.VISIBLE else View.GONE
+                suggestionAdapter.submitList(sortedResults)
+                binding.suggestionsCard.visibility = if (sortedResults.isNotEmpty()) View.VISIBLE else View.GONE
                 binding.searchProgress.visibility = View.GONE
             }
         }
@@ -905,7 +1025,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
     }
 
-    private fun getEngineName(index: Int) = when(index) { 1 -> "OpenRouteService"; 2 -> "GraphHopper"; 3 -> "Valhalla"; 4 -> "Mapbox"; else -> "OSRM" }
+    private fun getEngineName(index: Int) = when(index) { 1 -> "OpenRouteService"; 2 -> "GraphHopper"; 3 -> "Valhalla"; 4 -> "Tùy chỉnh (Self-Hosted OSRM)"; else -> "OSRM" }
 
     private fun selectRoute(index: Int) {
         val currentRoutes = NavigationRepository.routes.value
@@ -1071,7 +1191,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val context = requireContext()
         lifecycleScope.launch(Dispatchers.IO) {
             val preferredEngine = getEngineName(PrefsHelper.getInt(context, "routing_engine", 0))
-            val priorityList = mutableListOf(preferredEngine, "Mapbox", "GraphHopper", "OSRM")
+            val priorityList = mutableListOf(preferredEngine, "Valhalla", "GraphHopper", "OSRM")
             val routes = routingEngine.fetchRouteWithFallback(context, startLat, startLon, destLat, destLon, priorityList)
             withContext(Dispatchers.Main) {
                 if (!routes.isNullOrEmpty()) {

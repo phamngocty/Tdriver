@@ -30,11 +30,19 @@ class SuggestionAdapter(private val onItemSelected: (JSONObject) -> Unit) :
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         val displayName = item.optString("display_name", "")
+        val provider = item.optString("provider", "")
         val isCurrentLocation = item.optBoolean("is_current_location", false)
         
         val parts = displayName.split(",")
-        holder.text1.text = parts.getOrNull(0)?.trim() ?: ""
-        holder.text2.text = parts.drop(1).joinToString(",").trim()
+        val title = parts.getOrNull(0)?.trim() ?: ""
+        val subtitle = parts.drop(1).joinToString(",").trim()
+        
+        holder.text1.text = title
+        holder.text2.text = if (provider.isNotEmpty()) {
+            if (subtitle.isNotEmpty()) "$subtitle • [$provider]" else "[$provider]"
+        } else {
+            subtitle
+        }
         
         holder.icon.setImageResource(if (isCurrentLocation) R.drawable.ic_my_location else R.drawable.ic_map)
         holder.icon.imageTintList = ContextCompat.getColorStateList(holder.itemView.context, 
