@@ -128,7 +128,6 @@ class SettingsFragment : Fragment() {
             com.example.tymap.repository.NavigationRepository.deviceStatus.collect { status ->
                 val display = status["display"] ?: ""
                 val isOled = display.contains("OLED") || display.contains("SSD1306")
-                binding.layoutJpegOptions.visibility = if (isOled) View.GONE else View.VISIBLE
                 
                 if (isOled) {
                     val currentMode = PrefsHelper.getInt(requireContext(), "map_capture_mode", 0)
@@ -214,8 +213,6 @@ class SettingsFragment : Fragment() {
             startActivity(intent)
         }
 
-
-
         // 3. ROUTING
         val engines = arrayOf("OSRM Demo", "OpenRouteService", "GraphHopper", "Valhalla", "Mapbox")
         setupSpinner(binding.spinnerRoutingEngine, engines, PrefsHelper.getInt(context, "routing_engine", 0)) {
@@ -227,41 +224,13 @@ class SettingsFragment : Fragment() {
             PrefsHelper.putInt(context, "vehicle_type", it)
         }
 
-        updateRoutingPriorityText()
-        binding.btnConfigurePriority.setOnClickListener {
-            showPriorityDialog()
-        }
-
         val initialOffRoute = PrefsHelper.getFloat(context, "off_route_dist", 20f)
         binding.sliderOffRouteDist.value = initialOffRoute.coerceIn(10f, 50f)
         binding.tvValueOffRouteDist.text = "${initialOffRoute.toInt()} m"
-        binding.sliderMode5OffRouteDist.value = initialOffRoute.coerceIn(10f, 50f)
-        binding.tvValueMode5OffRouteDist.text = "${initialOffRoute.toInt()} m"
 
         binding.sliderOffRouteDist.addOnChangeListener { _, value, _ -> 
             PrefsHelper.putFloat(context, "off_route_dist", value)
             binding.tvValueOffRouteDist.text = "${value.toInt()} m"
-            binding.sliderMode5OffRouteDist.value = value.coerceIn(10f, 50f)
-            binding.tvValueMode5OffRouteDist.text = "${value.toInt()} m"
-        }
-        binding.sliderMode5OffRouteDist.addOnChangeListener { _, value, _ ->
-            PrefsHelper.putFloat(context, "off_route_dist", value)
-            binding.tvValueMode5OffRouteDist.text = "${value.toInt()} m"
-            binding.sliderOffRouteDist.value = value.coerceIn(10f, 50f)
-            binding.tvValueOffRouteDist.text = "${value.toInt()} m"
-        }
-
-        binding.switchSpeedWarning.isChecked = PrefsHelper.getBoolean(context, "speed_warning", false)
-        binding.tilSpeedThreshold.visibility = if (binding.switchSpeedWarning.isChecked) View.VISIBLE else View.GONE
-        binding.switchSpeedWarning.setOnCheckedChangeListener { _, isChecked ->
-            PrefsHelper.putBoolean(context, "speed_warning", isChecked)
-            binding.tilSpeedThreshold.visibility = if (isChecked) View.VISIBLE else View.GONE
-        }
-
-        binding.etSpeedThreshold.setText(PrefsHelper.getInt(context, "speed_threshold", 60).toString())
-        binding.etSpeedThreshold.addTextChangedListener {
-            val v = it.toString().toIntOrNull() ?: 60
-            PrefsHelper.putInt(context, "speed_threshold", v)
         }
 
         // 4. VOICE
@@ -278,26 +247,9 @@ class SettingsFragment : Fragment() {
             binding.tvValueVoiceVolume.text = "${value.toInt()}%"
         }
 
-        val voiceStyles = arrayOf("Đầy đủ", "Ngắn gọn")
-        setupSpinner(binding.spinnerVoiceStyle, voiceStyles, PrefsHelper.getInt(context, "voice_style", 0)) {
-            PrefsHelper.putInt(context, "voice_style", it)
-        }
-
         binding.switchOffRouteAlert.isChecked = PrefsHelper.getBoolean(context, "voice_off_route", true)
-        binding.switchMode5VoiceOffRoute.isChecked = PrefsHelper.getBoolean(context, "voice_off_route", true)
-
         binding.switchOffRouteAlert.setOnCheckedChangeListener { _, isChecked -> 
             PrefsHelper.putBoolean(context, "voice_off_route", isChecked)
-            binding.switchMode5VoiceOffRoute.isChecked = isChecked
-        }
-        binding.switchMode5VoiceOffRoute.setOnCheckedChangeListener { _, isChecked ->
-            PrefsHelper.putBoolean(context, "voice_off_route", isChecked)
-            binding.switchOffRouteAlert.isChecked = isChecked
-        }
-
-        binding.switchSpeedWarningVoice.isChecked = PrefsHelper.getBoolean(context, "voice_speed_warning", true)
-        binding.switchSpeedWarningVoice.setOnCheckedChangeListener { _, isChecked -> 
-            PrefsHelper.putBoolean(context, "voice_speed_warning", isChecked)
         }
 
         val languages = arrayOf("Tiếng Việt", "English")
@@ -308,67 +260,22 @@ class SettingsFragment : Fragment() {
         // 5. DATA SENDING
         val captureModes = arrayOf(
             "Bản đồ OSM tĩnh (Continuous)",
-            "Chụp Google Maps (Liên tục)",
-            "Chụp Google Maps (Theo ngã rẽ/Popup)",
-            "Bản đồ OSM cuốn chiếu (Tile Streaming)",
-            "Ảnh chỉ đường (Roads Only)",
-            "Google Maps Popup OSM (Popup OSM ngã rẽ)"
+            "Google Maps Popup OSM (Popup ngã rẽ)"
         )
-        var initialMode = PrefsHelper.getInt(context, "map_capture_mode", 0)
-        val isTileStreamingOld = PrefsHelper.getBoolean(context, "tile_streaming", false)
-        if (isTileStreamingOld && initialMode == 0) {
-            initialMode = 3
-            PrefsHelper.putInt(context, "map_capture_mode", 3)
-        }
+        val rawMode = PrefsHelper.getInt(context, "map_capture_mode", 5)
+        val initialIndex = if (rawMode == 0) 0 else 1
         
-        updateCropVisibility(initialMode)
+        updateCropVisibility(rawMode)
         updateCropSummaries()
 
-        var isFirstSelectionMapCapture = true
-        setupSpinner(binding.spinnerMapCaptureMode, captureModes, initialMode) { mode ->
-            PrefsHelper.putInt(context, "map_capture_mode", mode)
-            if (mode == 3) {
-                PrefsHelper.putBoolean(context, "tile_streaming", true)
-            } else {
-                PrefsHelper.putBoolean(context, "tile_streaming", false)
-            }
-            updateCropVisibility(mode)
-            
-            if (isFirstSelectionMapCapture) {
-                isFirstSelectionMapCapture = false
-            } else {
-                if (mode == 1 || mode == 2) {
-                    try {
-                        requireContext().stopService(Intent(requireContext(), com.example.tymap.service.CropOverlayService::class.java))
-                    } catch (e: Exception) {}
-                    
-                    // Start service first so it is running and foregrounded with mediaProjection type before permission request
-                    val startIntent = Intent(requireContext(), NavigationService::class.java)
-                    requireContext().startForegroundService(startIntent)
-                    
-                    val mpm = requireContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                    screenCaptureLauncher.launch(mpm.createScreenCaptureIntent())
-                }
-            }
-        }
-
-        binding.btnConfigCropGmaps.setOnClickListener {
-            if (Settings.canDrawOverlays(requireContext())) {
-                val serviceIntent = Intent(requireContext(), com.example.tymap.service.CropOverlayService::class.java).apply {
-                    putExtra("CROP_TYPE", "gmaps")
-                }
-                requireContext().startService(serviceIntent)
-            } else {
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                intent.data = Uri.parse("package:${requireContext().packageName}")
-                startActivity(intent)
-                Toast.makeText(requireContext(), "Vui lòng cấp quyền hiển thị trên ứng dụng khác", Toast.LENGTH_LONG).show()
-            }
+        setupSpinner(binding.spinnerMapCaptureMode, captureModes, initialIndex) { position ->
+            val selectedMode = if (position == 0) 0 else 5
+            PrefsHelper.putInt(context, "map_capture_mode", selectedMode)
+            updateCropVisibility(selectedMode)
         }
 
         binding.btnConfigCropMapTab.setOnClickListener {
             if (Settings.canDrawOverlays(requireContext())) {
-                // Tự động chuyển sang tab Map (index 1) trước khi hiển thị khung cắt
                 (activity as? com.example.tymap.MainActivity)?.selectTab(1)
                 
                 val serviceIntent = Intent(requireContext(), com.example.tymap.service.CropOverlayService::class.java).apply {
@@ -402,11 +309,6 @@ class SettingsFragment : Fragment() {
         }
 
         // 5.1 POPUP SETTINGS
-        binding.switchGmapsScreenshot.isChecked = PrefsHelper.getBoolean(context, "gmaps_screenshot_enabled", true)
-        binding.switchGmapsScreenshot.setOnCheckedChangeListener { _, isChecked ->
-            PrefsHelper.putBoolean(context, "gmaps_screenshot_enabled", isChecked)
-        }
-
         val initialTrigger1 = PrefsHelper.getInt(context, "popup_trigger_1", 500)
         binding.sliderPopupTrigger1.value = initialTrigger1.toFloat()
         binding.tvValuePopupTrigger1.text = "${initialTrigger1} m"
@@ -676,34 +578,6 @@ class SettingsFragment : Fragment() {
         }
     }
 
-    private fun updateRoutingPriorityText() {
-        val priority = PrefsHelper.getString(requireContext(), "routing_priority", "Mapbox,GraphHopper,Valhalla,OSRM")
-        binding.tvRoutingPriority.text = priority.replace(",", " > ")
-    }
-
-    private fun showPriorityDialog() {
-        val allEngines = arrayOf("Mapbox", "GraphHopper", "Valhalla", "OSRM", "OpenRouteService")
-        val currentPriority = PrefsHelper.getString(requireContext(), "routing_priority", "Mapbox,GraphHopper,Valhalla,OSRM").split(",").toMutableList()
-        val checkedItems = BooleanArray(allEngines.size) { i -> currentPriority.contains(allEngines[i]) }
-        
-        AlertDialog.Builder(requireContext())
-            .setTitle(R.string.fallback_priority)
-            .setMultiChoiceItems(allEngines, checkedItems) { _, index, isChecked ->
-                val engine = allEngines[index]
-                if (isChecked) {
-                    if (!currentPriority.contains(engine)) currentPriority.add(engine)
-                } else {
-                    currentPriority.remove(engine)
-                }
-            }
-            .setPositiveButton("OK") { _, _ ->
-                PrefsHelper.putString(requireContext(), "routing_priority", currentPriority.joinToString(","))
-                updateRoutingPriorityText()
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
     private fun applyTheme(themeMode: Int) {
         val mode = when (themeMode) {
             1 -> AppCompatDelegate.MODE_NIGHT_NO
@@ -713,38 +587,16 @@ class SettingsFragment : Fragment() {
         AppCompatDelegate.setDefaultNightMode(mode)
     }
 
-
     override fun onResume() {
         super.onResume()
         updateCropSummaries()
     }
 
     private fun updateCropVisibility(mode: Int) {
-        if (mode == 5 || mode == 0) {
-            binding.layoutMode5IceSettings.visibility = View.VISIBLE
-        } else {
-            binding.layoutMode5IceSettings.visibility = View.GONE
-        }
-        when (mode) {
-            1, 2 -> {
-                binding.btnConfigCropGmaps.visibility = View.VISIBLE
-                binding.tvCropSummaryGmaps.visibility = View.VISIBLE
-                binding.btnConfigCropMapTab.visibility = View.GONE
-                binding.tvCropSummaryMapTab.visibility = View.GONE
-            }
-            0, 5 -> {
-                binding.btnConfigCropGmaps.visibility = View.GONE
-                binding.tvCropSummaryGmaps.visibility = View.GONE
-                binding.btnConfigCropMapTab.visibility = View.VISIBLE
-                binding.tvCropSummaryMapTab.visibility = View.VISIBLE
-            }
-            else -> { // mode == 3 (Tile Streaming), 4 (Roads Only)
-                binding.btnConfigCropGmaps.visibility = View.GONE
-                binding.tvCropSummaryGmaps.visibility = View.GONE
-                binding.btnConfigCropMapTab.visibility = View.GONE
-                binding.tvCropSummaryMapTab.visibility = View.GONE
-            }
-        }
+        binding.btnConfigCropGmaps.visibility = View.GONE
+        binding.tvCropSummaryGmaps.visibility = View.GONE
+        binding.btnConfigCropMapTab.visibility = View.VISIBLE
+        binding.tvCropSummaryMapTab.visibility = View.VISIBLE
     }
 
     private fun updateCropSummaries() {
@@ -771,43 +623,37 @@ class SettingsFragment : Fragment() {
     }
 
     private fun setupFilterChips() {
+        var versionTapCount = 0
+        binding.tvVersion.setOnClickListener {
+            versionTapCount++
+            if (versionTapCount >= 5) {
+                versionTapCount = 0
+                val currentShow = PrefsHelper.getBoolean(requireContext(), "render_tab_unlocked", false)
+                val newShow = !currentShow
+                PrefsHelper.putBoolean(requireContext(), "render_tab_unlocked", newShow)
+                (activity as? MainActivity)?.updateRenderTabVisibility()
+                val msg = if (newShow) "Đã HIỆN Tab Render trên thanh điều hướng!" else "Đã ẨN Tab Render!"
+                Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+
         binding.chipGroupFilter.setOnCheckedStateChangeListener { _, checkedIds ->
             val checkedId = checkedIds.firstOrNull() ?: R.id.chipAll
             
-            // Ẩn tất cả card trước
             binding.cardGeneral.visibility = View.GONE
             binding.cardMap.visibility = View.GONE
             binding.cardRouting.visibility = View.GONE
-            binding.cardVoice.visibility = View.GONE
-            binding.cardMapTransfer.visibility = View.GONE
-            binding.cardPopup.visibility = View.GONE
             binding.cardOled.visibility = View.GONE
             
             when (checkedId) {
-                R.id.chipGeneral -> {
-                    binding.cardGeneral.visibility = View.VISIBLE
-                }
-                R.id.chipMap -> {
-                    binding.cardMap.visibility = View.VISIBLE
-                }
-                R.id.chipRouting -> {
-                    binding.cardRouting.visibility = View.VISIBLE
-                }
-                R.id.chipVoice -> {
-                    binding.cardVoice.visibility = View.VISIBLE
-                }
-                R.id.chipData -> {
-                    binding.cardMapTransfer.visibility = View.VISIBLE
-                    binding.cardPopup.visibility = View.VISIBLE
-                    binding.cardOled.visibility = View.VISIBLE
-                }
-                else -> { // chipAll / mặc định hiển thị tất cả
+                R.id.chipGeneral -> binding.cardGeneral.visibility = View.VISIBLE
+                R.id.chipMap -> binding.cardMap.visibility = View.VISIBLE
+                R.id.chipRouting -> binding.cardRouting.visibility = View.VISIBLE
+                R.id.chipData -> binding.cardOled.visibility = View.VISIBLE
+                else -> {
                     binding.cardGeneral.visibility = View.VISIBLE
                     binding.cardMap.visibility = View.VISIBLE
                     binding.cardRouting.visibility = View.VISIBLE
-                    binding.cardVoice.visibility = View.VISIBLE
-                    binding.cardMapTransfer.visibility = View.VISIBLE
-                    binding.cardPopup.visibility = View.VISIBLE
                     binding.cardOled.visibility = View.VISIBLE
                 }
             }

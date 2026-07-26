@@ -324,28 +324,19 @@ class NavigationService : Service() {
         // Read dynamic trigger distances from slider settings
         val trigger1 = PrefsHelper.getInt(this, "popup_trigger_1", 500)
         val trigger2 = PrefsHelper.getInt(this, "popup_trigger_2", 200)
+        val activeTriggerDist = minOf(trigger1, trigger2)
 
-        var triggeredLevel = -1
-        var triggerDist = -1
-
-        // Kiểm tra điều kiện báo rẽ lần 2 (vd <= 200m) trước
-        if (distMeters <= trigger2 && lastPopupTriggerLevel < 2) {
-            triggeredLevel = 2
-            triggerDist = trigger2
-        } else if (distMeters <= trigger1 && lastPopupTriggerLevel < 1) {
-            // Nếu chưa bật lần 1 và khoảng cách <= trigger1 (vd 500m)
-            triggeredLevel = 1
-            triggerDist = trigger1
-        }
-
-        if (triggeredLevel != -1) {
-            lastPopupTriggerLevel = triggeredLevel
-            lastPopupTriggerDist = triggerDist
-            isPopupActive = true
-            popupStartTime = System.currentTimeMillis()
-            if (bleManager.isConnected) {
-                bleManager.sendRemoteCommand(0x10.toByte()) // HUD MODE
-                android.util.Log.d("NavigationService", "Continuous Popup triggered at level $triggeredLevel ($distMeters m <= $triggerDist m)")
+        // 1. Khi khoảng cách <= activeTriggerDist (ví dụ <= 200m): KÍCH HOẠT / DUY TRÌ POPUP MAP
+        if (distMeters <= activeTriggerDist) {
+            if (!isPopupActive) {
+                isPopupActive = true
+                popupStartTime = System.currentTimeMillis()
+                lastPopupTriggerLevel = 2
+                lastPopupTriggerDist = activeTriggerDist
+                if (bleManager.isConnected) {
+                    bleManager.sendRemoteCommand(0x10.toByte()) // HUD MODE
+                    android.util.Log.d("NavigationService", "Popup MAP activated ($distMeters m <= $activeTriggerDist m)")
+                }
             }
             // Chụp / Render ảnh ngay lập tức và gửi
             serviceScope.launch(Dispatchers.IO) {
@@ -375,8 +366,21 @@ class NavigationService : Service() {
                     } else {
                         bleManager.writeMapImage(imageBytes)
                     }
-                    android.util.Log.d("NavigationService", "Sent Popup Map Image at level $triggeredLevel ($triggerDist m)")
                 }
+            }
+        } 
+        // 2. Khi khoảng cách > activeTriggerDist (HẾT NGÃ RẼ): TẮT POPUP MAP, QUAY VỀ MÀN HÌNH HUD NGAY LẬP TỨC
+        else if (isPopupActive && distMeters > activeTriggerDist) {
+            isPopupActive = false
+            lastPopupTriggerLevel = 0
+            lastPopupTriggerDist = -1
+            lastMapNavDataSentTime = 0L // Reset throttle để gửi ngay thông tin nav mới
+            lastSentIconHash = -1L // Reset hash để gửi ngay icon mới
+
+            android.util.Log.d("NavigationService", "Turn finished ($distMeters m > $activeTriggerDist m). Exiting Popup MAP, restoring HUD.")
+
+            if (bleManager.isConnected) {
+                bleManager.sendRemoteCommand(0x10.toByte()) // Khôi phục HUD MODE trên ESP32
             }
         } else if (distMeters > maxOf(trigger1, trigger2) + 50) {
             lastPopupTriggerLevel = 0
@@ -1021,48 +1025,43 @@ class NavigationService : Service() {
                         }
                     }
                     
-                    // Nếu đang trong chế độ Popup: truyền ảnh liên tục (continuous stream) như chế độ bản đồ
+                    // Nếu đang trong chế độ Popup: truyền ảnh liên tục (continuous stream) khi sắp đến ngã rẽ
                     if (isPopupActive && !isMapModeActive) {
-                        val popupDurMs = PrefsHelper.getInt(this@NavigationService, "popup_duration", 5) * 1000L
-                        val popupElapsed = System.currentTimeMillis() - popupStartTime
+                        val trigger1 = PrefsHelper.getInt(this@NavigationService, "popup_trigger_1", 500)
+                        val trigger2 = PrefsHelper.getInt(this@NavigationService, "popup_trigger_2", 200)
+                        val activeTriggerDist = minOf(trigger1, trigger2)
                         val distToTurn = currentDistanceToNextMeters
 
-                        val isTurnCompleted = distToTurn in 1..25
-                        val isTimedOut = popupElapsed >= popupDurMs
+                        val isTurnFinished = distToTurn > activeTriggerDist || distToTurn <= 0
 
-                        if (isTurnCompleted || isTimedOut) {
+                        if (isTurnFinished) {
                             isPopupActive = false
-                            android.util.Log.d("NavigationService", "Continuous Popup finished: turnCompleted=$isTurnCompleted, timeout=$isTimedOut")
+                            lastMapNavDataSentTime = 0L
+                            lastSentIconHash = -1L
+                            android.util.Log.d("NavigationService", "Continuous Popup map stream finished (distToTurn=$distToTurn m > $activeTriggerDist m). Restoring HUD.")
                             if (bleManager.isConnected) {
                                 val isNavigating = isGmapsActive || NavigationRepository.navigationState.value
                                 if (isNavigating) {
                                     bleManager.sendRemoteCommand(0x10.toByte()) // Giữ HUD_MODE để tiếp tục hiện chữ/icon HUD
-                                    android.util.Log.d("NavigationService", "Popup ended, keeping HUD_MODE (still navigating)")
                                 } else {
                                     bleManager.sendRemoteCommand(0x12.toByte()) // Về STATUS_MODE
-                                    android.util.Log.d("NavigationService", "Popup ended, switching back to STATUS_MODE")
                                 }
                             }
-                            triggerImmediateHudUpdate()
                         }
                     }
 
                     val delayMs = when (fpsVal) {
-                            4 -> 50L // MAX: ~20 FPS (50ms delay)
-                            5 -> { // Smart: Dynamic delay based on speed and distance to turn
+                            4 -> 20L // MAX: Max throughput (~50 FPS / min hardware delay)
+                            5 -> { // Smart High-FPS: Max FPS when moving or turning
                                 val loc = NavigationRepository.gpsLocation.value
                                 val speedKmH = (loc?.speed ?: 0f) * 3.6f
                                 val distToNext = currentDistanceToNextMeters
 
                                 when {
-                                    speedKmH < 3f -> 5000L // 0.2 FPS when stationary
-                                    distToNext <= 0 -> 1000L // 1 FPS when no route / unknown
-                                    distToNext > 800 -> 3000L // 0.33 FPS when far
-                                    distToNext > 400 -> 2000L // 0.5 FPS
-                                    distToNext > 200 -> 1000L // 1 FPS
-                                    distToNext > 100 -> 500L  // 2 FPS
-                                    distToNext > 50 -> 200L   // 5 FPS
-                                    else -> 50L               // MAX ~20 FPS when turning
+                                    speedKmH < 1f -> 3000L // 0.33 FPS when stopped
+                                    distToNext > 500 -> 1000L // 1 FPS when far
+                                    distToNext > 200 -> 300L  // 3.3 FPS
+                                    else -> 30L              // MAX ~33 FPS when approaching/in turn
                                 }
                             }
                             else -> 1000L / fps

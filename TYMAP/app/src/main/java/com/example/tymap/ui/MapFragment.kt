@@ -616,25 +616,15 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
         binding.fabLayers.setOnClickListener {
             val sources = getTileSources()
-            val sourceNames = sources.map { it.name() }.toMutableList()
-            sourceNames.add("Ảnh chụp Google Map")
-            
+            val sourceNames = sources.map { it.name() }
             val currentIdx = PrefsHelper.getInt(requireContext(), "tile_source", 0)
-            val currentCaptureMode = PrefsHelper.getInt(requireContext(), "map_capture_mode", 0)
-            
-            val checkedItem = if (currentCaptureMode == 1) sourceNames.size - 1 else currentIdx
             
             AlertDialog.Builder(requireContext())
                 .setTitle("Nguồn bản đồ")
-                .setSingleChoiceItems(sourceNames.toTypedArray(), checkedItem) { dialog, which ->
-                    if (which == sourceNames.size - 1) {
-                        startGoogleMapsCapture()
-                    } else {
-                        PrefsHelper.putInt(requireContext(), "map_capture_mode", 0)
-                        PrefsHelper.putInt(requireContext(), "tile_source", which)
-                        binding.mapView.setTileSource(sources[which])
-                        Toast.makeText(requireContext(), sources[which].name(), Toast.LENGTH_SHORT).show()
-                    }
+                .setSingleChoiceItems(sourceNames.toTypedArray(), currentIdx) { dialog, which ->
+                    PrefsHelper.putInt(requireContext(), "tile_source", which)
+                    binding.mapView.setTileSource(sources[which])
+                    Toast.makeText(requireContext(), sources[which].name(), Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
                 }
                 .setNegativeButton("Hủy", null)
