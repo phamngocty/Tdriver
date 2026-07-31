@@ -616,59 +616,113 @@ void printWrappedText(int startY, const String &text, uint16_t color, uint16_t b
     }
 }
 
+uint16_t getAppAccentColor(const String& appName)
+{
+    String lower = appName;
+    lower.toLowerCase();
+    if (lower.indexOf("zalo") >= 0) return 0x1C9F;      // Bright Zalo Blue
+    if (lower.indexOf("messenger") >= 0 || lower.indexOf("facebook") >= 0) return 0xD81F; // Magenta/Purple
+    if (lower.indexOf("sms") >= 0 || lower.indexOf("tin nhắn") >= 0 || lower.indexOf("message") >= 0) return 0x07E0; // Emerald Green
+    if (lower.indexOf("phone") >= 0 || lower.indexOf("call") >= 0 || lower.indexOf("cuộc gọi") >= 0) return 0xF800; // Red
+    if (lower.indexOf("maps") >= 0 || lower.indexOf("bản đồ") >= 0) return 0x07FF; // Sky Blue
+    return 0x07FF; // Default Cyan
+}
+
 // ==========================================
-// 6. GIAO DIỆN HIỂN THỊ THÔNG BÁO (NOTIFICATION SCREEN)
+// 6. GIAO DIỆN HIỂN THỊ THÔNG BÁO (MODEL A: DYNAMIC RING ARC)
 // ==========================================
 void drawNOTIF()
 {
     canvasSprite.fillSprite(TFT_BLACK);
 
-    // 1. Tiêu đề góc trên
-    String titleStr = "THÔNG BÁO";
-    myFont.set_font(FONT_MENU_TITLE);
-    uint16_t titleLen = myFont.getLength(titleStr);
-    myFont.print(120 - titleLen / 2, 25, titleStr, TFT_RED, TFT_BLACK);
-
     if (notifCount == 0)
     {
-        // Vẽ icon envelope trống
-        int cx = 120, cy = 110;
-        canvasSprite.drawRect(cx - 20, cy - 15, 40, 30, TFT_DARKGREY);
-        canvasSprite.drawLine(cx - 20, cy - 15, cx, cy, TFT_DARKGREY);
-        canvasSprite.drawLine(cx + 20, cy - 15, cx, cy, TFT_DARKGREY);
+        // Khung Glassmorphic mờ cho trạng thái trống
+        canvasSprite.fillRoundRect(20, 50, 200, 140, 16, 0x18E3);
+        canvasSprite.drawRoundRect(20, 50, 200, 140, 16, 0x39E7);
 
-        String emptyStr = "Không có thông báo";
+        // Icon Envelope / Phong thư
+        int cx = 120, cy = 105;
+        canvasSprite.drawRect(cx - 18, cy - 14, 36, 26, 0x7BEF);
+        canvasSprite.drawLine(cx - 18, cy - 14, cx, cy, 0x7BEF);
+        canvasSprite.drawLine(cx + 18, cy - 14, cx, cy, 0x7BEF);
+
+        String emptyStr = "Không có thông báo mới";
         myFont.set_font(FONT_STATUS_INFO);
         uint16_t emptyLen = myFont.getLength(emptyStr);
-        myFont.print(120 - emptyLen / 2, 155, emptyStr, TFT_WHITE, TFT_BLACK);
+        myFont.print(120 - emptyLen / 2, 145, emptyStr, 0xBDF7, 0x18E3);
     }
     else
     {
-        // 2. Chỉ số trang: e.g. [1/3]
-        String indexStr = "[" + String(notifViewIndex + 1) + "/" + String(notifCount) + "]";
-        myFont.set_font(FONT_STATUS_INFO);
-        uint16_t idxLen = myFont.getLength(indexStr);
-        myFont.print(120 - idxLen / 2, 50, indexStr, TFT_SKYBLUE, TFT_BLACK);
+        String appName = notifList[notifViewIndex].app;
+        if (appName.length() == 0) appName = "Thông báo";
+        uint16_t accent = getAppAccentColor(appName);
 
-        // 3. Tên ứng dụng + Tiêu đề
-        String appTitle = notifList[notifViewIndex].app + ": " + notifList[notifViewIndex].title;
+        // 1. Top Header Arc Badge (y = 10..34)
         myFont.set_font(FONT_NOTIF_TITLE);
-        uint16_t appTitleLen = myFont.getLength(appTitle);
-        if (appTitleLen > 200)
+        String badgeText = appName;
+        badgeText.toUpperCase();
+        if (badgeText.length() > 12) badgeText = badgeText.substring(0, 10) + "..";
+        uint16_t badgeTextLen = myFont.getLength(badgeText);
+        int badgeW = badgeTextLen + 24;
+        if (badgeW < 76) badgeW = 76;
+        if (badgeW > 154) badgeW = 154;
+
+        // Curved top pill header
+        canvasSprite.fillRoundRect(120 - badgeW / 2, 10, badgeW, 24, 12, accent);
+        canvasSprite.drawRoundRect(120 - badgeW / 2, 10, badgeW, 24, 12, TFT_WHITE);
+        myFont.print(120 - badgeTextLen / 2, 14, badgeText, TFT_BLACK, accent);
+
+        // 2. Right-Edge Circular Arc Gauge (Thanh Vòng Cung Tiến Trình Bên Phải)
+        // Góc từ -35 độ đến +35 độ quanh tâm (120, 120), bán kính R = 113
+        float startDeg = -35.0f;
+        float endDeg = 35.0f;
+        float progressRatio = (float)(notifViewIndex + 1) / (float)notifCount;
+        float activeDeg = startDeg + (endDeg - startDeg) * progressRatio;
+
+        for (float deg = startDeg; deg <= endDeg; deg += 3.5f)
         {
-            appTitle = appTitle.substring(0, 24) + "...";
-            appTitleLen = myFont.getLength(appTitle);
+            float rad = deg * 0.0174532925f; // deg * PI / 180
+            int ax = 120 + (int)(113.0f * cos(rad));
+            int ay = 120 + (int)(113.0f * sin(rad));
+
+            if (deg <= activeDeg)
+            {
+                canvasSprite.fillCircle(ax, ay, 3, accent);
+            }
+            else
+            {
+                canvasSprite.fillCircle(ax, ay, 2, 0x39E7);
+            }
         }
-        myFont.print(120 - appTitleLen / 2, 75, appTitle, TFT_YELLOW, TFT_BLACK);
 
-        // 4. Nội dung thông báo tự động xuống dòng
-        printWrappedText(105, notifList[notifViewIndex].msg, TFT_WHITE, TFT_BLACK, 190);
+        // 3. Khung chứa nội dung tin nhắn Glassmorphic Card (y = 40..186)
+        canvasSprite.fillRoundRect(15, 40, 195, 146, 16, 0x18E3);
+        canvasSprite.drawRoundRect(15, 40, 195, 146, 16, accent);
 
-        // 5. Hướng dẫn nút bấm
-        String footerStr = isNotifPopupTransient ? "Bấm nút: thoát" : "Bấm nút: Thông báo tiếp";
+        // 4. Tiêu đề thông báo
+        String notifTitle = notifList[notifViewIndex].title;
+        if (notifTitle.length() == 0) notifTitle = appName;
+        myFont.set_font(FONT_NOTIF_TITLE);
+        uint16_t titleLen = myFont.getLength(notifTitle);
+        if (titleLen > 165)
+        {
+            notifTitle = notifTitle.substring(0, 18) + "...";
+            titleLen = myFont.getLength(notifTitle);
+        }
+        myFont.print(112 - titleLen / 2, 48, notifTitle, TFT_WHITE, 0x18E3);
+
+        // Đường kẻ gạch ngang phân tách tiêu đề
+        canvasSprite.drawFastHLine(22, 68, 180, accent);
+
+        // 5. Nội dung thông báo tự động xuống dòng ôm lề
+        printWrappedText(74, notifList[notifViewIndex].msg, 0xE79C, 0x18E3, 178);
+
+        // 6. Dòng chỉ dẫn nút bấm (y = 212)
+        String footerStr = isNotifPopupTransient ? "Bấm nút: Đóng" : "Bấm nút: Tiếp theo";
         myFont.set_font(FONT_HUD_INFO);
         uint16_t footerLen = myFont.getLength(footerStr);
-        myFont.print(120 - footerLen / 2, 205, footerStr, TFT_DARKGREY, TFT_BLACK);
+        myFont.print(120 - footerLen / 2, 212, footerStr, 0x7BEF, TFT_BLACK);
     }
 
     canvasSprite.pushSprite(0, 0);

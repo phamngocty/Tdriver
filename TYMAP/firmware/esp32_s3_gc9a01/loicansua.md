@@ -86,3 +86,8 @@ nhật khi sự kiện luôn tắt  khi tôi nhấn hiện mới hiện và xóa
 
 
  - sửa lại cách hiển thị  của route  thành đường rải đều trên map 
+
+ 
+ Sửa lỗi ở. tab kết nối. thanh chế độ.
+
+ sữa lỗi Sửa lỗi danh sách ứng dụng trên máy chỉ hiện. Chỉ hiện ứng dụng đã bật.

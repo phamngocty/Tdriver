@@ -286,43 +286,70 @@
                     android:layout_height="wrap_content"
                     android:text="@string/mode" />
 
-                <com.google.android.material.button.MaterialButtonToggleGroup
-                    android:id="@+id/toggleEspMode"
-                    android:layout_width="wrap_content"
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    app:singleSelection="true">
-                    <Button
-                        android:id="@+id/btnHudMode"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:scrollbars="none"
+                    android:overScrollMode="never"
+                    android:layout_marginTop="4dp">
+
+                    <com.google.android.material.button.MaterialButtonToggleGroup
+                        android:id="@+id/toggleEspMode"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="HUD" />
-                    <Button
-                        android:id="@+id/btnMapMode"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="MAP" />
-                    <Button
-                        android:id="@+id/btnStatusMode"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="STATUS" />
-                    <Button
-                        android:id="@+id/btnInfoMode"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="INFO" />
-                    <Button
-                        android:id="@+id/btnNotifMode"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="NOTIF" />
-                </com.google.android.material.button.MaterialButtonToggleGroup>
+                        app:singleSelection="true">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnHudMode"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:minWidth="0dp"
+                            android:paddingHorizontal="8dp"
+                            android:textSize="12sp"
+                            android:text="HUD" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnMapMode"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:minWidth="0dp"
+                            android:paddingHorizontal="8dp"
+                            android:textSize="12sp"
+                            android:text="MAP" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnStatusMode"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:minWidth="0dp"
+                            android:paddingHorizontal="8dp"
+                            android:textSize="12sp"
+                            android:text="STATUS" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnInfoMode"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:minWidth="0dp"
+                            android:paddingHorizontal="8dp"
+                            android:textSize="12sp"
+                            android:text="INFO" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnNotifMode"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:minWidth="0dp"
+                            android:paddingHorizontal="8dp"
+                            android:textSize="12sp"
+                            android:text="NOTIF" />
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
+                </HorizontalScrollView>
 
                 <TextView
                     android:layout_width="wrap_content"

@@ -100,4 +100,6 @@ void drawMapOverlay();
 void drawLogoWithLoadingBar(unsigned long currentTime, unsigned long startTime,
                             unsigned long introDuration);
 
+uint16_t getAppAccentColor(const String& appName);
+
 #endif // GUI_H

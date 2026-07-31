@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.appcompat.widget.SwitchCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.tymap.R
 
@@ -17,7 +18,7 @@ data class NotificationApp(
 )
 
 enum class AdapterMode {
-    MANAGE, // Show Delete button
+    MANAGE, // Show Switch
     SELECT  // Show Checkbox
 }
 
@@ -30,6 +31,7 @@ class NotificationAppAdapter(
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val ivIcon: ImageView = view.findViewById(R.id.ivAppIcon)
         val tvName: TextView = view.findViewById(R.id.tvAppName)
+        val switchEnable: SwitchCompat = view.findViewById(R.id.switchAppEnable)
         val ivDelete: ImageView = view.findViewById(R.id.ivDeleteApp)
         val cbSelect: CheckBox = view.findViewById(R.id.cbAppSelect)
     }
@@ -46,17 +48,23 @@ class NotificationAppAdapter(
         
         when (mode) {
             AdapterMode.MANAGE -> {
-                holder.ivDelete.visibility = View.VISIBLE
+                holder.ivDelete.visibility = View.GONE
                 holder.cbSelect.visibility = View.GONE
-                holder.ivDelete.setOnClickListener {
-                    onAction(app.packageName, false)
+                holder.switchEnable.visibility = View.VISIBLE
+                
+                holder.switchEnable.setOnCheckedChangeListener(null)
+                holder.switchEnable.isChecked = app.isEnabled
+                
+                holder.switchEnable.setOnCheckedChangeListener { _, isChecked ->
+                    app.isEnabled = isChecked
+                    onAction(app.packageName, isChecked)
                 }
             }
             AdapterMode.SELECT -> {
                 holder.ivDelete.visibility = View.GONE
+                holder.switchEnable.visibility = View.GONE
                 holder.cbSelect.visibility = View.VISIBLE
                 
-                // Clear listener before setting checked state to avoid recursion if any
                 holder.cbSelect.setOnCheckedChangeListener(null)
                 holder.cbSelect.isChecked = app.isEnabled
                 

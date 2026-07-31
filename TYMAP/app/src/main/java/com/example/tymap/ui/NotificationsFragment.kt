@@ -1,17 +1,20 @@
 package com.example.tymap.ui
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -29,7 +32,9 @@ class NotificationsFragment : Fragment() {
     private var _binding: FragmentNotificationsBinding? = null
     private val binding get() = _binding!!
     private lateinit var adapter: NotificationAppAdapter
-    private val appList = mutableListOf<NotificationApp>()
+    private val fullAppList = mutableListOf<NotificationApp>()
+    private val filteredAppList = mutableListOf<NotificationApp>()
+    private var selectedAppPreset: String = "Zalo"
 
     private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { processAndSendGalleryImage(it) }
@@ -43,13 +48,16 @@ class NotificationsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
-        
-        binding.btnSendManual.setOnClickListener {
-            sendManualNotification()
+        checkPermissionStatus()
+        setupPresetChips()
+        setupSearchFilter()
+
+        binding.btnGrantPermission.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
 
-        binding.btnAddApp.setOnClickListener {
-            showAddAppDialog()
+        binding.btnSendManual.setOnClickListener {
+            sendManualNotification()
         }
 
         binding.btnSendLiveMap.setOnClickListener {
@@ -65,40 +73,164 @@ class NotificationsFragment : Fragment() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        checkPermissionStatus()
+    }
+
+    private fun checkPermissionStatus() {
+        val context = context ?: return
+        val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
+        val isGranted = !flat.isNullOrEmpty() && flat.contains(context.packageName)
+
+        if (isGranted) {
+            binding.ivPermissionStatus.setImageResource(R.drawable.ic_check)
+            binding.ivPermissionStatus.setColorFilter(android.graphics.Color.parseColor("#4CAF50"))
+            binding.tvPermissionTitle.text = "Dịch vụ đọc thông báo"
+            binding.tvPermissionDesc.text = "Đã sẵn sàng đồng bộ thông báo sang ESP32"
+            binding.btnGrantPermission.visibility = View.GONE
+            binding.cardPermissionStatus.strokeColor = android.graphics.Color.parseColor("#4CAF50")
+        } else {
+            binding.ivPermissionStatus.setImageResource(R.drawable.ic_settings)
+            binding.ivPermissionStatus.setColorFilter(android.graphics.Color.parseColor("#F44336"))
+            binding.tvPermissionTitle.text = "Chưa cấp quyền truy cập thông báo!"
+            binding.tvPermissionDesc.text = "Vui lòng cấp quyền để đồng hồ nhận tin nhắn từ Zalo, Messenger, SMS..."
+            binding.btnGrantPermission.visibility = View.VISIBLE
+            binding.cardPermissionStatus.strokeColor = android.graphics.Color.parseColor("#F44336")
+        }
+    }
+
+    private fun setupPresetChips() {
+        binding.chipZalo.setOnClickListener {
+            selectedAppPreset = "Zalo"
+            binding.etManualNotif.setText("Chiều nay đi cafe nhé bạn!")
+        }
+        binding.chipMessenger.setOnClickListener {
+            selectedAppPreset = "Messenger"
+            binding.etManualNotif.setText("Bạn nhận được 1 tin nhắn mới")
+        }
+        binding.chipSMS.setOnClickListener {
+            selectedAppPreset = "SMS"
+            binding.etManualNotif.setText("Ma OTP gia dich la 839201")
+        }
+        binding.chipCall.setOnClickListener {
+            selectedAppPreset = "Cuộc gọi"
+            binding.etManualNotif.setText("Cuoc goi den tu 0912345678")
+        }
+    }
+
     private fun setupRecyclerView() {
-        val context = requireContext()
+        val context = context ?: return
         val pm = context.packageManager
         val enabledApps = PrefsHelper.getStringSet(context, "enabled_notifications", setOf(
             "com.android.server.telecom", "com.google.android.apps.messaging", "com.zing.zalo"
         )).toMutableSet()
 
-        appList.clear()
-        enabledApps.forEach { pkg ->
-            try {
-                val appInfo = pm.getApplicationInfo(pkg, 0)
-                appList.add(NotificationApp(
-                    pkg,
-                    pm.getApplicationLabel(appInfo).toString(),
-                    pm.getApplicationIcon(appInfo),
-                    true
-                ))
-            } catch (e: Exception) {}
-        }
-        
-        appList.sortBy { it.name.lowercase() }
+        lifecycleScope.launch(Dispatchers.IO) {
+            val appMap = mutableMapOf<String, NotificationApp>()
 
-        adapter = NotificationAppAdapter(appList, AdapterMode.MANAGE) { pkg, _ ->
-            enabledApps.remove(pkg)
-            PrefsHelper.putStringSet(context, "enabled_notifications", enabledApps)
-            val index = appList.indexOfFirst { it.packageName == pkg }
-            if (index != -1) {
-                appList.removeAt(index)
-                adapter.notifyItemRemoved(index)
+            // 1. Quét tất cả gói ứng dụng đã cài đặt trên thiết bị
+            try {
+                val packages = pm.getInstalledPackages(PackageManager.GET_META_DATA)
+                packages.forEach { pkgInfo ->
+                    val pkg = pkgInfo.packageName
+                    if (pkg != context.packageName) {
+                        val appInfo = pkgInfo.applicationInfo
+                        val name = if (appInfo != null) pm.getApplicationLabel(appInfo).toString() else pkg
+                        val icon = if (appInfo != null) {
+                            try { pm.getApplicationIcon(appInfo) } catch (e: Exception) { pm.defaultActivityIcon }
+                        } else pm.defaultActivityIcon
+                        val isEnabled = enabledApps.contains(pkg)
+                        appMap[pkg] = NotificationApp(pkg, name, icon, isEnabled)
+                    }
+                }
+            } catch (e: Exception) {
+                val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+                apps.forEach { appInfo ->
+                    val pkg = appInfo.packageName
+                    if (pkg != context.packageName) {
+                        val name = pm.getApplicationLabel(appInfo).toString()
+                        val icon = try { pm.getApplicationIcon(appInfo) } catch (e: Exception) { pm.defaultActivityIcon }
+                        val isEnabled = enabledApps.contains(pkg)
+                        appMap[pkg] = NotificationApp(pkg, name, icon, isEnabled)
+                    }
+                }
+            }
+
+            // 2. Đảm bảo các app đã bật luôn có mặt trong danh sách kể cả khi hệ điều hành ẩn
+            enabledApps.forEach { pkg ->
+                if (!appMap.containsKey(pkg) && pkg != context.packageName) {
+                    val name = try {
+                        val ai = pm.getApplicationInfo(pkg, 0)
+                        pm.getApplicationLabel(ai).toString()
+                    } catch (e: Exception) {
+                        if (pkg.contains("zalo", ignoreCase = true)) "Zalo" else pkg
+                    }
+                    val icon = try {
+                        pm.getApplicationIcon(pkg)
+                    } catch (e: Exception) { pm.defaultActivityIcon }
+                    appMap[pkg] = NotificationApp(pkg, name, icon, true)
+                }
+            }
+
+            // 3. Sắp xếp: Các ứng dụng ĐÃ BẬT nằm lên đầu tiên, sau đó sắp xếp theo thứ tự bảng chữ cái
+            val list = appMap.values.toList()
+                .sortedWith(compareByDescending<NotificationApp> { it.isEnabled }.thenBy { it.name.lowercase() })
+
+            fullAppList.clear()
+            fullAppList.addAll(list)
+
+            withContext(Dispatchers.Main) {
+                val enabledCount = fullAppList.count { it.isEnabled }
+                binding.tvAppsCount.text = "Tất cả ứng dụng (${fullAppList.size} app • Đã bật $enabledCount app)"
+                filteredAppList.clear()
+                filteredAppList.addAll(fullAppList)
+
+                adapter = NotificationAppAdapter(filteredAppList, AdapterMode.MANAGE) { pkg, isChecked ->
+                    val set = PrefsHelper.getStringSet(context, "enabled_notifications", emptySet()).toMutableSet()
+                    if (isChecked) {
+                        set.add(pkg)
+                    } else {
+                        set.remove(pkg)
+                    }
+                    PrefsHelper.putStringSet(context, "enabled_notifications", set)
+
+                    val found = fullAppList.find { it.packageName == pkg }
+                    found?.isEnabled = isChecked
+                    val count = fullAppList.count { it.isEnabled }
+                    binding.tvAppsCount.text = "Tất cả ứng dụng (${fullAppList.size} app • Đã bật $count app)"
+                }
+
+                binding.rvNotificationApps.layoutManager = LinearLayoutManager(context)
+                binding.rvNotificationApps.adapter = adapter
             }
         }
-        
-        binding.rvNotificationApps.layoutManager = LinearLayoutManager(context)
-        binding.rvNotificationApps.adapter = adapter
+    }
+
+    private fun setupSearchFilter() {
+        binding.etSearchApp.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                filterApps(s.toString().trim())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+    }
+
+    private fun filterApps(query: String) {
+        if (query.isEmpty()) {
+            filteredAppList.clear()
+            filteredAppList.addAll(fullAppList)
+        } else {
+            val lower = query.lowercase()
+            filteredAppList.clear()
+            filteredAppList.addAll(fullAppList.filter {
+                it.name.lowercase().contains(lower) || it.packageName.lowercase().contains(lower)
+            })
+        }
+        if (::adapter.isInitialized) {
+            adapter.updateList(filteredAppList)
+        }
     }
 
     private fun sendManualNotification() {
@@ -109,8 +241,8 @@ class NotificationsFragment : Fragment() {
         }
 
         val json = mapOf(
-            "app" to "Manual",
-            "title" to "Tin nhắn",
+            "app" to selectedAppPreset,
+            "title" to "Thử nghiệm",
             "message" to text
         )
         
@@ -118,7 +250,7 @@ class NotificationsFragment : Fragment() {
         if (bleManager != null) {
             bleManager.writeNotification(Gson().toJson(json))
             binding.etManualNotif.text?.clear()
-            Toast.makeText(requireContext(), "Đã gửi tin nhắn", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "Đã gửi thông báo $selectedAppPreset sang đồng hồ", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(requireContext(), "ESP32 chưa kết nối", Toast.LENGTH_SHORT).show()
         }
@@ -221,50 +353,6 @@ class NotificationsFragment : Fragment() {
                 }
             }
         }
-    }
-
-    private fun showAddAppDialog() {
-        val context = requireContext()
-        val pm = context.packageManager
-        val installedApps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-            .filter { pm.getLaunchIntentForPackage(it.packageName) != null }
-            .sortedBy { pm.getApplicationLabel(it).toString().lowercase() }
-
-        val enabledApps = PrefsHelper.getStringSet(context, "enabled_notifications", emptySet()).toMutableSet()
-        
-        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_add_app, null)
-        val rv = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvAllApps)
-        val sv = dialogView.findViewById<androidx.appcompat.widget.SearchView>(R.id.svApps)
-
-        val fullAppList = installedApps.map { 
-            NotificationApp(it.packageName, pm.getApplicationLabel(it).toString(), pm.getApplicationIcon(it), enabledApps.contains(it.packageName))
-        }
-
-        val addAdapter = NotificationAppAdapter(fullAppList, AdapterMode.SELECT) { pkg, enabled ->
-            if (enabled) enabledApps.add(pkg) else enabledApps.remove(pkg)
-        }
-        
-        rv.layoutManager = LinearLayoutManager(context)
-        rv.adapter = addAdapter
-
-        sv.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?) = false
-            override fun onQueryTextChange(newText: String?): Boolean {
-                val filtered = fullAppList.filter { it.name.contains(newText ?: "", ignoreCase = true) }
-                addAdapter.updateList(filtered)
-                return true
-            }
-        })
-
-        AlertDialog.Builder(context)
-            .setTitle("Thêm ứng dụng thông báo")
-            .setView(dialogView)
-            .setPositiveButton("Xong") { _, _ ->
-                PrefsHelper.putStringSet(context, "enabled_notifications", enabledApps)
-                setupRecyclerView()
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
     }
 
     override fun onDestroyView() {

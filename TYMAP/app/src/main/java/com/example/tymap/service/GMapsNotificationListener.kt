@@ -185,9 +185,15 @@ class GMapsNotificationListener : NotificationListenerService() {
     }
 
     private fun forwardNotification(sbn: StatusBarNotification) {
-        val extras = sbn.notification.extras
-        val title = extras.getString("android.title") ?: ""
-        val text = extras.getCharSequence("android.text")?.toString() ?: ""
+        val extras = sbn.notification.extras ?: return
+        val title = extras.getCharSequence("android.title")?.toString() ?: ""
+        var text = extras.getCharSequence("android.text")?.toString() ?: ""
+        if (text.isEmpty()) {
+            text = extras.getCharSequence("android.bigText")?.toString() ?: ""
+        }
+        if (text.isEmpty()) {
+            text = extras.getCharSequence("android.subText")?.toString() ?: ""
+        }
         
         if (sbn.packageName == "com.google.android.apps.maps" || (title.isEmpty() && text.isEmpty())) return
 
@@ -196,7 +202,7 @@ class GMapsNotificationListener : NotificationListenerService() {
             val ai = pm.getApplicationInfo(sbn.packageName, 0)
             pm.getApplicationLabel(ai).toString()
         } catch (e: Exception) {
-            sbn.packageName
+            if (sbn.packageName.contains("zalo", ignoreCase = true)) "Zalo" else sbn.packageName
         }
 
         val json = org.json.JSONObject().apply {
@@ -205,6 +211,7 @@ class GMapsNotificationListener : NotificationListenerService() {
             put("message", text)
         }
         
+        Log.d("GMapsListener", "Forwarding notification over BLE: $json")
         NavigationService.bleManager?.writeNotification(json.toString())
     }
 
