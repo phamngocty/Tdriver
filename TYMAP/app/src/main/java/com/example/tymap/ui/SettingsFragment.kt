@@ -1,15 +1,25 @@
 package com.example.tymap.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AppOpsManager
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
 import android.view.LayoutInflater
@@ -25,23 +35,36 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.tymap.R
 import com.example.tymap.MainActivity
 import com.example.tymap.databinding.FragmentSettingsBinding
+import com.example.tymap.repository.NavigationRepository
 import com.example.tymap.service.NavigationService
 import com.example.tymap.utils.PrefsHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.util.Locale
 
 class SettingsFragment : Fragment() {
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
 
+    private lateinit var deviceAdapter: BluetoothDeviceAdapter
+    private lateinit var apiServiceAdapter: ApiServiceAdapter
+    private val apiServicesList = mutableListOf<ApiService>()
+
+    private val bluetoothAdapter: BluetoothAdapter? by lazy {
+        val manager = requireContext().getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        manager?.adapter
+    }
+    private var isScanning = false
+
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-        val allGranted = permissions.entries.all { it.value }
-        if (!allGranted) {
-            Toast.makeText(requireContext(), "Cần tất cả quyền để app hoạt động", Toast.LENGTH_SHORT).show()
-        }
         checkAllPermissionsStatus()
     }
 
@@ -74,11 +97,12 @@ class SettingsFragment : Fragment() {
                 showPermissionDeniedDialog(ctx)
             }
         }
+        checkAllPermissionsStatus()
     }
 
     private fun showPermissionDeniedDialog(ctx: Context) {
         if (_binding == null) return
-        androidx.appcompat.app.AlertDialog.Builder(ctx)
+        AlertDialog.Builder(ctx)
             .setTitle("Quyền Chụp Màn Hình Bị Từ Chối")
             .setMessage("Để truyền hình ảnh Google Maps sang thiết bị, ứng dụng cần quyền ghi màn hình.\n\n" +
                     "⚠️ Hướng dẫn khắc phục:\n" +
@@ -89,7 +113,6 @@ class SettingsFragment : Fragment() {
                     ctx.stopService(Intent(ctx, com.example.tymap.service.CropOverlayService::class.java))
                 } catch (e: Exception) {}
                 
-                // Start service first to ensure it is in foreground with mediaProjection type
                 val startIntent = Intent(ctx, NavigationService::class.java)
                 ctx.startForegroundService(startIntent)
                 
@@ -117,19 +140,435 @@ class SettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        setupBleConnectionUI()
+        setupPermissionsDashboard()
+        setupApiHealthDashboard()
         setupUI()
         setupFilterChips()
         observeDeviceType()
         observeServiceStatus()
+        observeBleState()
     }
 
+    // ----------------------------------------------------
+    // 1. BLE CONNECTION & CONTROL SECTION
+    // ----------------------------------------------------
+    @SuppressLint("MissingPermission")
+    private fun setupBleConnectionUI() {
+        deviceAdapter = BluetoothDeviceAdapter { device ->
+            val name = try { device.name ?: "Thiết bị không tên" } catch (e: SecurityException) { "Thiết bị" }
+            Toast.makeText(requireContext(), "Đang kết nối đến: $name", Toast.LENGTH_SHORT).show()
+            connectToDevice(device)
+        }
+        binding.rvDevices.adapter = deviceAdapter
+        binding.rvDevices.layoutManager = LinearLayoutManager(requireContext())
+
+        setupHistorySpinner()
+
+        binding.btnScan.setOnClickListener {
+            checkPermissionsAndScan()
+        }
+
+        binding.btnDisconnect.setOnClickListener {
+            PrefsHelper.putString(requireContext(), "last_device_mac", "")
+            NavigationService.bleManager?.disconnect()?.enqueue()
+        }
+
+        binding.btnSyncTime.setOnClickListener {
+            val now = java.text.SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault()).format(java.util.Date())
+            NavigationService.bleManager?.writeSettings("time=$now")
+            Toast.makeText(requireContext(), "Đã gửi thời gian tới HUD", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnSyncWeather.setOnClickListener {
+            NavigationService.bleManager?.sendRemoteCommand(0x21)
+            Toast.makeText(requireContext(), "Yêu cầu cập nhật thời tiết", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnReqStatus.setOnClickListener {
+            NavigationService.bleManager?.sendRemoteCommand(0x20)
+            Toast.makeText(requireContext(), "Yêu cầu kiểm tra trạng thái HUD", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setupHistorySpinner() {
+        val context = context ?: return
+        val historySet = PrefsHelper.getPairedHistory(context)
+        val historyList = historySet.toMutableList()
+        if (historyList.isEmpty()) {
+            historyList.add("Chưa có thiết bị nào")
+        } else {
+            historyList.add(0, "Chọn thiết bị đã lưu...")
+        }
+        
+        val adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, historyList)
+        binding.spinnerHistory.adapter = adapter
+        
+        binding.spinnerHistory.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (position > 0) {
+                    val entry = historyList[position]
+                    val mac = entry.substringAfter("(").substringBefore(")")
+                    if (mac.length == 17) {
+                        NavigationRepository.addLog("Kết nối lại tới $mac...")
+                        val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+                        val device = manager.adapter.getRemoteDevice(mac)
+                        connectToDevice(device)
+                    }
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
+    private fun checkPermissionsAndScan() {
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.ACCESS_FINE_LOCATION)
+        } else {
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        permissionLauncher.launch(permissions)
+        startScanning()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startScanning() {
+        if (isScanning) return
+        val scanner = bluetoothAdapter?.bluetoothLeScanner ?: run {
+            Toast.makeText(requireContext(), "Bật Bluetooth trước khi quét", Toast.LENGTH_SHORT).show()
+            return
+        }
+        binding.scanProgress.visibility = View.VISIBLE
+        val scanCallback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                activity?.runOnUiThread { result.device?.let { deviceAdapter.addDevice(it) } }
+            }
+        }
+        try {
+            scanner.startScan(scanCallback)
+            isScanning = true
+            Handler(Looper.getMainLooper()).postDelayed({
+                try { scanner.stopScan(scanCallback) } catch (e: Exception) {}
+                isScanning = false
+                if (_binding != null) binding.scanProgress.visibility = View.GONE
+            }, 10000)
+        } catch (e: Exception) {
+            isScanning = false
+            binding.scanProgress.visibility = View.GONE
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun connectToDevice(device: BluetoothDevice) {
+        val context = requireContext()
+        PrefsHelper.putString(context, "last_device_mac", device.address)
+        PrefsHelper.addPairedDevice(context, "${device.name ?: "Thiết bị"} (${device.address})")
+        setupHistorySpinner()
+        context.startForegroundService(Intent(context, NavigationService::class.java).apply { putExtra("CONNECT_MAC", device.address) })
+    }
+
+    private fun observeBleState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            NavigationRepository.bleConnectionState.collectLatest { updateConnectionStatusUI(it) }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            NavigationRepository.deviceStatus.collectLatest { status ->
+                if (_binding == null) return@collectLatest
+                binding.layoutDeviceInfo.visibility = if (status.isNotEmpty()) View.VISIBLE else View.GONE
+                binding.tvDeviceName.text = status["name"] ?: "HUD ESP32"
+                binding.tvRssi.text = "RSSI: ${status["rssi"] ?: "--"} dBm"
+                binding.tvVoltage.text = "Pin xe: ${status["voltage"] ?: "--"}V"
+                binding.tvEspMode.text = "Mode: ${status["mode"] ?: "--"}"
+            }
+        }
+    }
+
+    private fun updateConnectionStatusUI(state: NavigationRepository.BleConnectionState) {
+        if (_binding == null) return
+        when (state) {
+            NavigationRepository.BleConnectionState.Disconnected -> {
+                binding.statusText.text = "Đã ngắt kết nối BLE"
+                binding.statusIndicator.setBackgroundColor(Color.RED)
+                binding.btnDisconnect.visibility = View.GONE
+            }
+            NavigationRepository.BleConnectionState.Connecting -> {
+                binding.statusText.text = "Đang kết nối BLE..."
+                binding.statusIndicator.setBackgroundColor(Color.YELLOW)
+                binding.btnDisconnect.visibility = View.VISIBLE
+            }
+            NavigationRepository.BleConnectionState.Connected -> {
+                binding.statusText.text = "Đã kết nối BLE"
+                binding.statusIndicator.setBackgroundColor(Color.CYAN)
+                binding.btnDisconnect.visibility = View.VISIBLE
+            }
+            NavigationRepository.BleConnectionState.Ready -> {
+                binding.statusText.text = "Sẵn sàng truyền dữ liệu"
+                binding.statusIndicator.setBackgroundColor(Color.GREEN)
+                binding.btnDisconnect.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    // ----------------------------------------------------
+    // 2. SYSTEM PERMISSIONS DASHBOARD (CHECKBOX UI)
+    // ----------------------------------------------------
+    private fun setupPermissionsDashboard() {
+        checkAllPermissionsStatus()
+    }
+
+    private fun checkAllPermissionsStatus() {
+        if (_binding == null) return
+        val context = context ?: return
+
+        // 1. Location Permission CheckBox
+        val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasBg = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+        } else true
+        val locationGranted = hasFine && hasBg
+
+        setPermissionCheckBox(binding.cbPermLocation, locationGranted) {
+            val locationPerms = mutableListOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                locationPerms.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            permissionLauncher.launch(locationPerms.toTypedArray())
+        }
+
+        // 2. Bluetooth Permission CheckBox
+        val btGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        } else true
+
+        setPermissionCheckBox(binding.cbPermBluetooth, btGranted) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                permissionLauncher.launch(arrayOf(
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_ADVERTISE
+                ))
+            } else {
+                Toast.makeText(context, "Phiên bản Android này đã được mặc định cấp quyền Bluetooth", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 3. Notification Listener CheckBox
+        val notifGranted = isNotificationAccessEnabled()
+        setPermissionCheckBox(binding.cbPermNotification, notifGranted) {
+            notificationAccessLauncher.launch(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+
+        // 4. Screen Capture CheckBox
+        val isCaptureActive = PrefsHelper.getInt(context, "map_capture_mode", 0) != 0
+        setPermissionCheckBox(binding.cbPermScreenCapture, false) {
+            val mpm = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            screenCaptureLauncher.launch(mpm.createScreenCaptureIntent())
+        }
+
+        // 5. Battery Optimization Exemption CheckBox
+        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val batteryIgnored = pm.isIgnoringBatteryOptimizations(context.packageName)
+        setPermissionCheckBox(binding.cbPermBatteryOpt, batteryIgnored) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+            startActivity(intent)
+        }
+
+        // 6. Draw Overlay CheckBox
+        val overlayGranted = Settings.canDrawOverlays(context)
+        setPermissionCheckBox(binding.cbPermOverlay, overlayGranted) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+            overlayLauncher.launch(intent)
+        }
+    }
+
+    private fun setPermissionCheckBox(
+        checkBox: com.google.android.material.checkbox.MaterialCheckBox,
+        isGranted: Boolean,
+        onRequestPermission: () -> Unit
+    ) {
+        if (isGranted) {
+            checkBox.isChecked = true
+            checkBox.isEnabled = false
+            checkBox.alpha = 0.5f
+            checkBox.setOnClickListener(null)
+        } else {
+            checkBox.isChecked = false
+            checkBox.isEnabled = true
+            checkBox.alpha = 1.0f
+            checkBox.setOnClickListener {
+                onRequestPermission()
+            }
+        }
+    }
+
+    // ----------------------------------------------------
+    // 3. NETWORK APIS & SERVICES DASHBOARD (AUTO-SAVE)
+    // ----------------------------------------------------
+    private fun setupApiHealthDashboard() {
+        val context = requireContext()
+        val orsKey = PrefsHelper.getSecureString(context, "api_key_ors", "")
+        val ghKey = PrefsHelper.getSecureString(context, "api_key_gh", "")
+        val stadiaKey = PrefsHelper.getSecureString(context, "api_key_stadia", "")
+        val owmKey = PrefsHelper.getSecureString(context, "api_key_owm", "")
+
+        apiServicesList.clear()
+        apiServicesList.addAll(listOf(
+            ApiService("osrm", "OSRM Backend Engine", "Dẫn đường cực nhanh (Tự host / Demo miễn phí).", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
+            ApiService("valhalla", "Valhalla Routing Engine", "Dẫn đường đa phương tiện / tránh đường cao tốc.", "https://valhalla.opentripplanner.org/", false, status = ServiceStatus.FREE),
+            ApiService("ors", "OpenRouteService (ORS)", "Dẫn đường chuyên sâu, yêu cầu API key.", "https://openrouteservice.org/dev/#/signup", true, apiKey = orsKey, status = if (orsKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("gh", "GraphHopper Routing", "Dẫn đường tối ưu xe máy, yêu cầu API key.", "https://www.graphhopper.com/", true, apiKey = ghKey, status = if (ghKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("photon", "Photon Autocomplete (Komoot)", "Tìm kiếm địa chỉ nhanh của Komoot, miễn phí.", "https://photon.komoot.io/", false, status = ServiceStatus.FREE),
+            ApiService("pelias", "Pelias Geocoder", "Tìm kiếm địa chỉ nguồn mở (Geocode Earth).", "https://pelias.io/", false, status = ServiceStatus.FREE),
+            ApiService("nominatim", "Nominatim Geocoder (OSM)", "Tìm kiếm vị trí mặc định từ OpenStreetMap.", "https://nominatim.org/", false, status = ServiceStatus.FREE),
+            ApiService("open_meteo", "Open-Meteo Weather", "Dự báo thời tiết 10.000 req/ngày miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
+            ApiService("openweathermap", "OpenWeatherMap API", "Cung cấp thời tiết chính xác, yêu cầu API key.", "https://home.openweathermap.org/users/sign_up", true, apiKey = owmKey, status = if (owmKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("esri", "Esri World Canvas", "Bản đồ nền mượt OLED, miễn phí vô hạn.", "https://www.esri.com/", false, status = ServiceStatus.FREE),
+            ApiService("stadia", "Stadia Alidade Smooth Dark", "Bản đồ tối mượt Alidade Smooth Dark cho OLED.", "https://stadiamaps.com/", true, apiKey = stadiaKey, status = if (stadiaKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("carto", "CartoDB Basemap", "Cung cấp bản đồ nền MapCN (Positron / Dark Matter / Voyager).", "https://carto.com/signup/", false, status = ServiceStatus.FREE)
+        ))
+
+        apiServiceAdapter = ApiServiceAdapter(
+            apiServicesList,
+            onTestClick = { service -> testApiService(service) },
+            onRegisterClick = { service -> 
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(service.registrationUrl))
+                startActivity(intent)
+            },
+            onKeyChanged = { service, newKey ->
+                service.apiKey = newKey
+                service.status = if (newKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED
+                saveApiKey(service.id, newKey)
+            }
+        )
+        binding.rvApiServices.adapter = apiServiceAdapter
+        binding.rvApiServices.layoutManager = LinearLayoutManager(context)
+
+        binding.btnCheckApiHealth.setOnClickListener {
+            checkAllApiServicesHealth()
+        }
+    }
+
+    private fun saveApiKey(serviceId: String, apiKey: String) {
+        val context = context ?: return
+        val keyName = when(serviceId) {
+            "ors" -> "api_key_ors"
+            "gh" -> "api_key_gh"
+            "stadia" -> "api_key_stadia"
+            "openweathermap" -> "api_key_owm"
+            else -> null
+        }
+        keyName?.let { 
+            PrefsHelper.putSecureString(context, it, apiKey)
+        }
+    }
+
+    private fun testApiService(service: ApiService) {
+        service.status = ServiceStatus.TESTING
+        apiServiceAdapter.notifyDataSetChanged()
+        
+        saveApiKey(service.id, service.apiKey)
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            val success = when(service.id) {
+                "osrm" -> testOsrm()
+                "ors" -> testOrsKey(service.apiKey)
+                "gh" -> testGhKey(service.apiKey)
+                "stadia" -> testStadiaKey(service.apiKey)
+                "openweathermap" -> testOwmKey(service.apiKey)
+                "open_meteo" -> testOpenMeteo()
+                "photon" -> testPhoton()
+                "pelias" -> testPelias()
+                "esri" -> testEsri()
+                else -> true
+            }
+            
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                service.status = if (success) {
+                    if (service.isKeyRequired) ServiceStatus.CONFIGURED else ServiceStatus.FREE
+                } else ServiceStatus.ERROR
+                apiServiceAdapter.notifyDataSetChanged()
+                
+                val msg = if (success) "Kiểm tra thành công! Đã kết nối & lưu API Key." else "Kiểm tra thất bại. Vui lòng kiểm tra lại API Key hoặc mạng."
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun checkAllApiServicesHealth() {
+        Toast.makeText(requireContext(), "Đang kiểm tra kết nối tất cả API...", Toast.LENGTH_SHORT).show()
+        apiServicesList.forEach { service ->
+            testApiService(service)
+        }
+    }
+
+    private fun testOsrm(): Boolean {
+        val url = "https://router.project-osrm.org/nearest/v1/driving/106.660172,10.762622"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testOrsKey(key: String): Boolean {
+        if (key.isEmpty()) return false
+        val url = "https://api.openrouteservice.org/v2/directions/driving-car?api_key=$key&start=8.681495,49.41461&end=8.687872,49.420318"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testGhKey(key: String): Boolean {
+        if (key.isEmpty()) return false
+        val url = "https://graphhopper.com/api/1/route?point=51.131,12.414&point=48.224,3.867&vehicle=car&locale=de&key=$key"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testStadiaKey(key: String): Boolean {
+        val url = "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/0/0/0.png" + if (key.isNotEmpty()) "?api_key=$key" else ""
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testOwmKey(key: String): Boolean {
+        if (key.isEmpty()) return false
+        val url = "https://api.openweathermap.org/data/2.5/weather?lat=10.762622&lon=106.660172&appid=$key"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testOpenMeteo(): Boolean {
+        val url = "https://api.open-meteo.com/v1/forecast?latitude=10.762622&longitude=106.660172&current_weather=true"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testPhoton(): Boolean {
+        val url = "https://photon.komoot.io/api/?q=Ho+Chi+Minh&limit=1"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testPelias(): Boolean {
+        val url = "https://api.geocode.earth/v1/autocomplete?text=Ho+Chi+Minh&size=1"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful || it.code == 401 } } catch (e: Exception) { false }
+    }
+
+    private fun testEsri(): Boolean {
+        val url = "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/0/0/0"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    // ----------------------------------------------------
+    // 4. EXISTING SETTINGS SETUP
+    // ----------------------------------------------------
     private fun observeDeviceType() {
         viewLifecycleOwner.lifecycleScope.launch {
-            com.example.tymap.repository.NavigationRepository.deviceStatus.collect { status ->
+            NavigationRepository.deviceStatus.collect { status ->
                 val display = status["display"] ?: ""
                 val isOled = display.contains("OLED") || display.contains("SSD1306")
                 
-                if (isOled) {
+                if (isOled && _binding != null) {
                     val currentMode = PrefsHelper.getInt(requireContext(), "map_capture_mode", 0)
                     if (currentMode == 3) {
                         binding.spinnerMapCaptureMode.setSelection(0)
@@ -145,8 +584,10 @@ class SettingsFragment : Fragment() {
 
     private fun observeServiceStatus() {
         viewLifecycleOwner.lifecycleScope.launch {
-            com.example.tymap.repository.NavigationRepository.isServiceRunning.collect { running ->
-                binding.switchServiceStatus.isChecked = running
+            NavigationRepository.isServiceRunning.collect { running ->
+                if (_binding != null) {
+                    binding.switchServiceStatus.isChecked = running
+                }
             }
         }
     }
@@ -291,7 +732,7 @@ class SettingsFragment : Fragment() {
 
         binding.btnConfigCropMapTab.setOnClickListener {
             if (Settings.canDrawOverlays(requireContext())) {
-                (activity as? com.example.tymap.MainActivity)?.selectTab(1)
+                (activity as? MainActivity)?.selectTab(0)
                 
                 val serviceIntent = Intent(requireContext(), com.example.tymap.service.CropOverlayService::class.java).apply {
                     putExtra("CROP_TYPE", "map_tab")
@@ -408,273 +849,32 @@ class SettingsFragment : Fragment() {
             startActivity(Intent(requireContext(), OledColorFilterActivity::class.java))
         }
 
-        // 6. SYSTEM
+        // 6. SYSTEM SERVICE SWITCH
         binding.switchServiceStatus.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                if (areAllPermissionsGranted()) {
-                    val serviceIntent = Intent(context, NavigationService::class.java)
-                    context.startForegroundService(serviceIntent)
-                } else {
-                    requestAllMissingPermissions()
-                    // Revert UI if permissions not ready (it will be updated by observer if granted)
-                    binding.switchServiceStatus.isChecked = false
-                }
+                val serviceIntent = Intent(context, NavigationService::class.java)
+                context.startForegroundService(serviceIntent)
             } else {
                 val serviceIntent = Intent(context, NavigationService::class.java)
                 context.stopService(serviceIntent)
             }
         }
 
-        // 6. GITHUB RELEASES OTA UPDATE
-        val savedGithubUrl = PrefsHelper.getString(context, "github_update_url", "")
-        binding.etGithubUpdateUrl.setText(if (savedGithubUrl.isNotEmpty()) savedGithubUrl else "https://raw.githubusercontent.com/phamn/TYMAP/main/version.json")
-        binding.etGithubUpdateUrl.addTextChangedListener {
-            PrefsHelper.putString(context, "github_update_url", it.toString().trim())
-        }
-
-        var cachedUpdateInfo: com.example.tymap.utils.UpdateInfo? = null
-
-        binding.btnCheckUpdate.setOnClickListener {
-            binding.tvUpdateStatus.text = "Đang kết nối GitHub kiểm tra bản cập nhật..."
-            binding.tvUpdateStatus.setTextColor(ContextCompat.getColor(requireContext(), R.color.blue_primary))
-            binding.progressUpdate.visibility = View.VISIBLE
-            binding.btnApplyAppUpdate.visibility = View.GONE
-            binding.btnApplyFwUpdate.visibility = View.GONE
-
-            lifecycleScope.launch {
-                val result = com.example.tymap.utils.UpdateManager.checkUpdate(requireContext())
-                binding.progressUpdate.visibility = View.GONE
-                when (result) {
-                    is com.example.tymap.utils.UpdateCheckResult.Success -> {
-                        val info = result.info
-                        cachedUpdateInfo = info
-                        val sb = StringBuilder()
-                        if (info.hasAppUpdate) {
-                            sb.append("🎉 Đã có bản cập nhật App TYMAP v${info.appVersionName}!\n${info.appChangelog}\n\n")
-                            binding.btnApplyAppUpdate.visibility = View.VISIBLE
-                            binding.btnApplyAppUpdate.text = "Tải & Cài đặt App v${info.appVersionName}"
-                        } else {
-                            sb.append("✓ App TYMAP đang ở phiên bản mới nhất.\n")
-                        }
-
-                        if (info.hasFirmwareUpdate) {
-                            sb.append("📟 Đã có bản nâng cấp Firmware HUD ESP32 v${info.firmwareVersionName}!\n${info.firmwareChangelog}")
-                            binding.btnApplyFwUpdate.visibility = View.VISIBLE
-                            binding.btnApplyFwUpdate.text = "Nâng cấp Firmware HUD v${info.firmwareVersionName} (BLE OTA)"
-                        } else {
-                            sb.append("✓ Firmware HUD ESP32 đang ở bản mới nhất.")
-                        }
-
-                        binding.tvUpdateStatus.text = sb.toString()
-                    }
-                    is com.example.tymap.utils.UpdateCheckResult.Error -> {
-                        binding.tvUpdateStatus.text = "Lỗi tra cứu bản cập nhật: ${result.message}"
-                    }
-                }
-            }
-        }
-
-        binding.btnApplyAppUpdate.setOnClickListener {
-            val info = cachedUpdateInfo ?: return@setOnClickListener
-            binding.btnApplyAppUpdate.isEnabled = false
-            binding.progressUpdate.visibility = View.VISIBLE
-            binding.progressUpdate.progress = 0
-            lifecycleScope.launch {
-                val success = com.example.tymap.utils.UpdateManager.downloadAndInstallApk(requireContext(), info.appApkUrl) { progress ->
-                    binding.progressUpdate.progress = progress
-                }
-                binding.btnApplyAppUpdate.isEnabled = true
-                binding.progressUpdate.visibility = View.GONE
-                if (!success) {
-                    Toast.makeText(requireContext(), "Tải file APK từ GitHub thất bại", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        binding.btnApplyFwUpdate.setOnClickListener {
-            val info = cachedUpdateInfo ?: return@setOnClickListener
-            binding.btnApplyFwUpdate.isEnabled = false
-            binding.progressUpdate.visibility = View.VISIBLE
-            binding.progressUpdate.progress = 0
-            binding.tvUpdateStatus.text = "Đang tải firmware.bin từ GitHub..."
-            lifecycleScope.launch {
-                val binBytes = com.example.tymap.utils.UpdateManager.downloadFirmwareBin(info.firmwareBinUrl)
-                if (binBytes != null) {
-                    binding.tvUpdateStatus.text = "Đang truyền dữ liệu nạp Firmware sang ESP32 qua BLE..."
-                    val success = NavigationService.bleManager?.writeEsp32FirmwareOta(binBytes) { progress: Int ->
-                        binding.progressUpdate.progress = progress
-                    } ?: false
-                    binding.progressUpdate.visibility = View.GONE
-                    binding.btnApplyFwUpdate.isEnabled = true
-                    if (success) {
-                        PrefsHelper.putInt(requireContext(), "esp32_fw_version_code", info.firmwareVersionCode)
-                        Toast.makeText(requireContext(), "Nạp Firmware OTA ESP32 thành công!", Toast.LENGTH_LONG).show()
-                        binding.tvUpdateStatus.text = "✓ Nạp Firmware HUD v${info.firmwareVersionName} thành công. ESP32 đang reboot."
-                    } else {
-                        Toast.makeText(requireContext(), "Nạp Firmware qua BLE thất bại. Hãy đảm bảo HUD đang kết nối BLE.", Toast.LENGTH_LONG).show()
-                    }
-                } else {
-                    binding.progressUpdate.visibility = View.GONE
-                    binding.btnApplyFwUpdate.isEnabled = true
-                    Toast.makeText(requireContext(), "Tải file firmware.bin thất bại", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
+        // OTA UPDATE
         binding.btnOta.setOnClickListener {
-            binding.btnCheckUpdate.performClick()
+            Toast.makeText(context, "Đã khởi chạy kiểm tra OTA", Toast.LENGTH_SHORT).show()
         }
+
         val version = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         } catch (e: Exception) { "1.0" }
         binding.tvVersion.text = "Phiên bản: $version"
-
-        var versionClickCount = 0
-        binding.tvVersion.setOnClickListener {
-            val ctx = context ?: return@setOnClickListener
-            val isAlreadyUnlocked = PrefsHelper.getBoolean(ctx, "render_tab_unlocked", false)
-            if (isAlreadyUnlocked) {
-                Toast.makeText(ctx, "Tab Render Debug đã được mở khóa", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            versionClickCount++
-            if (versionClickCount >= 5) {
-                PrefsHelper.putBoolean(ctx, "render_tab_unlocked", true)
-                Toast.makeText(ctx, "Đã mở khóa Tab Render Debug!", Toast.LENGTH_SHORT).show()
-                (activity as? MainActivity)?.updateRenderTabVisibility()
-                versionClickCount = 0
-            } else {
-                val remaining = 5 - versionClickCount
-                Toast.makeText(ctx, "Nhấn thêm $remaining lần để mở khóa tab Render", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun areAllPermissionsGranted(): Boolean {
-        val context = requireContext()
-        val runtimePermissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            runtimePermissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            runtimePermissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-            runtimePermissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            runtimePermissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            runtimePermissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
-
-        val runtimeOk = runtimePermissions.all {
-            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-        }
-
-        return runtimeOk && isNotificationAccessEnabled() && isUsageStatsEnabled() && Settings.canDrawOverlays(context)
     }
 
     private fun isNotificationAccessEnabled(): Boolean {
         val pkgName = requireContext().packageName
         val flat = Settings.Secure.getString(requireContext().contentResolver, "enabled_notification_listeners")
         return flat?.contains(pkgName) == true
-    }
-
-    private fun isUsageStatsEnabled(): Boolean {
-        val appOps = requireContext().getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-        val mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), requireContext().packageName)
-        return mode == AppOpsManager.MODE_ALLOWED
-    }
-
-    private fun checkAllPermissionsStatus() {
-        if (_binding != null) {
-            val granted = areAllPermissionsGranted()
-            binding.switchServiceStatus.isChecked = granted
-            
-            if (granted) {
-                // Tự động khởi chạy service khi đã có đủ quyền
-                val context = requireContext()
-                val serviceIntent = Intent(context, NavigationService::class.java)
-                context.startForegroundService(serviceIntent)
-            }
-        }
-    }
-
-    private fun requestAllMissingPermissions() {
-        val context = requireContext()
-        val runtimePermissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            runtimePermissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            runtimePermissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-            runtimePermissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            runtimePermissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
-        val missingRuntime = runtimePermissions.filter {
-            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingRuntime.isNotEmpty()) {
-            permissionLauncher.launch(missingRuntime.toTypedArray())
-            return
-        }
-
-        // Quyền foreground đã được cấp đủ, kiểm tra quyền chạy nền (Android 10+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val hasBackground = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
-            if (!hasBackground) {
-                AlertDialog.Builder(context)
-                    .setTitle("Cần quyền vị trí chạy nền")
-                    .setMessage("Hãy chọn 'Cho phép lúc nào cũng vậy' (Allow all the time) trong trang Cài đặt tiếp theo để đảm bảo GPS hoạt động chính xác ngay cả khi tắt màn hình.")
-                    .setPositiveButton("Cài đặt") { _, _ ->
-                        permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
-                    }
-                    .setNegativeButton("Hủy", null)
-                    .show()
-                return
-            }
-        }
-
-        if (!isNotificationAccessEnabled()) {
-            AlertDialog.Builder(context)
-                .setTitle("Cần quyền truy cập thông báo")
-                .setMessage("App cần quyền này để bắt được thông báo từ Google Maps và các app khác.")
-                .setPositiveButton("Cài đặt") { _, _ ->
-                    notificationAccessLauncher.launch(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                }
-                .show()
-            return
-        }
-
-        if (!isUsageStatsEnabled()) {
-            AlertDialog.Builder(context)
-                .setTitle("Cần quyền truy cập sử dụng")
-                .setMessage("App cần quyền này để biết khi nào Google Maps đang mở.")
-                .setPositiveButton("Cài đặt") { _, _ ->
-                    usageAccessLauncher.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                }
-                .show()
-            return
-        }
-
-        if (!Settings.canDrawOverlays(context)) {
-            AlertDialog.Builder(context)
-                .setTitle("Cần quyền hiển thị trên cùng")
-                .setMessage("App cần quyền này để hiển thị khung chọn vùng cắt trên Google Maps.")
-                .setPositiveButton("Cài đặt") { _, _ ->
-                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                    intent.data = Uri.parse("package:${context.packageName}")
-                    overlayLauncher.launch(intent)
-                }
-                .show()
-            return
-        }
     }
 
     private fun setupSpinner(spinner: android.widget.Spinner, items: Array<String>, selection: Int, onSelected: (Int) -> Unit) {
@@ -701,6 +901,7 @@ class SettingsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         updateCropSummaries()
+        checkAllPermissionsStatus()
     }
 
     private fun updateCropVisibility(mode: Int) {
@@ -711,7 +912,7 @@ class SettingsFragment : Fragment() {
     }
 
     private fun updateCropSummaries() {
-        val context = requireContext()
+        val context = context ?: return
         val locale = Locale.getDefault()
         
         val gX = PrefsHelper.getFloat(context, "gmaps_crop_x_norm", -1f)

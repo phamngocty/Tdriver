@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleIntent(intent: android.content.Intent?) {
         if (intent?.hasExtra("SHARE_TYPE") == true) {
-            binding.viewPager.currentItem = 1 // Switch to Map tab
+            binding.viewPager.currentItem = 0 // Switch to Map tab
         }
     }
 
@@ -129,7 +129,7 @@ class MainActivity : AppCompatActivity() {
         val adapter = MainPagerAdapter(this)
         binding.viewPager.adapter = adapter
         binding.viewPager.isUserInputEnabled = false // Disable swiping
-        binding.viewPager.offscreenPageLimit = 4 // Keep all tabs in memory (5 fragments)
+        binding.viewPager.offscreenPageLimit = 3 // Keep all tabs in memory (4 fragments)
 
         binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
@@ -141,11 +141,10 @@ class MainActivity : AppCompatActivity() {
     private fun setupBottomNavigation() {
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.nav_connection -> binding.viewPager.currentItem = 0
-                R.id.nav_map -> binding.viewPager.currentItem = 1
-                R.id.nav_settings -> binding.viewPager.currentItem = 2
-                R.id.nav_notifications -> binding.viewPager.currentItem = 3
-                R.id.nav_render -> binding.viewPager.currentItem = 4
+                R.id.nav_map -> binding.viewPager.currentItem = 0
+                R.id.nav_settings -> binding.viewPager.currentItem = 1
+                R.id.nav_notifications -> binding.viewPager.currentItem = 2
+                R.id.nav_render -> binding.viewPager.currentItem = 3
             }
             true
         }

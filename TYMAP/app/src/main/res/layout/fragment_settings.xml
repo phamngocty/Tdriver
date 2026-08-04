@@ -110,12 +110,213 @@
                         android:text="1. Dịch vụ &amp; Kết nối"
                         android:textAppearance="?attr/textAppearanceSubtitle1"
                         android:textColor="?attr/colorPrimary"
-                        android:layout_marginBottom="16dp"
+                        android:layout_marginBottom="12dp"
                         android:drawableStart="@drawable/ic_settings"
                         android:drawablePadding="8dp"
                         android:gravity="center_vertical"
                         android:textStyle="bold"/>
 
+                    <!-- BLE Connection Status Section -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="KẾT NỐI BLUETOOTH LE (ESP32)"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/colorPrimary"
+                        android:layout_marginBottom="8dp"/>
+
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/cardBleStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="1dp"
+                        app:strokeWidth="1dp"
+                        app:strokeColor="?attr/colorOutline"
+                        android:layout_marginBottom="12dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="12dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <View
+                                    android:id="@+id/statusIndicator"
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    android:background="@android:color/darker_gray" />
+
+                                <TextView
+                                    android:id="@+id/statusText"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="12dp"
+                                    android:layout_weight="1"
+                                    android:text="@string/disconnected"
+                                    android:textAppearance="?attr/textAppearanceBody2"
+                                    android:textStyle="bold" />
+
+                                <Button
+                                    android:id="@+id/btnDisconnect"
+                                    style="@style/Widget.Material3.Button.TextButton"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/disconnect"
+                                    android:visibility="gone" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/layoutDeviceInfo"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                android:orientation="vertical"
+                                android:visibility="gone">
+
+                                <TextView
+                                    android:id="@+id/tvDeviceName"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:textStyle="bold"
+                                    android:textAppearance="?attr/textAppearanceBody2" />
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        android:id="@+id/tvRssi"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:textSize="11sp"
+                                        android:text="RSSI: -- dBm" />
+
+                                    <TextView
+                                        android:id="@+id/tvVoltage"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginStart="12dp"
+                                        android:textSize="11sp"
+                                        android:text="Pin xe: --V" />
+
+                                    <TextView
+                                        android:id="@+id/tvEspMode"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginStart="12dp"
+                                        android:textSize="11sp"
+                                        android:text="Mode: --" />
+                                </LinearLayout>
+                            </LinearLayout>
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- Scanning & History -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Lịch sử kết nối:"
+                        android:textSize="11sp"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+                    <Spinner
+                        android:id="@+id/spinnerHistory"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Thiết bị lân cận"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <ProgressBar
+                            android:id="@+id/scanProgress"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginEnd="8dp"
+                            android:visibility="gone" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnScan"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/scan" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvDevices"
+                        android:layout_width="match_parent"
+                        android:layout_height="140dp"
+                        android:background="#0D000000"
+                        android:layout_marginBottom="12dp"
+                        android:nestedScrollingEnabled="false" />
+
+                    <!-- Quick Command Buttons -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:weightSum="3"
+                        android:layout_marginBottom="12dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSyncTime"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:textSize="10sp"
+                            android:text="Đồng bộ Giờ" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSyncWeather"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginHorizontal="2dp"
+                            android:textSize="10sp"
+                            android:text="Thời tiết" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnReqStatus"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="4dp"
+                            android:textSize="10sp"
+                            android:text="Hỏi Trạng thái" />
+                    </LinearLayout>
+
+                    <com.google.android.material.divider.MaterialDivider
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginVertical="8dp"/>
+
+                    <!-- Background Service Switch -->
                     <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/switchServiceStatus"
                         android:layout_width="match_parent"
@@ -129,8 +330,120 @@
                         android:textSize="10sp"
                         android:paddingStart="4dp"
                         android:textColor="?attr/colorOnSurfaceVariant"
+                        android:layout_marginBottom="12dp"/>
+
+                    <com.google.android.material.divider.MaterialDivider
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginVertical="8dp"/>
+
+                    <!-- App Permissions Dashboard Section -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="QUYỀN ỨNG DỤNG &amp; HỆ THỐNG"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="?attr/colorPrimary"
                         android:layout_marginBottom="8dp"/>
 
+                    <!-- Perm CheckBox 1: Location -->
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbPermLocation"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Quyền Vị trí (GPS &amp; Nền)"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="2dp" />
+
+                    <!-- Perm CheckBox 2: Bluetooth -->
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbPermBluetooth"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Quyền Bluetooth LE (Scan &amp; Connect)"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="2dp" />
+
+                    <!-- Perm CheckBox 3: Notification Listener -->
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbPermNotification"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Quyền Đọc thông báo (Gmaps &amp; Zalo)"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="2dp" />
+
+                    <!-- Perm CheckBox 4: Screen Capture -->
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbPermScreenCapture"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Quyền Ghi màn hình (Capture Gmaps)"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="2dp" />
+
+                    <!-- Perm CheckBox 5: Battery Optimization -->
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbPermBatteryOpt"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Tắt tối ưu hóa Pin (Battery Exemption)"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="2dp" />
+
+                    <!-- Perm CheckBox 6: Overlay Permission -->
+                    <com.google.android.material.checkbox.MaterialCheckBox
+                        android:id="@+id/cbPermOverlay"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Quyền Vẽ đè màn hình (Overlay)"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="8dp" />
+
+                    <com.google.android.material.divider.MaterialDivider
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginVertical="8dp"/>
+
+                    <!-- Network APIs Health Dashboard Section -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="8dp">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="QUẢN LÝ DỊCH VỤ MẠNG &amp; APIS"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:textColor="?attr/colorPrimary"/>
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnCheckApiHealth"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="11sp"
+                            android:text="Kiểm tra tất cả" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvApiServices"
+                        android:layout_width="match_parent"
+                        android:layout_height="320dp"
+                        android:background="#08000000"
+                        android:layout_marginBottom="12dp"
+                        android:nestedScrollingEnabled="true" />
+
+                    <com.google.android.material.divider.MaterialDivider
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginVertical="8dp"/>
+
+                    <!-- General App Preferences Dropdowns -->
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Giao diện ứng dụng (Theme)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant" android:layout_marginTop="4dp"/>
                     <Spinner android:id="@+id/spinnerTheme" android:layout_width="match_parent" android:layout_height="48dp" />
 
