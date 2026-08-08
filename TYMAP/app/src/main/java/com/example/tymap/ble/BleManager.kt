@@ -32,6 +32,7 @@ class MyBleManager(context: Context) : BleManager(context) {
     private var oledImageChar: BluetoothGattCharacteristic? = null
     private var notificationChar: BluetoothGattCharacteristic? = null
     private var phoneBatteryChar: BluetoothGattCharacteristic? = null
+    private var warningChar: BluetoothGattCharacteristic? = null
     
     private var mapTileChar: BluetoothGattCharacteristic? = null
     private var mapCtrlChar: BluetoothGattCharacteristic? = null
@@ -82,6 +83,7 @@ class MyBleManager(context: Context) : BleManager(context) {
             oledImageChar = service.getCharacteristic(BleConstants.CHA_OLED_IMAGE)
             notificationChar = service.getCharacteristic(BleConstants.CHA_NOTIFICATION)
             phoneBatteryChar = service.getCharacteristic(BleConstants.CHA_PHONE_BATTERY)
+            warningChar = service.getCharacteristic(BleConstants.CHA_WARNING)
 
             mapTileChar = service.getCharacteristic(BleConstants.CHA_MAP_TILE)
             mapCtrlChar = service.getCharacteristic(BleConstants.CHA_MAP_CTRL)
@@ -424,5 +426,23 @@ class MyBleManager(context: Context) : BleManager(context) {
         writeMapCtrl(0x31.toByte(), ByteArray(0))
         NavigationRepository.addLog("BLE OTA: Đã hoàn tất nạp Firmware ESP32. Đợi ESP32 Reboot...")
         return true
+    }
+
+    /**
+     * Gửi tín hiệu Cảnh báo Giao thông (Speed Limit / Camera Phạt Nguội) tới đồng hồ ESP32 qua BLE.
+     * Quy định mảng byte Payload (2 Bytes gọn nhẹ):
+     * - Byte 0: Loại cảnh báo (0x01: Camera phạt nguội, 0x02: Biển giới hạn tốc độ).
+     * - Byte 1: Giá trị tốc độ giới hạn (ví dụ: 50, 60, 80 km/h; hoặc 0 cho Camera).
+     */
+    fun sendTrafficWarning(type: Byte, speedLimit: Byte) {
+        val char = warningChar ?: navChar ?: return
+        
+        // Tạo mảng byte Payload 2-byte
+        val payload = byteArrayOf(type, speedLimit)
+        
+        Log.d("BleManager", "--> Gửi BLE Cảnh báo Giao thông: Type=${type.toInt()}, Value=${speedLimit.toInt()} km/h")
+        NavigationRepository.addLog("BLE Tx Warning: Type=${if(type.toInt()==1) "Camera" else "Speed Limit ${speedLimit.toInt()}km/h"}")
+
+        writeCharacteristic(char, payload, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).enqueue()
     }
 }

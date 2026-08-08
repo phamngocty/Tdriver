@@ -1,5 +1,9 @@
 package com.example.tymap.ui
 
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -28,9 +32,28 @@ class RouteAlternativeAdapter(private val onRouteSelected: (Int) -> Unit) :
         val time = (route.duration / 60).toInt()
         val dist = String.format("%.1f km", route.distance / 1000)
         holder.text1.text = "${route.engineName}: $time min ($dist)"
-        
-        holder.itemView.setBackgroundColor(if (route.isSelected) 0x20007AFF else 0x00000000)
-        
+        holder.text1.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+
+        val context = holder.itemView.context
+        val density = context.resources.displayMetrics.density
+        val paddingH = (16 * density).toInt()
+        val paddingV = (12 * density).toInt()
+        holder.itemView.setPadding(paddingH, paddingV, paddingH, paddingV)
+
+        if (route.isSelected) {
+            val selectedDrawable = GradientDrawable().apply {
+                setColor(Color.parseColor("#334B68"))
+                cornerRadius = 8 * density
+            }
+            holder.itemView.background = selectedDrawable
+            holder.text1.setTextColor(Color.WHITE)
+            holder.text1.setTypeface(null, Typeface.BOLD)
+        } else {
+            holder.itemView.background = null
+            holder.text1.setTextColor(Color.parseColor("#9CA3AF"))
+            holder.text1.setTypeface(null, Typeface.NORMAL)
+        }
+
         holder.itemView.setOnClickListener { onRouteSelected(position) }
     }
 
@@ -40,3 +63,4 @@ class RouteAlternativeAdapter(private val onRouteSelected: (Int) -> Unit) :
         val text1: TextView = view.findViewById(android.R.id.text1)
     }
 }
+

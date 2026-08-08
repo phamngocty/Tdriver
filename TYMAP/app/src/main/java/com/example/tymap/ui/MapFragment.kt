@@ -466,6 +466,32 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private fun setupBottomSheet() {
         bottomSheetBehavior = BottomSheetBehavior.from(binding.bottomSheet.navigationBottomSheet)
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+
+        bottomSheetBehavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
+            override fun onStateChanged(bottomSheet: View, newState: Int) {
+                if (newState == BottomSheetBehavior.STATE_HIDDEN) {
+                    binding.bottomSheet.layoutPlaceInfo.visibility = View.GONE
+                    binding.bottomSheet.layoutRoutePreview.visibility = View.GONE
+                    binding.bottomSheet.layoutNavigation.visibility = View.GONE
+                    binding.layoutRouteSteps.visibility = View.GONE
+                }
+            }
+            override fun onSlide(bottomSheet: View, slideOffset: Float) {
+                if (slideOffset > 0f) {
+                    val extraShift = -slideOffset * (bottomSheet.height - bottomSheetBehavior.peekHeight)
+                    binding.zoomControls.translationY = extraShift
+                    binding.fabLocation.translationY = extraShift
+                    binding.btnRecenter.translationY = extraShift
+                    binding.cardGpsSpeedometer.translationY = extraShift
+                } else {
+                    binding.zoomControls.translationY = 0f
+                    binding.fabLocation.translationY = 0f
+                    binding.btnRecenter.translationY = 0f
+                    binding.cardGpsSpeedometer.translationY = 0f
+                }
+            }
+        })
+
         routeAlternativeAdapter = RouteAlternativeAdapter { selectRoute(it) }
         binding.bottomSheet.rvAlternatives.layoutManager = LinearLayoutManager(requireContext())
         binding.bottomSheet.rvAlternatives.adapter = routeAlternativeAdapter
@@ -473,6 +499,19 @@ class MapFragment : Fragment(), IOrientationConsumer {
         routeStepsAdapter = RouteStepsAdapter()
         binding.rvRouteSteps.layoutManager = LinearLayoutManager(requireContext())
         binding.rvRouteSteps.adapter = routeStepsAdapter
+
+        binding.bottomSheet.btnStartFromPreview.setOnClickListener {
+            val destPos = destinationMarker?.position
+            if (destPos != null) {
+                startNavigation(destPos.latitude, destPos.longitude)
+            } else {
+                val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected } ?: NavigationRepository.routes.value.firstOrNull()
+                if (activeRoute != null && activeRoute.polyline.isNotEmpty()) {
+                    val lastPt = activeRoute.polyline.last()
+                    startNavigation(lastPt.first, lastPt.second)
+                }
+            }
+        }
 
         binding.bottomSheet.btnRouteInfo.setOnClickListener {
             if (binding.layoutRouteSteps.visibility == View.VISIBLE) {
@@ -496,9 +535,9 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
 
         binding.bottomSheet.btnEndNav.setOnClickListener {
-            // Thay vì dừng Service, chúng ta chỉ dừng chế độ dẫn đường
             NavigationRepository.setNavigationRunning(false)
             NavigationRepository.updateRoutes(emptyList()) // Xóa polyline
+            binding.layoutRouteSteps.visibility = View.GONE
             clearDestination()
         }
     }
@@ -869,7 +908,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     
                     // 2. Xử lý xoay bản đồ và Marker theo chế độ
                     val speed = location.speed
-                    val bearing = if (speed > 1.5f && location.hasBearing()) location.bearing else lastHeading
+                    val isMoving = speed > 1.5f && location.hasBearing()
                     
                     if (isFollowing) {
                         // Rule APP-25: Dùng animateTo với 200ms
@@ -877,17 +916,19 @@ class MapFragment : Fragment(), IOrientationConsumer {
                         
                         val isTrackUp = NavigationRepository.isTrackUpMode.value
                         if (isTrackUp) {
-                            // Chế độ Track Up: Bản đồ xoay ngược bearing, Marker hướng thẳng (0)
-                            animateMapRotation(binding.mapView.mapOrientation, -bearing)
+                            // Chế độ Track Up: Bản đồ xoay ngược trackUpHeading, Marker hướng thẳng (0f = 12h)
+                            val trackUpHeading = if (isMoving) location.bearing else lastHeading
+                            animateMapRotation(binding.mapView.mapOrientation, -trackUpHeading)
                             animateMarkerRotation(0f)
                         } else {
-                            // Chế độ North Up: Bản đồ hướng Bắc (0), Marker xoay theo bearing
+                            // Chế độ North Up: Bản đồ hướng Bắc (0f), Marker xoay theo northUpHeading (2h)
+                            val northUpHeading = if (isMoving) location.bearing else (-lastHeading + 360f) % 360f
                             animateMapRotation(binding.mapView.mapOrientation, 0f)
-                            animateMarkerRotation(bearing)
+                            animateMarkerRotation(northUpHeading)
                         }
                     } else {
-                        // Khi không follow: Bản đồ không tự xoay, Marker xoay theo hướng thực tế
-                        animateMarkerRotation(bearing)
+                        val northUpHeading = if (isMoving) location.bearing else (-lastHeading + 360f) % 360f
+                        animateMarkerRotation(northUpHeading)
                     }
                     
                     if (isFirstLocation) {
@@ -917,11 +958,12 @@ class MapFragment : Fragment(), IOrientationConsumer {
             }
         }
 
-        // Quan sát danh sách lộ trình để tự động vẽ lại Polyline khi có tính toán lại
+        // Quan sát danh sách lộ trình để tự động vẽ lại Polyline và cập nhật giao diện chọn tuyến đường
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 NavigationRepository.routes.collect { routes ->
                     triggerDrawRoutes(routes)
+                    routeAlternativeAdapter.submitList(routes)
                     val activeRoute = routes.firstOrNull { it.isSelected } ?: routes.firstOrNull()
                     if (activeRoute != null) {
                         routeStepsAdapter.submitList(activeRoute.steps)
@@ -1461,25 +1503,36 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     override fun onOrientationChanged(orientation: Float, source: IOrientationProvider?) {
-        lastHeading = orientation
-        NavigationRepository.updateCompassHeading(orientation)
+        val rawOrientation = (orientation + 360f) % 360f
+        lastHeading = rawOrientation
+        NavigationRepository.updateCompassHeading(rawOrientation)
+
+        // Khắc phục đối xứng 10h -> 2h (-sign) dành riêng cho North-Up mode đứng yên
+        val northUpOrientation = (-rawOrientation + 360f) % 360f
+
         lifecycleScope.launch(Dispatchers.Main) {
             val currentLoc = NavigationRepository.gpsLocation.value
             val speed = currentLoc?.speed ?: 0f
             
-            // Chỉ cập nhật nếu đang đứng yên hoặc tốc độ cực thấp
-            if (speed <= 1.2) {
+            // Chỉ cập nhật la bàn khi xe đang ĐỨNG YÊN (tốc độ <= 1.2 m/s)
+            if (speed <= 1.2f) {
                 val isTrackUp = NavigationRepository.isTrackUpMode.value
                 if (isFollowing) {
                     if (isTrackUp) {
-                        animateMapRotation(binding.mapView.mapOrientation, -orientation)
+                        // CHẾ ĐỘ TRACK-UP (XOAY BẢN ĐỒ):
+                        // - Bản đồ xoay theo góc cảm biến gốc -rawOrientation (2h)
+                        // - Nón xanh LUÔN CHỈ THẲNG ĐỨNG 12H (rotation = 0f)
+                        animateMapRotation(binding.mapView.mapOrientation, -rawOrientation)
                         animateMarkerRotation(0f)
                     } else {
+                        // CHẾ ĐỘ NORTH-UP (BẢN ĐỒ HƯỚNG BẮC): 
+                        // - Bản đồ cố định hướng Bắc (0f)
+                        // - Nón xanh xoay theo northUpOrientation (chỉ đúng 2h dọc theo đường Phan Văn Mảng)
                         animateMapRotation(binding.mapView.mapOrientation, 0f)
-                        animateMarkerRotation(orientation)
+                        animateMarkerRotation(northUpOrientation)
                     }
                 } else {
-                    animateMarkerRotation(orientation)
+                    animateMarkerRotation(northUpOrientation)
                 }
             }
             

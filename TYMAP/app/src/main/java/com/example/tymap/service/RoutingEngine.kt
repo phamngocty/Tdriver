@@ -70,9 +70,17 @@ class RoutingEngine(private val client: OkHttpClient) {
         val sortedRoutes = allResults.sortedBy { it.distance }
 
         // Set shortest route as selected (index 0)
-        sortedRoutes.mapIndexed { index, route ->
+        val finalRoutes = sortedRoutes.mapIndexed { index, route ->
             route.copy(isSelected = (index == 0))
         }
+
+        // Tích hợp Goong.io (Primary): Tải toàn bộ biển báo & camera dọc tuyến đường 1 LẦN duy nhất khi bắt đầu lộ trình
+        val selectedRoute = finalRoutes.firstOrNull { it.isSelected } ?: finalRoutes.firstOrNull()
+        if (selectedRoute != null && selectedRoute.polyline.isNotEmpty()) {
+            TrafficWarningManager.fetchRouteWarningsFromGoong(context, selectedRoute.polyline)
+        }
+
+        finalRoutes
     }
 
     suspend fun fetchRoute(
@@ -181,9 +189,9 @@ class RoutingEngine(private val client: OkHttpClient) {
         val key = apiKey?.trim() ?: return null
         if (key.isEmpty()) return null
         
-        val vehicle = if (vehicleType == 1) "motorcycle" else "car"
-        val url = "https://graphhopper.com/api/1/route?point=$startLat,$startLng&point=$destLat,$destLng&vehicle=$vehicle&locale=vi&key=$key&steps=true&points_encoded=true&algorithm=alternative_route"
-        val request = Request.Builder().url(url).build()
+        val profile = "car"
+        val url = "https://graphhopper.com/api/1/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&key=$key&steps=true&points_encoded=true&algorithm=alternative_route"
+        val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
 
         return try {
             client.newCall(request).execute().use { response ->

@@ -126,6 +126,9 @@ void drawHUD()
     canvasSprite.drawLine(acx, acy - 6, acx - 4, acy - 2, TFT_WHITE);
     canvasSprite.drawLine(acx, acy - 6, acx + 4, acy - 2, TFT_WHITE);
 
+    // Vẽ Overlay Cảnh báo Giao thông (nếu có)
+    drawTrafficWarningOverlay();
+
     canvasSprite.pushSprite(0, 0);
 }
 
@@ -159,7 +162,61 @@ void drawMapOverlay()
     canvasSprite.drawRect(mcx - 2, mcy - 4, 4, 12, TFT_WHITE);
     canvasSprite.drawRect(mcx + 2, mcy - 6, 4, 12, TFT_WHITE);
 
+    // Vẽ Overlay Cảnh báo Giao thông (nếu có)
+    drawTrafficWarningOverlay();
+
     canvasSprite.pushSprite(0, 0);
+}
+
+// ==========================================
+// CẢNH BÁO GIAO THÔNG (SPEED LIMIT & CAMERA PHẠT NGUỘI) - POPUP OVERLAY 3 GIÂY
+// ==========================================
+void drawTrafficWarningOverlay()
+{
+    // Nếu không có cảnh báo nào đang hoạt động thì không vẽ Popup
+    if (!isTrafficWarningActive) return;
+
+    int cx = 120; // Tâm màn hình GC9A01 (240x240)
+    int cy = 120;
+    int r = 48;   // Bán kính hình tròn biển báo giao thông
+
+    // 1. Vẽ vòng tròn ngoài màu đỏ nổi bật (Viền dày 4px chuẩn biển báo giao thông)
+    canvasSprite.fillCircle(cx, cy, r + 4, TFT_RED);
+
+    // 2. Vẽ vòng tròn viền trong màu trắng
+    canvasSprite.fillCircle(cx, cy, r + 1, TFT_WHITE);
+
+    // 3. Vẽ nền trong hình tròn màu trắng
+    canvasSprite.fillCircle(cx, cy, r - 4, TFT_WHITE);
+
+    if (trafficWarningType == 0x02) // Biển giới hạn tốc độ (Speed Limit)
+    {
+        // 4. In số tốc độ giới hạn (ví dụ: 50, 60) màu đen in đậm chính giữa
+        myFont.set_font(FONT_CLOCK);
+        String valStr = String(trafficWarningValue);
+        uint16_t txtLen = myFont.getLength(valStr);
+        myFont.print(cx - txtLen / 2, cy - 16, valStr, TFT_BLACK, TFT_WHITE);
+
+        // 5. In nhãn "km/h" màu xám đen phía dưới
+        myFont.set_font(FONT_MENU_OPTION);
+        String unitStr = "km/h";
+        uint16_t uLen = myFont.getLength(unitStr);
+        myFont.print(cx - uLen / 2, cy + 20, unitStr, TFT_DARKGREY, TFT_WHITE);
+    }
+    else if (trafficWarningType == 0x01) // Camera phạt nguội (Speed Camera)
+    {
+        // 4. In tiêu đề "CAM" màu đỏ nổi bật
+        myFont.set_font(FONT_NOTIF_TITLE);
+        String camTitle = "CAM";
+        uint16_t cLen = myFont.getLength(camTitle);
+        myFont.print(cx - cLen / 2, cy - 22, camTitle, TFT_RED, TFT_WHITE);
+
+        // 5. In nhãn "PHẠT NGUỘI" màu đen phía dưới
+        myFont.set_font(FONT_HUD_STREET);
+        String alertText = "PHẠT NGUỘI";
+        uint16_t aLen = myFont.getLength(alertText);
+        myFont.print(cx - aLen / 2, cy + 6, alertText, TFT_BLACK, TFT_WHITE);
+    }
 }
 
 // Vẽ icon thời tiết dạng pixel tại vị trí (cx, cy) kích thước ~20px
@@ -323,6 +380,9 @@ void drawSTATUS()
         myFont.print(120 - pLen / 2 + 12, 170, phoneBuf,
                      phoneBatteryLevel < 20 ? TFT_RED : TFT_WHITE, TFT_BLACK);
     }
+
+    // Vẽ Overlay Cảnh báo Giao thông (nếu có)
+    drawTrafficWarningOverlay();
 
     canvasSprite.pushSprite(0, 0);
 }

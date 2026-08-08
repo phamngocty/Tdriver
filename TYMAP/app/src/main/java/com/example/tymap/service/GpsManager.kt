@@ -26,6 +26,9 @@ class GpsManager(private val context: Context) {
             val freshLocation = Location(location)
             NavigationRepository.updateLocation(freshLocation)
             
+            // Tích hợp kiểm tra Cảnh báo Giao thông Offline trên mảng RAM Cache mỗi khi có GPS mới
+            TrafficWarningManager.checkGpsLocation(context, freshLocation, NavigationService.bleManager)
+            
             android.util.Log.d("GpsManager", "New Location: ${location.latitude}, ${location.longitude} (Acc: ${location.accuracy}m, Provider: ${location.provider})")
         }
 

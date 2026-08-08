@@ -4,12 +4,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Search Bar -->
     <org.osmdroid.views.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        app:layout_anchor="@+id/mapView"
+        app:layout_anchorGravity="center" />
 
-    <!-- Search Bar -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/searchCard"
         android:layout_width="match_parent"
@@ -69,6 +71,7 @@
         android:visibility="gone"
         app:cardCornerRadius="8dp"
         app:cardElevation="4dp">
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvSuggestions"
             android:layout_width="match_parent"
@@ -127,14 +130,21 @@
             app:tint="@android:color/black" />
     </LinearLayout>
 
+    <!-- Bottom Sheet -->
+    <include
+        android:id="@+id/bottomSheet"
+        layout="@layout/bottom_sheet_navigation" />
+
     <!-- Zoom Controls (Bottom Right) -->
     <LinearLayout
+        android:id="@+id/zoomControls"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:elevation="12dp"
         app:layout_anchor="@id/bottomSheet"
         app:layout_anchorGravity="top|end"
         android:layout_marginEnd="16dp"
-        android:layout_marginBottom="44dp"
+        android:layout_marginBottom="16dp"
         android:orientation="vertical">
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -162,30 +172,32 @@
         android:id="@+id/btnRecenter"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:layout_anchor="@id/bottomSheet"
-        app:layout_anchorGravity="top|center_horizontal"
-        android:layout_marginBottom="44dp"
+        android:elevation="12dp"
+        android:layout_marginBottom="16dp"
         android:text="@string/recenter"
+        android:textColor="@android:color/white"
         android:visibility="gone"
         app:backgroundTint="@color/blue_primary"
         app:icon="@drawable/ic_my_location"
         app:iconTint="@android:color/white"
-        android:textColor="@android:color/white" />
+        app:layout_anchor="@id/bottomSheet"
+        app:layout_anchorGravity="top|center_horizontal" />
 
     <!-- GPS Speedometer Badge (Bottom Left Overlay) -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/cardGpsSpeedometer"
         android:layout_width="64dp"
         android:layout_height="64dp"
+        android:elevation="12dp"
         app:layout_anchor="@id/bottomSheet"
         app:layout_anchorGravity="top|start"
         android:layout_marginStart="16dp"
-        android:layout_marginBottom="44dp"
+        android:layout_marginBottom="16dp"
         app:cardCornerRadius="32dp"
         app:cardBackgroundColor="#D91E293B"
         app:strokeColor="#44FFFFFF"
         app:strokeWidth="1.5dp"
-        app:cardElevation="6dp">
+        app:cardElevation="12dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -216,19 +228,15 @@
     <ImageView
         android:id="@+id/ivSpeedWarning"
         android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_height="73dp"
+        android:elevation="12dp"
+        android:layout_marginStart="90dp"
+        android:layout_marginBottom="24dp"
+        android:src="@drawable/ic_speedometer"
+        android:visibility="gone"
         app:layout_anchor="@id/bottomSheet"
         app:layout_anchorGravity="top|start"
-        android:layout_marginStart="90dp"
-        android:layout_marginBottom="52dp"
-        android:src="@drawable/ic_speedometer"
-        app:tint="@android:color/holo_red_dark"
-        android:visibility="gone" />
-
-    <!-- Bottom Sheet -->
-    <include
-        android:id="@+id/bottomSheet"
-        layout="@layout/bottom_sheet_navigation" />
+        app:tint="@android:color/holo_red_dark" />
 
     <!-- Full-screen Route Steps View (Google Maps style) -->
     <LinearLayout
@@ -236,17 +244,17 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#121212"
-        android:orientation="vertical"
         android:clickable="true"
         android:focusable="true"
+        android:orientation="vertical"
         android:visibility="gone">
 
         <!-- Header -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:background="#1E1E1E">
+            android:background="#1E1E1E"
+            android:padding="16dp">
 
             <ImageButton
                 android:id="@+id/btnCloseSteps"
@@ -289,8 +297,8 @@
             android:id="@+id/rvRouteSteps"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:padding="16dp"
-            android:clipToPadding="false" />
+            android:clipToPadding="false"
+            android:padding="16dp" />
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

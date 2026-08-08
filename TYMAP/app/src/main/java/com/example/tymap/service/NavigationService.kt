@@ -1234,9 +1234,15 @@ class NavigationService : Service() {
                 location?.let {
                     headlessMapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(it.latitude, it.longitude))
                     
+                    val speed = it.speed
+                    val isMoving = speed > 1.5f && it.hasBearing()
+                    val heading = if (isMoving) {
+                        it.bearing
+                    } else {
+                        NavigationRepository.compassHeading.value
+                    }
+
                     if (isTrackUp) {
-                        val speed = it.speed
-                        val heading = if (speed > 1.5f && it.hasBearing()) it.bearing else NavigationRepository.compassHeading.value
                         headlessMapView?.mapOrientation = -heading
                     } else {
                         headlessMapView?.mapOrientation = 0f
@@ -1264,7 +1270,13 @@ class NavigationService : Service() {
                         marker.rotation = 0f // Hướng lên trên (12h) vì bản đồ đã xoay
                     } else {
                         val speed = loc.speed
-                        marker.rotation = if (speed > 1.5f && loc.hasBearing()) loc.bearing else NavigationRepository.compassHeading.value
+                        val isMoving = speed > 1.5f && loc.hasBearing()
+                        val heading = if (isMoving) {
+                            loc.bearing
+                        } else {
+                            NavigationRepository.compassHeading.value
+                        }
+                        marker.rotation = heading
                     }
 
                     if (headlessMapView?.overlays?.contains(marker) == false) {

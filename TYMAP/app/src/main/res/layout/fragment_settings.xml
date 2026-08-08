@@ -579,6 +579,16 @@
                         android:layout_marginTop="8dp"
                         android:text="Bỏ qua khung hình trùng lặp (CRC32)" />
 
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switchInvertHeading"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Đảo chiều la bàn khi đứng yên (180°)" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Hiệu chỉnh góc xoay la bàn" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                    <Spinner android:id="@+id/spinnerCompassOffset" android:layout_width="match_parent" android:layout_height="48dp" />
+
                     <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="12dp"/>
 
                     <!-- Bản đồ Offline -->

@@ -30,6 +30,7 @@ const char *CHA_REMOTE_CMD_UUID = "f1a2b3c4-d5e6-4789-a012-3456789abcde";
 const char *CHA_DEVICE_STATUS_UUID = "a1b2c3d4-e5f6-4789-b012-3456789abcde";
 const char *CHA_NOTIFICATION_UUID = "c1d2e3f4-a5b6-4789-c012-3456789abcde";
 const char *CHA_PHONE_BATTERY_UUID = "e5f6a7b8-c9d0-4123-e456-789012cdef01"; // NEW: Pin điện thoại
+const char *CHA_WARNING_UUID = "e4f5a6b7-c8d9-4012-e345-678901bcdef0";       // NEW: Cảnh báo giao thông (Tốc độ & Camera)
 
 // Tile Streaming UUIDs
 const char *CHA_MAP_TILE_UUID = "d1e2f3a4-b5c6-4789-d012-3456789abcde";
@@ -168,11 +169,18 @@ NimBLECharacteristic *pRemoteCmdChar = nullptr;
 NimBLECharacteristic *pDeviceStatusChar = nullptr;
 NimBLECharacteristic *pNotificationChar = nullptr;
 NimBLECharacteristic *pPhoneBatteryChar = nullptr; // NEW: Pin điện thoại
+NimBLECharacteristic *pWarningChar = nullptr;      // NEW: Cảnh báo giao thông
 
 // Tile Streaming Pointers
 NimBLECharacteristic *pMapTileChar = nullptr;
 NimBLECharacteristic *pMapCtrlChar = nullptr;
 NimBLECharacteristic *pMapStatusChar = nullptr;
+
+// Trạng thái Cảnh báo Giao thông (Speed Limit & Camera Phạt Nguội)
+bool isTrafficWarningActive = false;
+uint8_t trafficWarningType = 0;   // 0x01: Camera phạt nguội, 0x02: Biển giới hạn tốc độ
+uint8_t trafficWarningValue = 0;  // Tốc độ (ví dụ 50, 60, 80 km/h)
+unsigned long trafficWarningStartTime = 0;
 
 // HUD Dẫn đường
 String nextStreet = "";
@@ -848,6 +856,19 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
             }
             screenNeedsRedraw = true;
         }
+        else if (uuid == CHA_WARNING_UUID)
+        {
+            // Payload 2 Bytes: Byte 0 = Type (0x01: Cam, 0x02: Speed), Byte 1 = Speed limit value
+            if (val.length() >= 2)
+            {
+                trafficWarningType = (uint8_t)val[0];
+                trafficWarningValue = (uint8_t)val[1];
+                isTrafficWarningActive = true;
+                trafficWarningStartTime = millis();
+                screenNeedsRedraw = true;
+                Serial.printf("BLE: Received Traffic Warning -> Type=0x%02X, Value=%d km/h\n", trafficWarningType, trafficWarningValue);
+            }
+        }
         else if (uuid == CHA_MAP_IMAGE_UUID)
         {
             // Null-guard
@@ -1375,6 +1396,9 @@ void setup()
     pPhoneBatteryChar = pService->createCharacteristic(CHA_PHONE_BATTERY_UUID, NIMBLE_PROPERTY::WRITE);
     pPhoneBatteryChar->setCallbacks(sCallbacks);
 
+    pWarningChar = pService->createCharacteristic(CHA_WARNING_UUID, NIMBLE_PROPERTY::WRITE);
+    pWarningChar->setCallbacks(sCallbacks);
+
     pMapTileChar = pService->createCharacteristic(CHA_MAP_TILE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pMapTileChar->setCallbacks(sCallbacks);
 
@@ -1517,6 +1541,13 @@ void loop()
     if (isPopupActive && millis() - popupStartTime > (uint32_t)(popupDuration * 5000))
     {
         isPopupActive = false;
+        screenNeedsRedraw = true;
+    }
+
+    // Tự động tắt Popup Cảnh báo Giao thông sau 3 giây (3000ms)
+    if (isTrafficWarningActive && (millis() - trafficWarningStartTime > 3000))
+    {
+        isTrafficWarningActive = false;
         screenNeedsRedraw = true;
     }
 

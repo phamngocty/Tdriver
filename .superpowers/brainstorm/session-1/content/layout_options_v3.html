@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Bản Phác Thảo Cải Tiến MAP HUD Nâng Cao - Dynamic Progress & Traffic Badge</title>
+<style>
+  body {
+    background: #090d16;
+    color: #f8fafc;
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  h2 {
+    color: #38bdf8;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .subtitle {
+    color: #94a3b8;
+    margin-bottom: 24px;
+    text-align: center;
+    max-width: 550px;
+    font-size: 14px;
+  }
+  .preview-grid {
+    display: flex;
+    gap: 35px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .card-option {
+    background: #151d2a;
+    border: 1px solid #263347;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 280px;
+  }
+  .card-option h3 {
+    font-size: 16px;
+    color: #00e5ff;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .round-screen {
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background-color: #000;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 35px rgba(0, 229, 255, 0.35), inset 0 0 10px rgba(255, 255, 255, 0.15);
+    border: 6px solid #1e293b;
+  }
+  .map-section {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 240px;
+    height: 180px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+  .map-route-line {
+    position: absolute;
+    width: 16px;
+    height: 180px;
+    left: 112px;
+    background: #2563eb;
+  }
+  .map-marker {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #fff;
+    top: 105px;
+    left: 106px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .map-marker::after {
+    content: "▲";
+    font-size: 12px;
+    color: #0f172a;
+  }
+  .hud-card-v3 {
+    position: absolute;
+    top: 142px;
+    left: 14px;
+    width: 212px;
+    height: 84px;
+    background: rgba(15, 23, 42, 0.96);
+    border: 1.5px solid rgba(0, 229, 255, 0.7);
+    border-radius: 20px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 10px;
+    box-sizing: border-box;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+  }
+  .arrow-box-v3 {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, #00e5ff, #0088ff);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 22px;
+    font-weight: bold;
+    flex-shrink: 0;
+    box-shadow: 0 0 12px rgba(0,229,255,0.6);
+  }
+  .info-box-v3 {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    justify-content: center;
+    flex: 1;
+  }
+  .street-v3 {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #f8fafc;
+  }
+  .dist-row-v3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2px;
+  }
+  .dist-v3 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #00ff7f;
+  }
+  .progress-bar-bg {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    width: 70%;
+    background: linear-gradient(90deg, #00ff7f, #00e5ff);
+    border-radius: 2px;
+    box-shadow: 0 0 6px #00ff7f;
+  }
+  .speed-sign-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2.5px solid #ef4444;
+    color: #000;
+    font-weight: 900;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+  }
+  .feature-list {
+    margin-top: 15px;
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+  <h2>Nghiên Cứu Đổi Mới Cải Tiến MAP HUD Nâng Cao</h2>
+  <div class="subtitle">Tối ưu trải nghiệm cho người lái xe máy: Thanh tiến trình rẽ trực quan & Tích hợp Biển cảnh báo giao thông</div>
+
+  <div class="preview-grid">
+    <!-- Option C1 -->
+    <div class="card-option">
+      <h3>1. Thanh Tiến Trình Khoảng Cách Rẽ (Distance Progress Bar)</h3>
+      <div class="round-screen">
+        <div class="map-section">
+          <div class="map-route-line"></div>
+          <div class="map-marker"></div>
+        </div>
+        <div class="hud-card-v3">
+          <div class="arrow-box-v3">➔</div>
+          <div class="info-box-v3">
+            <div class="street-v3">Hẻm 281 Lê Văn Sỹ</div>
+            <div class="dist-row-v3">
+              <div class="dist-v3">281 m</div>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="feature-list">
+        <strong>Ưu điểm:</strong> Khi đến gần điểm rẽ (từ 300m xuống 0m), thanh xanh neon thu ngắn lại. Người lái xe liếc mắt 0.1s là biết bao giờ phải rẽ mà không cần đọc con số.
+      </div>
+    </div>
+
+    <!-- Option C2 -->
+    <div class="card-option">
+      <h3>2. Tích Hợp Biển Tốc Độ Giới Hạn (Speed Limit Badge)</h3>
+      <div class="round-screen">
+        <div class="map-section">
+          <div class="map-route-line"></div>
+          <div class="map-marker"></div>
+        </div>
+        <div class="hud-card-v3">
+          <div class="arrow-box-v3">➔</div>
+          <div class="info-box-v3">
+            <div class="street-v3">Hẻm 281 Lê Văn Sỹ</div>
+            <div class="dist-row-v3">
+              <div class="dist-v3">150 m</div>
+              <div class="speed-sign-badge">50</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="feature-list">
+        <strong>Ưu điểm:</strong> Biển báo 50 km/h xuất hiện ngay bên cạnh khoảng cách rẽ khi có cảnh báo tốc độ. Giúp người lái vừa không lỡ điểm rẽ, vừa không bị phạt nguội.
+      </div>
+    </div>
+  </div>
+</body>
+</html>

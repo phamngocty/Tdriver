@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MAP HUD Mockup - Option B</title>
+<style>
+  body {
+    background: #0b0f19;
+    color: #f8fafc;
+    font-family: system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  h2 {
+    color: #38bdf8;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .subtitle {
+    color: #94a3b8;
+    margin-bottom: 24px;
+    text-align: center;
+    max-width: 500px;
+  }
+  .round-screen {
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background-color: #000;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 35px rgba(0, 229, 255, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.15);
+    border: 6px solid #1e293b;
+  }
+  .map-section {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 240px;
+    height: 180px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+  .map-route-line {
+    position: absolute;
+    width: 16px;
+    height: 180px;
+    left: 112px;
+    background: #2563eb;
+  }
+  .map-marker {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #fff;
+    top: 105px;
+    left: 106px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .map-marker::after {
+    content: "▲";
+    font-size: 12px;
+    color: #0f172a;
+  }
+  .hud-section-b {
+    position: absolute;
+    top: 145px;
+    left: 16px;
+    width: 208px;
+    height: 80px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1.5px solid rgba(0, 229, 255, 0.6);
+    border-radius: 20px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 12px;
+    box-sizing: border-box;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.6);
+  }
+  .arrow-box-b {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, #00e5ff, #0088ff);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 22px;
+    font-weight: bold;
+    flex-shrink: 0;
+    box-shadow: 0 0 12px rgba(0,229,255,0.5);
+  }
+  .info-box-b {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    justify-content: center;
+  }
+  .street-b {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #f8fafc;
+  }
+  .dist-b {
+    font-size: 16px;
+    font-weight: 800;
+    color: #00ff7f;
+    margin-top: 2px;
+  }
+  .desc-box {
+    margin-top: 30px;
+    background: #1e293b;
+    padding: 16px 20px;
+    border-radius: 12px;
+    max-width: 420px;
+    font-size: 14px;
+    line-height: 1.6;
+    border: 1px solid #334155;
+  }
+</style>
+</head>
+<body>
+  <h2>Mockup Giao Diện MAP HUD (Phương Án B)</h2>
+  <div class="subtitle">Bản đồ 70% + Bảng chỉ dẫn Floating Card 30% trên màn hình tròn 240x240</div>
+
+  <div class="round-screen">
+    <div class="map-section">
+      <div class="map-route-line"></div>
+      <div class="map-marker"></div>
+    </div>
+    <div class="hud-section-b">
+      <div class="arrow-box-b">➔</div>
+      <div class="info-box-b">
+        <div class="street-b">Hẻm 281 Lê Văn Sỹ</div>
+        <div class="dist-b">281 m</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="desc-box">
+    <strong>Chi tiết thiết kế:</strong>
+    <ul>
+      <li>Bản đồ hiển thị ở nền phía trên.</li>
+      <li>Bảng Floating Card bo tròn mờ phủ ở nửa dưới.</li>
+      <li>Icon hướng rẽ Cyan tròn màu sắc sinh động bên trái.</li>
+      <li>Tên đường và khoảng cách tới điểm rẽ (281m) hiển thị sắc nét bên phải.</li>
+    </ul>
+  </div>
+</body>
+</html>

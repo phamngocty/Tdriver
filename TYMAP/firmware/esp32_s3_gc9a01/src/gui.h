@@ -84,9 +84,11 @@ extern int notifViewIndex;
 extern bool isNotifPopupTransient;
 extern unsigned long notifPopupStartTime;
 
-// Trạng thái Menu chọn chế độ
-extern int menuSelectedIndex;
-extern int cacheSize;
+// Trạng thái Cảnh báo giao thông (Speed Limit & Camera Phạt nguội)
+extern bool isTrafficWarningActive;
+extern uint8_t trafficWarningType;
+extern uint8_t trafficWarningValue;
+extern unsigned long trafficWarningStartTime;
 
 // Các nguyên mẫu hàm vẽ GUI
 void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset,
@@ -97,6 +99,7 @@ void drawMenuOverlay();
 void drawINFO();
 void drawNOTIF();
 void drawMapOverlay();
+void drawTrafficWarningOverlay();
 void drawLogoWithLoadingBar(unsigned long currentTime, unsigned long startTime,
                             unsigned long introDuration);
 

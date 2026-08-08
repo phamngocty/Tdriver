@@ -419,9 +419,12 @@ class SettingsFragment : Fragment() {
         val ghKey = PrefsHelper.getSecureString(context, "api_key_gh", "")
         val stadiaKey = PrefsHelper.getSecureString(context, "api_key_stadia", "")
         val owmKey = PrefsHelper.getSecureString(context, "api_key_owm", "")
+        val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "")
 
         apiServicesList.clear()
         apiServicesList.addAll(listOf(
+            ApiService("goong", "Goong.io API (Việt Nam)", "Cảnh báo biển báo, camera phạt nguội & dẫn đường Việt Nam.", "https://account.goong.io/", true, apiKey = goongKey, status = if (goongKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("overpass", "Overpass API (OSM Traffic)", "Cảnh báo camera & tốc độ miễn phí từ OpenStreetMap.", "https://overpass-api.de/", false, status = ServiceStatus.FREE),
             ApiService("osrm", "OSRM Backend Engine", "Dẫn đường cực nhanh (Tự host / Demo miễn phí).", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
             ApiService("valhalla", "Valhalla Routing Engine", "Dẫn đường đa phương tiện / tránh đường cao tốc.", "https://valhalla.opentripplanner.org/", false, status = ServiceStatus.FREE),
             ApiService("ors", "OpenRouteService (ORS)", "Dẫn đường chuyên sâu, yêu cầu API key.", "https://openrouteservice.org/dev/#/signup", true, apiKey = orsKey, status = if (orsKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
@@ -460,6 +463,7 @@ class SettingsFragment : Fragment() {
     private fun saveApiKey(serviceId: String, apiKey: String) {
         val context = context ?: return
         val keyName = when(serviceId) {
+            "goong" -> "api_key_goong"
             "ors" -> "api_key_ors"
             "gh" -> "api_key_gh"
             "stadia" -> "api_key_stadia"
@@ -479,6 +483,8 @@ class SettingsFragment : Fragment() {
         
         lifecycleScope.launch(Dispatchers.IO) {
             val success = when(service.id) {
+                "goong" -> testGoongKey(service.apiKey)
+                "overpass" -> testOverpass()
                 "osrm" -> testOsrm()
                 "ors" -> testOrsKey(service.apiKey)
                 "gh" -> testGhKey(service.apiKey)
@@ -511,21 +517,69 @@ class SettingsFragment : Fragment() {
         }
     }
 
+    private fun testGoongKey(key: String): Boolean {
+        if (key.isEmpty()) return false
+        val trimmedKey = key.trim()
+        val endpoints = listOf(
+            "https://rsapi.goong.io/geocode?address=Hanoi&api_key=$trimmedKey",
+            "https://rsapi.goong.io/Place/AutoComplete?input=Hanoi&api_key=$trimmedKey",
+            "https://rsapi.goong.io/Direction?origin=21.0285,105.8542&destination=21.0385,105.8642&vehicle=car&api_key=$trimmedKey"
+        )
+        val client = OkHttpClient.Builder().connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS).readTimeout(8, java.util.concurrent.TimeUnit.SECONDS).build()
+        for (url in endpoints) {
+            try {
+                val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+                val resp = client.newCall(request).execute()
+                val success = resp.isSuccessful
+                resp.close()
+                if (success) return true
+            } catch (e: Exception) {}
+        }
+        return false
+    }
+
+    private fun testOverpass(): Boolean {
+        val body = okhttp3.FormBody.Builder()
+            .add("data", "[out:json][timeout:15];node[\"highway\"=\"speed_camera\"](around:1000,10.762622,106.660172);out body;")
+            .build()
+        val endpoints = listOf(
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+        )
+        val client = OkHttpClient.Builder().connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).readTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
+        for (url in endpoints) {
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .header("User-Agent", "TYMAP/1.0 (Android Motorcycle Navigation)")
+                    .build()
+                val resp = client.newCall(request).execute()
+                val success = resp.isSuccessful
+                resp.close()
+                if (success) return true
+            } catch (e: Exception) {}
+        }
+        return false
+    }
+
     private fun testOsrm(): Boolean {
         val url = "https://router.project-osrm.org/nearest/v1/driving/106.660172,10.762622"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+        return try { OkHttpClient().newCall(Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
     private fun testOrsKey(key: String): Boolean {
         if (key.isEmpty()) return false
-        val url = "https://api.openrouteservice.org/v2/directions/driving-car?api_key=$key&start=8.681495,49.41461&end=8.687872,49.420318"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+        val url = "https://api.openrouteservice.org/v2/directions/driving-car?api_key=$key&start=106.660172,10.762622&end=106.670172,10.772622"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
     private fun testGhKey(key: String): Boolean {
         if (key.isEmpty()) return false
-        val url = "https://graphhopper.com/api/1/route?point=51.131,12.414&point=48.224,3.867&vehicle=car&locale=de&key=$key"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+        val url = "https://graphhopper.com/api/1/route?point=10.762622,106.660172&point=10.772622,106.670172&profile=car&locale=vi&key=$key"
+        val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+        return try { OkHttpClient().newCall(request).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
     private fun testStadiaKey(key: String): Boolean {
@@ -649,6 +703,29 @@ class SettingsFragment : Fragment() {
         binding.switchOfflinePriority.isChecked = PrefsHelper.getBoolean(context, "offline_priority", true)
         binding.switchOfflinePriority.setOnCheckedChangeListener { _, isChecked ->
             PrefsHelper.putBoolean(context, "offline_priority", isChecked)
+        }
+
+        binding.switchInvertHeading.isChecked = PrefsHelper.getBoolean(context, "invert_heading", false)
+        binding.switchInvertHeading.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "invert_heading", isChecked)
+            Toast.makeText(context, if (isChecked) "Đã bật đảo chiều la bàn khi đứng yên (180°)" else "Đã tắt đảo chiều la bàn khi đứng yên", Toast.LENGTH_SHORT).show()
+        }
+
+        val compassOffsets = arrayOf("0° (Mặc định)", "90° (Lệch phải)", "180° (Đảo ngược)", "270° / -90° (Lệch trái)")
+        val currentOffsetIndex = when (PrefsHelper.getInt(context, "compass_offset_mode", 0)) {
+            90 -> 1
+            180 -> 2
+            270 -> 3
+            else -> 0
+        }
+        setupSpinner(binding.spinnerCompassOffset, compassOffsets, currentOffsetIndex) { index ->
+            val angleMode = when (index) {
+                1 -> 90
+                2 -> 180
+                3 -> 270
+                else -> 0
+            }
+            PrefsHelper.putInt(context, "compass_offset_mode", angleMode)
         }
 
         binding.btnManageOfflineMaps.setOnClickListener {
