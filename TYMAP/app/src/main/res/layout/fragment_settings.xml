@@ -453,6 +453,18 @@
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Đơn vị khoảng cách" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
                     <Spinner android:id="@+id/spinnerUnits" android:layout_width="match_parent" android:layout_height="48dp" />
 
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Giao diện Đồng hồ &amp; Pin (STATUS)" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                    <Spinner android:id="@+id/spinnerStatusStyle" android:layout_width="match_parent" android:layout_height="48dp" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Giao diện Thông báo Tin nhắn (NOTIF)" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                    <Spinner android:id="@+id/spinnerNotifStyle" android:layout_width="match_parent" android:layout_height="48dp" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Thời gian tự động đóng HUD" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                    <Spinner android:id="@+id/spinnerHudTimeout" android:layout_width="match_parent" android:layout_height="48dp" />
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Giao diện Thẻ Nổi MAP HUD (Bản đồ + Chỉ dẫn)" android:textSize="12sp" android:layout_marginTop="8dp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                    <Spinner android:id="@+id/spinnerMapHudStyle" android:layout_width="match_parent" android:layout_height="48dp" />
+
                     <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="12dp"/>
 
                     <com.google.android.material.button.MaterialButton

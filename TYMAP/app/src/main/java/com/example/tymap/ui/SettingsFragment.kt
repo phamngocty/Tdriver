@@ -668,6 +668,38 @@ class SettingsFragment : Fragment() {
             PrefsHelper.putInt(context, "units", it)
         }
 
+        val statusStyles = arrayOf("Mẫu S4: Cyber Dual Gauges (Mặc định)", "Mẫu S5: Classic Analog Watch", "Mẫu S3: Dual Energy Pill")
+        setupSpinner(binding.spinnerStatusStyle, statusStyles, PrefsHelper.getInt(context, "status_style", 0)) { styleIdx ->
+            PrefsHelper.putInt(context, "status_style", styleIdx)
+            NavigationService.bleManager?.writeSettings("statusStyle=$styleIdx")
+            Toast.makeText(context, "Đã gửi cấu hình Mẫu STATUS!", Toast.LENGTH_SHORT).show()
+        }
+
+        val notifStyles = arrayOf("Mẫu N1: Floating Card 3D (Đếm lùi 5s)", "Mẫu N2: Fullscreen Focus (THUẦN NOTIF - Mặc định)")
+        setupSpinner(binding.spinnerNotifStyle, notifStyles, PrefsHelper.getInt(context, "notif_style", 1)) { styleIdx ->
+            PrefsHelper.putInt(context, "notif_style", styleIdx)
+            NavigationService.bleManager?.writeSettings("notifStyle=$styleIdx")
+            Toast.makeText(context, "Đã gửi cấu hình Mẫu NOTIF!", Toast.LENGTH_SHORT).show()
+        }
+
+        val hudTimeoutOptions = arrayOf("Vĩnh viễn (Không tự đóng)", "10 giây", "30 giây", "1 phút (60s)", "3 phút (180s)", "5 phút (300s)")
+        val hudTimeoutValues = arrayOf(0, 10, 30, 60, 180, 300)
+        val currentHudTimeout = PrefsHelper.getInt(context, "hud_timeout_val", 0)
+        val hudIdx = hudTimeoutValues.indexOf(currentHudTimeout).let { if (it >= 0) it else 0 }
+        setupSpinner(binding.spinnerHudTimeout, hudTimeoutOptions, hudIdx) { selectedIdx ->
+            val secVal = hudTimeoutValues[selectedIdx]
+            PrefsHelper.putInt(context, "hud_timeout_val", secVal)
+            NavigationService.bleManager?.writeSettings("hudTimeout=$secVal")
+            Toast.makeText(context, "Đã cài đặt Thời gian đóng HUD: ${hudTimeoutOptions[selectedIdx]}", Toast.LENGTH_SHORT).show()
+        }
+
+        val mapHudStyles = arrayOf("Mẫu MH1: Compact Floating Pill (85% Bản đồ - Mặc định)", "Mẫu MH3: Minimalist Badge (92% Bản đồ - Tối giản)")
+        setupSpinner(binding.spinnerMapHudStyle, mapHudStyles, PrefsHelper.getInt(context, "map_hud_style", 0)) { styleIdx ->
+            PrefsHelper.putInt(context, "map_hud_style", styleIdx)
+            NavigationService.bleManager?.writeSettings("mapHudStyle=$styleIdx")
+            Toast.makeText(context, "Đã gửi cấu hình Mẫu MAP HUD!", Toast.LENGTH_SHORT).show()
+        }
+
         // 2. MAP
         val mapSources = arrayOf("CartoDB Positron", "OSM Mapnik", "CartoDB Dark Matter", "CartoDB Voyager", "Stadia Alidade Smooth Dark", "Esri Canvas Dark", "Esri Canvas Light", "Vệ tinh (ESRI)", "Tùy chỉnh (MapCN/Self-Hosted)")
         val initialTileSource = PrefsHelper.getInt(context, "tile_source", 0)

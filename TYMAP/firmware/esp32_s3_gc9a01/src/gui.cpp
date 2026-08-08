@@ -1,8 +1,13 @@
 #include "gui.h"
 #include "logo.h"
 
-// Vẽ icon 1bpp monochrome custom (phóng to scale=2) LÊN SPRITE
-void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset, int yOffset, int scale)
+bool showMapHudCard = true;
+uint8_t statusStyle = 0; // 0=S4 Cyber Dual Gauges (Mặc định), 1=S5 Classic Analog, 2=S3 Dual Pill
+uint8_t notifStyle  = 1; // 0=N1 Floating Card 3D, 1=N2 Fullscreen Focus (THUẦN NOTIF - Mặc định)
+
+
+// Vẽ icon 1bpp monochrome custom LÊN SPRITE (TỰ ĐỘNG KHÔNG VẼ NỀN ĐEN TRANSPARENT)
+void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset, int yOffset, int scale, uint16_t fgColor)
 {
     for (int y = 0; y < 48; y++)
     {
@@ -11,8 +16,17 @@ void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset, int
             int byteIdx = (y * 48 + x) / 8;
             int bitPos = 7 - (x % 8);
             bool isPixel = (bitmap[byteIdx] & (1 << bitPos)) != 0;
-            uint16_t color = isPixel ? TFT_WHITE : TFT_BLACK;
-            sprite.fillRect(xOffset + x * scale, yOffset + y * scale, scale, scale, color);
+            if (isPixel)
+            {
+                if (scale == 1)
+                {
+                    sprite.drawPixel(xOffset + x, yOffset + y, fgColor);
+                }
+                else
+                {
+                    sprite.fillRect(xOffset + x * scale, yOffset + y * scale, scale, scale, fgColor);
+                }
+            }
         }
     }
 }
@@ -116,20 +130,165 @@ void drawHUD()
     uint16_t distLen = myFont.getLength(distToNext);
     myFont.print(120 - distLen / 2, 170, distToNext, TFT_WHITE, TFT_BLACK);
 
-    // 5. Vẽ nút bấm tròn chứa mũi tên đi thẳng chỉ hướng di chuyển ở dưới cùng
-    canvasSprite.fillCircle(120, 215, 15, TFT_BLACK);
-    canvasSprite.drawCircle(120, 215, 15, TFT_WHITE);
-
-    // Vẽ mũi tên chỉ thẳng hướng lên nhỏ bên trong nút bấm
-    int acx = 120, acy = 215;
-    canvasSprite.drawLine(acx, acy + 6, acx, acy - 6, TFT_WHITE);
-    canvasSprite.drawLine(acx, acy - 6, acx - 4, acy - 2, TFT_WHITE);
-    canvasSprite.drawLine(acx, acy - 6, acx + 4, acy - 2, TFT_WHITE);
+    // 5. Ô hiển thị Tốc độ GPS (km/h) ở đáy
+    char speedBuf[16];
+    snprintf(speedBuf, sizeof(speedBuf), "%d km/h", gpsSpeed);
+    myFont.set_font(FONT_HUD_INFO);
+    uint16_t spdLen = myFont.getLength(speedBuf);
+    uint16_t badgeW = spdLen + 16;
+    if (badgeW < 64) badgeW = 64;
+    canvasSprite.fillRoundRect(120 - badgeW / 2, 205, badgeW, 22, 10, color565(30, 41, 59));
+    canvasSprite.drawRoundRect(120 - badgeW / 2, 205, badgeW, 22, 10, TFT_GREEN);
+    myFont.print(120 - spdLen / 2, 209, speedBuf, TFT_GREEN, color565(30, 41, 59));
 
     // Vẽ Overlay Cảnh báo Giao thông (nếu có)
     drawTrafficWarningOverlay();
 
     canvasSprite.pushSprite(0, 0);
+}
+
+uint8_t mapHudStyle = 0; // 0 = MH1 Compact Floating Pill (85%), 1 = MH3 Minimalist Badge (92%)
+
+// ==========================================
+// 1C. GIAO DIỆN BẢN ĐỒ + THẺ NỔI HUD (MAP_HUD_MODE - MẪU MH1 & MH3)
+// ==========================================
+void drawMapHudOverlay()
+{
+    if (!showMapHudCard) return;
+
+    if (mapHudStyle == 1)
+    {
+        // ================= MẪU MH3: MINIMALIST BADGE (HIỂN THỊ 92% BẢN ĐỒ) =================
+        uint16_t cardBgColor = color565(15, 23, 42);
+        uint16_t accent = TFT_ORANGE;
+
+        // 1. Huy hiệu Mũi tên Rẽ ở Góc Trái Đỉnh (cx=42, cy=42, r=18)
+        canvasSprite.fillCircle(42, 42, 18, cardBgColor);
+        canvasSprite.drawCircle(42, 42, 18, accent);
+
+        if (hasCustomIcon) {
+            drawCustomIcon(canvasSprite, customIconBitmap, 27, 27, 1);
+        } else {
+            int ax = 42, ay = 42;
+            switch (navDirIdx) {
+                case 4: case 5: case 6: // Turn Left
+                    canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, accent);
+                    canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, accent);
+                    canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, accent);
+                    break;
+                case 1: case 2: case 3: // Turn Right
+                    canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, accent);
+                    canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, accent);
+                    canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, accent);
+                    break;
+                default: // Straight / Arrow Up
+                    canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, accent);
+                    canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, accent);
+                    break;
+            }
+        }
+
+        // 2. Thẻ Pill Khoảng cách ở Đỉnh (x=70, y=28, w=90, h=28, r=14)
+        canvasSprite.fillRoundRect(70, 28, 90, 28, 14, cardBgColor);
+        canvasSprite.drawRoundRect(70, 28, 90, 28, 14, accent);
+        myFont.set_font(FONT_STATUS_INFO);
+        uint16_t dLen = myFont.getLength(distToNext);
+        myFont.print(115 - dLen / 2, 33, distToNext, accent, cardBgColor);
+
+        // 3. Thanh Pill Tên đường tối giản ở Đáy (x=30, y=200, w=180, h=28, r=14)
+        canvasSprite.fillRoundRect(30, 200, 180, 28, 14, cardBgColor);
+        canvasSprite.drawRoundRect(30, 200, 180, 28, 14, color565(51, 65, 85));
+
+        myFont.set_font(vietnamtimes12);
+        uint16_t streetLen = myFont.getLength(nextStreet);
+        int visibleWidth = 160;
+        if (streetLen > visibleWidth)
+        {
+            clipMinX = 40;
+            clipMaxX = 40 + visibleWidth;
+            clipMinY = 200;
+            clipMaxY = 228;
+
+            int range = streetLen - visibleWidth + 30;
+            int scrollMs = millis() % (range * 35 + 1200);
+            int scrollX = 0;
+            if (scrollMs > 1200) {
+                scrollX = (scrollMs - 1200) / 35;
+            }
+
+            myFont.print(40 - scrollX, 206, nextStreet, TFT_WHITE, cardBgColor);
+
+            clipMinX = 0; clipMaxX = 240;
+            clipMinY = 0; clipMaxY = 240;
+        }
+        else
+        {
+            myFont.print(120 - streetLen / 2, 206, nextStreet, TFT_WHITE, cardBgColor);
+        }
+    }
+    else
+    {
+        // ================= MẪU MH1: COMPACT FLOATING PILL (HIỂN THỊ 85% BẢN ĐỒ) =================
+        uint16_t cardBgColor = color565(15, 23, 42);
+        canvasSprite.fillRoundRect(30, 180, 180, 44, 22, cardBgColor);
+        canvasSprite.drawRoundRect(30, 180, 180, 44, 22, TFT_GREEN);
+
+        // Icon Mũi Tên Rẽ Xanh Lá Neon (cx=48, cy=202, r=15)
+        canvasSprite.fillCircle(48, 202, 15, TFT_GREEN);
+        if (hasCustomIcon) {
+            drawCustomIcon(canvasSprite, customIconBitmap, 33, 187, 1);
+        } else {
+            int ax = 48, ay = 202;
+            switch (navDirIdx) {
+                case 4: case 5: case 6: // Turn Left
+                    canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, TFT_BLACK);
+                    canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, TFT_BLACK);
+                    canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, TFT_BLACK);
+                    break;
+                case 1: case 2: case 3: // Turn Right
+                    canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, TFT_BLACK);
+                    canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, TFT_BLACK);
+                    canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, TFT_BLACK);
+                    break;
+                default: // Straight / Arrow Up
+                    canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, TFT_BLACK);
+                    canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, TFT_BLACK);
+                    break;
+            }
+        }
+
+        // Khoảng cách rẽ Chữ Xanh Lá Neon ở Dòng Trên (y = 186)
+        myFont.set_font(FONT_STATUS_INFO);
+        myFont.print(70, 186, distToNext, TFT_GREEN, cardBgColor);
+
+        // Tên đường chỉ dẫn Chữ Trắng Tự Cuộn Marquee ở Dòng Dưới (y = 203)
+        myFont.set_font(vietnamtimes12);
+        uint16_t streetLen = myFont.getLength(nextStreet);
+        int visibleWidth = 125;
+        if (streetLen > visibleWidth)
+        {
+            clipMinX = 70;
+            clipMaxX = 70 + visibleWidth;
+            clipMinY = 200;
+            clipMaxY = 220;
+
+            int range = streetLen - visibleWidth + 30;
+            int scrollMs = millis() % (range * 35 + 1200);
+            int scrollX = 0;
+            if (scrollMs > 1200) {
+                scrollX = (scrollMs - 1200) / 35;
+            }
+
+            myFont.print(70 - scrollX, 203, nextStreet, TFT_WHITE, cardBgColor);
+
+            clipMinX = 0; clipMaxX = 240;
+            clipMinY = 0; clipMaxY = 240;
+        }
+        else
+        {
+            myFont.print(70, 203, nextStreet, TFT_WHITE, cardBgColor);
+        }
+    }
 }
 
 // ==========================================
@@ -308,7 +467,7 @@ void drawPhoneBatteryIcon(TFT_eSprite &sprite, int x, int y, int level, bool cha
     if (fillW > 0)
         sprite.fillRect(x + 1, y + 1, fillW, 9, fillColor);
 
-    // Biểu tượng sạc: "⚡" = tia sét nhỏ ở giữa
+    // Biểu tượng sạc
     if (charging)
     {
         sprite.fillTriangle(x + 12, y + 1, x + 8, y + 6, x + 11, y + 6, TFT_WHITE);
@@ -317,68 +476,179 @@ void drawPhoneBatteryIcon(TFT_eSprite &sprite, int x, int y, int level, bool cha
 }
 
 // ==========================================
-// 2. GIAO DIỆN TRẠNG THÁI (STATUS) - GALAXY WATCH STYLE
+// 2. GIAO DIỆN TRẠNG THÁI (STATUS) - 3 MẪU S4 (MẶC ĐỊNH), S5, S3
 // ==========================================
 void drawSTATUS()
 {
     canvasSprite.fillSprite(TFT_BLACK);
 
-    // 1. Vẽ đồng hồ giờ (Giờ:Phút:Giây) với FONT_CLOCK to, màu trắng nổi bật
-    String timeStr = rtc.getTime("%H:%M:%S");
-    myFont.set_font(FONT_CLOCK);
-    uint16_t timeLen = myFont.getLength(timeStr);
-    myFont.print(120 - timeLen / 2, 25, timeStr, TFT_WHITE, TFT_BLACK);
-
-    // Hiển thị dấu "!" màu cam nếu chưa đồng bộ thời gian từ điện thoại
-    if (!timeSynced)
+    if (statusStyle == 1)
     {
-        myFont.set_font(FONT_HUD_INFO);
-        String excl = "!";
-        myFont.print(120 + timeLen / 2 + 2, 25, excl, TFT_ORANGE, TFT_BLACK);
-    }
+        // ---------------- S5: CLASSIC ANALOG WATCH ----------------
+        // 1. 12 Nấc vạch giờ quanh viền
+        for (int i = 0; i < 12; i++) {
+            float rad = (i * 30.0f - 90.0f) * 0.0174532925f;
+            int x1 = 120 + (int)(96.0f * cos(rad));
+            int y1 = 120 + (int)(96.0f * sin(rad));
+            int x2 = 120 + (int)(108.0f * cos(rad));
+            int y2 = 120 + (int)(108.0f * sin(rad));
+            uint16_t tCol = (i % 3 == 0) ? TFT_GREEN : color565(71, 85, 105);
+            canvasSprite.drawLine(x1, y1, x2, y2, tCol);
+            if (i % 3 == 0) canvasSprite.drawLine(x1 + 1, y1, x2 + 1, y2, tCol);
+        }
 
-    // 2. Vẽ ngày tháng bằng font vietnamtimes12 tinh tế
-    String dateStr = rtc.getTime("%A, %d/%m/%Y");
-    myFont.set_font(vietnamtimes12);
-    uint16_t dateLen = myFont.getLength(dateStr);
-    myFont.print(120 - dateLen / 2, 75, dateStr, TFT_WHITE, TFT_BLACK);
-
-    // 3. Vẽ thời tiết (Sử dụng Icon và chữ kết hợp)
-    if (weatherIcon.length() > 0)
-    {
-        drawWeatherIcon(canvasSprite, weatherIcon, 50, 110);
-        char wxBuf[32];
-        snprintf(wxBuf, sizeof(wxBuf), "%.0f°C  %s", weatherTemp, weatherIcon.c_str());
+        // 2. Ô Ngày tháng Tiếng Việt ở góc trên (y = 55)
+        const char* dayOfWeekVi[] = { "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy" };
+        int dow = rtc.getDayofWeek();
+        if (dow < 0 || dow > 6) dow = 0;
+        String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m");
         myFont.set_font(vietnamtimes12);
-        myFont.print(70, 103, wxBuf, TFT_YELLOW, TFT_BLACK);
+        uint16_t dateLen = myFont.getLength(dateStr);
+        canvasSprite.fillRoundRect(120 - dateLen / 2 - 8, 52, dateLen + 16, 24, 6, color565(15, 23, 42));
+        canvasSprite.drawRoundRect(120 - dateLen / 2 - 8, 52, dateLen + 16, 24, 6, color565(51, 65, 85));
+        myFont.print(120 - dateLen / 2, 57, dateStr, TFT_WHITE, color565(15, 23, 42));
+
+        // 3. Kim đồng hồ kim Vector (Tâm 120, 120)
+        int hours = rtc.getHour(true);
+        int minutes = rtc.getMinute();
+        float hRad = ((hours % 12) * 30.0f + minutes * 0.5f - 90.0f) * 0.0174532925f;
+        float mRad = (minutes * 6.0f - 90.0f) * 0.0174532925f;
+
+        int hx = 120 + (int)(42.0f * cos(hRad));
+        int hy = 120 + (int)(42.0f * sin(hRad));
+        int mx = 120 + (int)(68.0f * cos(mRad));
+        int my = 120 + (int)(68.0f * sin(mRad));
+
+        canvasSprite.drawLine(120, 120, hx, hy, TFT_WHITE);
+        canvasSprite.drawLine(121, 120, hx + 1, hy, TFT_WHITE);
+        canvasSprite.drawLine(120, 120, mx, my, TFT_GREEN);
+        canvasSprite.fillCircle(120, 120, 4, TFT_GREEN);
+
+        // 4. Badge Pin ở đáy (y = 165)
+        char batBuf[32];
+        snprintf(batBuf, sizeof(batBuf), "⚡ %.1fV  ·  %d%%", batteryVoltage, phoneBatteryLevel >= 0 ? phoneBatteryLevel : 100);
+        myFont.set_font(FONT_STATUS_INFO);
+        uint16_t batLen = myFont.getLength(batBuf);
+        myFont.print(120 - batLen / 2, 165, batBuf, TFT_GREEN, TFT_BLACK);
+    }
+    else if (statusStyle == 2)
+    {
+        // ---------------- S3: DUAL ENERGY PILL ----------------
+        // 1. Giờ số ở tâm (y = 20)
+        String timeStr = rtc.getTime("%H:%M:%S");
+        myFont.set_font(FONT_CLOCK);
+        uint16_t timeLen = myFont.getLength(timeStr);
+        myFont.print(120 - timeLen / 2, 20, timeStr, TFT_WHITE, TFT_BLACK);
+
+        if (!timeSynced)
+        {
+            myFont.set_font(FONT_HUD_INFO);
+            String excl = "!";
+            myFont.print(120 + timeLen / 2 + 2, 20, excl, TFT_ORANGE, TFT_BLACK);
+        }
+
+        // 2. Thứ & Ngày tháng Tiếng Việt (y = 65)
+        const char* dayOfWeekVi[] = { "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy" };
+        int dow = rtc.getDayofWeek();
+        if (dow < 0 || dow > 6) dow = 0;
+        String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m/%Y");
+        myFont.set_font(vietnamtimes12);
+        uint16_t dateLen = myFont.getLength(dateStr);
+        myFont.print(120 - dateLen / 2, 65, dateStr, TFT_WHITE, TFT_BLACK);
+
+        // 3. Thời tiết (y = 98)
+        if (weatherIcon.length() > 0)
+        {
+            drawWeatherIcon(canvasSprite, weatherIcon, 45, 98);
+            char wxBuf[32];
+            snprintf(wxBuf, sizeof(wxBuf), "%.0f°C  %s", weatherTemp, weatherIcon.c_str());
+            myFont.set_font(vietnamtimes12);
+            myFont.print(68, 93, wxBuf, TFT_YELLOW, TFT_BLACK);
+        }
+        else
+        {
+            char tempBuf[32];
+            snprintf(tempBuf, sizeof(tempBuf), "Thời tiết: 31°C Nắng");
+            myFont.set_font(vietnamtimes12);
+            uint16_t tempLen = myFont.getLength(tempBuf);
+            myFont.print(120 - tempLen / 2, 95, tempBuf, TFT_YELLOW, TFT_BLACK);
+        }
+
+        // 4. Pill 1: Ắc quy xe (Trái)
+        char batBuf[16];
+        snprintf(batBuf, sizeof(batBuf), "Ắc quy: %.1fV", batteryVoltage);
+        canvasSprite.fillRoundRect(18, 140, 98, 34, 10, color565(15, 23, 42));
+        canvasSprite.drawRoundRect(18, 140, 98, 34, 10, TFT_GREEN);
+        myFont.set_font(vietnamtimes12);
+        myFont.print(24, 149, batBuf, TFT_GREEN, color565(15, 23, 42));
+
+        // 5. Pill 2: Pin Phone (Phải)
+        char phoneBuf[16];
+        snprintf(phoneBuf, sizeof(phoneBuf), "Phone: %d%%", phoneBatteryLevel >= 0 ? phoneBatteryLevel : 100);
+        canvasSprite.fillRoundRect(124, 140, 98, 34, 10, color565(15, 23, 42));
+        canvasSprite.drawRoundRect(124, 140, 98, 34, 10, TFT_CYAN);
+        myFont.print(130, 149, phoneBuf, TFT_CYAN, color565(15, 23, 42));
     }
     else
     {
-        char tempBuf[48];
-        snprintf(tempBuf, sizeof(tempBuf), "Thời tiết: Chưa cập nhật");
+        // ---------------- S4a: CYBER DUAL ARC GAUGES (MATCH EXACT WEB SKETCH) ----------------
+        // 1. Cung vạch Ắc-quy xe (Trái: 130°..230°, R=110px, Xanh Lá Neon)
+        int vSpan = (int)((batteryVoltage / 15.0f) * 100.0f);
+        if (vSpan > 100) vSpan = 100;
+        uint16_t vColor = (batteryVoltage > 12.0f) ? TFT_GREEN : ((batteryVoltage > 11.0f) ? TFT_YELLOW : TFT_RED);
+
+        drawArcSegment(canvasSprite, 120, 120, 110, 130, 230, color565(30, 41, 59));
+        drawArcSegment(canvasSprite, 120, 120, 110, 130, 130 + vSpan, vColor);
+        drawArcSegment(canvasSprite, 120, 120, 109, 130, 130 + vSpan, vColor);
+
+        char vBuf[12];
+        snprintf(vBuf, sizeof(vBuf), "%.1fV", batteryVoltage);
         myFont.set_font(FONT_STATUS_INFO);
-        uint16_t tempLen = myFont.getLength(tempBuf);
-        myFont.print(120 - tempLen / 2, 110, tempBuf, TFT_YELLOW, TFT_BLACK);
-    }
+        myFont.print(16, 112, vBuf, vColor, TFT_BLACK);
 
-    // 4. Vẽ pin ắc quy xe đạp (Chữ màu xanh lá cây mát mắt ở dòng tiếp theo)
-    char batBuf[32];
-    snprintf(batBuf, sizeof(batBuf), "Ắc quy: %.1fV", batteryVoltage);
-    myFont.set_font(FONT_STATUS_INFO);
-    uint16_t batLen = myFont.getLength(batBuf);
-    myFont.print(120 - batLen / 2, 140, batBuf, TFT_GREEN, TFT_BLACK);
+        // 2. Cung vạch Pin Phone (Phải: -50°..50°, R=110px, Cyan)
+        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
+        int pSpan = (int)((pBat / 100.0f) * 100.0f);
+        if (pSpan > 100) pSpan = 100;
 
-    // 5. Vẽ pin điện thoại (Sử dụng Icon và chữ tương tự drawINFO)
-    if (phoneBatteryLevel >= 0)
-    {
-        drawPhoneBatteryIcon(canvasSprite, 42, 170, phoneBatteryLevel, phoneBatteryCharging);
-        char phoneBuf[24];
-        snprintf(phoneBuf, sizeof(phoneBuf), "Phone: %d%%%s",
-                 phoneBatteryLevel, phoneBatteryCharging ? " ⚡" : "");
+        drawArcSegment(canvasSprite, 120, 120, 110, -50, 50, color565(30, 41, 59));
+        drawArcSegment(canvasSprite, 120, 120, 110, -50, -50 + pSpan, TFT_CYAN);
+        drawArcSegment(canvasSprite, 120, 120, 109, -50, -50 + pSpan, TFT_CYAN);
+
+        char pBuf[12];
+        snprintf(pBuf, sizeof(pBuf), "%d%%", pBat);
+        myFont.set_font(FONT_STATUS_INFO);
+        uint16_t pLen = myFont.getLength(pBuf);
+        myFont.print(224 - pLen, 112, pBuf, TFT_CYAN, TFT_BLACK);
+
+        // 3. Giờ số Cyan to ở trung tâm (y = 65)
+        String timeStr = rtc.getTime("%H:%M");
+        myFont.set_font(FONT_CLOCK);
+        uint16_t timeLen = myFont.getLength(timeStr);
+        myFont.print(120 - timeLen / 2, 65, timeStr, TFT_CYAN, TFT_BLACK);
+
+        // 4. Thứ & Ngày tháng Tiếng Việt ở trung tâm (y = 118)
+        const char* dayOfWeekVi[] = { "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy" };
+        int dow = rtc.getDayofWeek();
+        if (dow < 0 || dow > 6) dow = 0;
+        String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m/%Y");
         myFont.set_font(vietnamtimes12);
-        uint16_t pLen = myFont.getLength(phoneBuf);
-        myFont.print(120 - pLen / 2 + 12, 170, phoneBuf,
-                     phoneBatteryLevel < 20 ? TFT_RED : TFT_WHITE, TFT_BLACK);
+        uint16_t dateLen = myFont.getLength(dateStr);
+        myFont.print(120 - dateLen / 2, 118, dateStr, TFT_WHITE, TFT_BLACK);
+
+        // 5. Thời tiết Vàng rực rỡ + Mặt trời Vector ở trung tâm (y = 145)
+        char wxBuf[32];
+        if (weatherTemp > -50.0f && weatherTemp < 60.0f) {
+            snprintf(wxBuf, sizeof(wxBuf), "%.0f°C  Nắng", weatherTemp);
+        } else {
+            snprintf(wxBuf, sizeof(wxBuf), "31°C  Nắng");
+        }
+        myFont.set_font(vietnamtimes12);
+        uint16_t wxLen = myFont.getLength(wxBuf);
+        int wxX = 120 - (wxLen + 18) / 2;
+        canvasSprite.fillCircle(wxX + 6, 151, 5, TFT_YELLOW);
+        canvasSprite.drawCircle(wxX + 6, 151, 7, TFT_ORANGE);
+        myFont.print(wxX + 18, 145, wxBuf, TFT_YELLOW, TFT_BLACK);
     }
 
     // Vẽ Overlay Cảnh báo Giao thông (nếu có)
@@ -418,113 +688,111 @@ void drawArcSegment(TFT_eSprite &sprite, int cx, int cy, int r, int startAngle, 
     }
 }
 
-// Mở menu chồng chế độ LÊN SPRITE (Dạng Cung Tròn 5 hướng)
+// Mở menu chồng chế độ LÊN SPRITE (BIẾN THỂ M3a: MULTI-RING MATRIX HUD)
 void drawMenuOverlay()
 {
     canvasSprite.fillSprite(TFT_BLACK);
 
-    // 1. Vẽ viền tròn ngoài cùng màn hình
-    canvasSprite.drawCircle(120, 120, 115, TFT_WHITE);
+    // Dynamic Color Accent per menu item:
+    // 0: HUD (Cyan), 1: MAP (Green), 2: STATUS (Yellow), 3: INFO (Purple), 4: NOTIF (Red)
+    uint16_t accentColors[] = { TFT_CYAN, TFT_GREEN, TFT_YELLOW, 0xA81F, 0xF810 };
+    uint16_t currentAccent = accentColors[menuSelectedIndex % 5];
 
-    // 2. Vẽ 5 đường thẳng phân chia góc (18, 90, 162, 234, 306 độ)
-    float angles[] = {18, 90, 162, 234, 306};
-    for (int i = 0; i < 5; i++)
-    {
-        float rad = angles[i] * DEG_TO_RAD;
-        int xStart = 120 + 42 * cos(rad);
-        int yStart = 120 + 42 * sin(rad);
-        int xEnd = 120 + 115 * cos(rad);
-        int yEnd = 120 + 115 * sin(rad);
-        canvasSprite.drawLine(xStart, yStart, xEnd, yEnd, TFT_WHITE);
-    }
-
-    // 3. Vẽ dải cung tròn xanh lá (Green Arc Segment) bao viền ngoài cung được chọn
-    if (menuSelectedIndex == 0)
-    { // HUD (North): 234° đến 306°
-        drawArcSegment(canvasSprite, 120, 120, 114, 234, 306, TFT_GREEN);
-    }
-    else if (menuSelectedIndex == 1)
-    { // BẢN ĐỒ (East-North-East): 306° đến 378°
-        drawArcSegment(canvasSprite, 120, 120, 114, 306, 378, TFT_GREEN);
-    }
-    else if (menuSelectedIndex == 2)
-    { // STATUS (South-East): 18° đến 90°
-        drawArcSegment(canvasSprite, 120, 120, 114, 18, 90, TFT_GREEN);
-    }
-    else if (menuSelectedIndex == 3)
-    { // INFO (South-West): 90° đến 162°
-        drawArcSegment(canvasSprite, 120, 120, 114, 90, 162, TFT_GREEN);
-    }
-    else if (menuSelectedIndex == 4)
-    { // NOTIF (West-North-West): 162° đến 234°
-        drawArcSegment(canvasSprite, 120, 120, 114, 162, 234, TFT_GREEN);
-    }
-
-    // 4. Vẽ các Icon tại các tâm cung
-    int xs[] = {120, 191, 164, 76, 49};
-    int ys[] = {45, 97, 181, 181, 97};
+    // 1. Render 5 Outer Sector Arc Segments at radius R = 110px
+    // Angles: HUD (-120°..-60°), MAP (-50°..10°), STATUS (20°..80°), INFO (90°..150°), NOTIF (160°..220°)
+    int startAngles[] = {-120, -50, 20, 90, 160};
+    int endAngles[]   = {-60,   10, 80, 150, 220};
 
     for (int i = 0; i < 5; i++)
     {
         bool isSelected = (i == menuSelectedIndex);
-        int cx = xs[i];
-        int cy = ys[i];
+        uint16_t arcColor = isSelected ? accentColors[i] : color565(30, 41, 59);
 
-        uint16_t iconColor = isSelected ? TFT_GREEN : TFT_WHITE;
+        // Draw Arc Segment
+        drawArcSegment(canvasSprite, 120, 120, 110, startAngles[i], endAngles[i], arcColor);
+        if (isSelected) {
+            drawArcSegment(canvasSprite, 120, 120, 109, startAngles[i], endAngles[i], arcColor);
+            drawArcSegment(canvasSprite, 120, 120, 111, startAngles[i], endAngles[i], TFT_WHITE);
+        }
 
-        if (i == 0)
-        { // HUD: Mũi tên dẫn đường hướng lên
-            canvasSprite.drawLine(cx, cy + 10, cx, cy - 10, iconColor);
-            canvasSprite.drawLine(cx, cy - 10, cx - 6, cy - 4, iconColor);
-            canvasSprite.drawLine(cx, cy - 10, cx + 6, cy - 4, iconColor);
-        }
-        else if (i == 1)
-        { // MAP: Bản đồ gấp khúc
-            canvasSprite.drawRect(cx - 9, cy - 9, 6, 18, iconColor);
-            canvasSprite.drawRect(cx - 3, cy - 7, 6, 18, iconColor);
-            canvasSprite.drawRect(cx + 3, cy - 9, 6, 18, iconColor);
-        }
-        else if (i == 2)
-        { // STATUS: Đồng hồ
-            canvasSprite.drawCircle(cx, cy, 10, iconColor);
-            canvasSprite.drawLine(cx, cy, cx, cy - 6, iconColor);
-            canvasSprite.drawLine(cx, cy, cx + 5, cy, iconColor);
-        }
-        else if (i == 3)
-        { // INFO: Chữ i
-            canvasSprite.drawCircle(cx, cy - 6, 2, iconColor);
-            canvasSprite.drawLine(cx, cy - 2, cx, cy + 6, iconColor);
-            canvasSprite.drawLine(cx - 3, cy - 2, cx + 3, cy - 2, iconColor);
-            canvasSprite.drawLine(cx - 3, cy + 6, cx + 3, cy + 6, iconColor);
-        }
-        else if (i == 4)
-        { // NOTIF: Envelope
-            canvasSprite.drawRect(cx - 8, cy - 6, 16, 12, iconColor);
-            canvasSprite.drawLine(cx - 8, cy - 6, cx, cy, iconColor);
-            canvasSprite.drawLine(cx + 8, cy - 6, cx, cy, iconColor);
+        // Render Crisp Vector Icon near middle of arc
+        float midDeg = (startAngles[i] + endAngles[i]) / 2.0f;
+        float midRad = midDeg * 0.0174532925f;
+        int ix = 120 + (int)(92.0f * cos(midRad));
+        int iy = 120 + (int)(92.0f * sin(midRad));
+
+        uint16_t iconColor = isSelected ? accentColors[i] : color565(100, 116, 139);
+
+        if (i == 0) { // HUD
+            canvasSprite.drawLine(ix, iy + 6, ix, iy - 6, iconColor);
+            canvasSprite.fillTriangle(ix, iy - 7, ix - 4, iy - 1, ix + 4, iy - 1, iconColor);
+        } else if (i == 1) { // MAP
+            canvasSprite.drawRect(ix - 5, iy - 5, 3, 10, iconColor);
+            canvasSprite.drawRect(ix - 2, iy - 4, 3, 10, iconColor);
+            canvasSprite.drawRect(ix + 1, iy - 5, 3, 10, iconColor);
+        } else if (i == 2) { // STATUS
+            canvasSprite.drawCircle(ix, iy, 6, iconColor);
+            canvasSprite.drawLine(ix, iy, ix, iy - 3, iconColor);
+            canvasSprite.drawLine(ix, iy, ix + 3, iy, iconColor);
+        } else if (i == 3) { // INFO
+            canvasSprite.fillCircle(ix, iy - 4, 1, iconColor);
+            canvasSprite.drawLine(ix, iy - 1, ix, iy + 4, iconColor);
+            canvasSprite.drawLine(ix - 2, iy - 1, ix + 2, iy - 1, iconColor);
+            canvasSprite.drawLine(ix - 2, iy + 4, ix + 2, iy + 4, iconColor);
+        } else if (i == 4) { // NOTIF
+            canvasSprite.drawRect(ix - 5, iy - 4, 10, 8, iconColor);
+            canvasSprite.drawLine(ix - 5, iy - 4, ix, iy, iconColor);
+            canvasSprite.drawLine(ix + 5, iy - 4, ix, iy, iconColor);
         }
     }
 
-    // 5. Vẽ vòng tròn trung tâm
-    canvasSprite.fillCircle(120, 120, 42, TFT_BLACK);
-    canvasSprite.drawCircle(120, 120, 42, TFT_WHITE);
+    // 2. Double Center Hub Circle (cx=120, cy=120)
+    uint16_t hubBg = color565(15, 23, 42); // Solid dark navy
+    canvasSprite.fillCircle(120, 120, 48, hubBg);
+    canvasSprite.drawCircle(120, 120, 48, currentAccent);
+    canvasSprite.drawCircle(120, 120, 47, currentAccent);
+    canvasSprite.drawCircle(120, 120, 41, color565(51, 65, 85));
 
-    // 6. In tên Tiếng Việt chế độ đang chọn ở tâm vòng tròn
+    // Big Vector Icon at Center Hub
+    int cx = 120, cy = 100;
+    uint16_t hubIconColor = currentAccent;
+
+    if (menuSelectedIndex == 0) { // HUD Arrow
+        canvasSprite.drawLine(cx, cy + 10, cx, cy - 10, hubIconColor);
+        canvasSprite.fillTriangle(cx, cy - 12, cx - 7, cy - 2, cx + 7, cy - 2, hubIconColor);
+    } else if (menuSelectedIndex == 1) { // MAP
+        canvasSprite.drawRect(cx - 9, cy - 9, 6, 18, hubIconColor);
+        canvasSprite.drawRect(cx - 3, cy - 7, 6, 18, hubIconColor);
+        canvasSprite.drawRect(cx + 3, cy - 9, 6, 18, hubIconColor);
+    } else if (menuSelectedIndex == 2) { // STATUS Clock
+        canvasSprite.drawCircle(cx, cy, 10, hubIconColor);
+        canvasSprite.drawLine(cx, cy, cx, cy - 6, hubIconColor);
+        canvasSprite.drawLine(cx, cy, cx + 5, cy, hubIconColor);
+    } else if (menuSelectedIndex == 3) { // INFO
+        canvasSprite.fillCircle(cx, cy - 6, 2, hubIconColor);
+        canvasSprite.drawLine(cx, cy - 2, cx, cy + 6, hubIconColor);
+        canvasSprite.drawLine(cx - 3, cy - 2, cx + 3, cy - 2, hubIconColor);
+        canvasSprite.drawLine(cx - 3, cy + 6, cx + 3, cy + 6, hubIconColor);
+    } else if (menuSelectedIndex == 4) { // NOTIF
+        canvasSprite.drawRect(cx - 8, cy - 6, 16, 12, hubIconColor);
+        canvasSprite.drawLine(cx - 8, cy - 6, cx, cy, hubIconColor);
+        canvasSprite.drawLine(cx + 8, cy - 6, cx, cy, hubIconColor);
+    }
+
+    // In tên Tiếng Việt chế độ đang chọn ở tâm vòng tròn (y = 124)
     String selectedName = "";
-    if (menuSelectedIndex == 0)
-        selectedName = "DẪN ĐƯỜNG";
-    else if (menuSelectedIndex == 1)
-        selectedName = "BẢN ĐỒ";
-    else if (menuSelectedIndex == 2)
-        selectedName = "STATUS";
-    else if (menuSelectedIndex == 3)
-        selectedName = "INFO";
-    else if (menuSelectedIndex == 4)
-        selectedName = "THÔNG BÁO";
+    switch (menuSelectedIndex) {
+        case 0: selectedName = "DẪN ĐƯỜNG"; break;
+        case 1: selectedName = "BẢN ĐỒ"; break;
+        case 2: selectedName = "TRẠNG THÁI"; break;
+        case 3: selectedName = "THÔNG TIN"; break;
+        case 4: selectedName = "THÔNG BÁO"; break;
+        default: selectedName = "TYMAP"; break;
+    }
 
     myFont.set_font(FONT_MENU_OPTION);
     uint16_t nameLen = myFont.getLength(selectedName);
-    myFont.print(120 - nameLen / 2, 114, selectedName, TFT_GREEN, TFT_BLACK);
+    myFont.print(120 - nameLen / 2, 122, selectedName, TFT_WHITE, hubBg);
 
     canvasSprite.pushSprite(0, 0);
 }
@@ -583,7 +851,7 @@ void drawINFO()
 
     // 7. Cache icon
     char cacheBuf[32];
-    snprintf(cacheBuf, sizeof(cacheBuf), "Icon Cache: %d/50", cacheSize);
+    snprintf(cacheBuf, sizeof(cacheBuf), "Icon Cache: %d/50", staticIconIndex);
     uint16_t cacheLen = myFont.getLength(cacheBuf);
     myFont.print(120 - cacheLen / 2, 160, cacheBuf, TFT_WHITE, TFT_BLACK);
 
@@ -689,7 +957,7 @@ uint16_t getAppAccentColor(const String& appName)
 }
 
 // ==========================================
-// 6. GIAO DIỆN HIỂN THỊ THÔNG BÁO (MODEL A: DYNAMIC RING ARC)
+// 6. GIAO DIỆN HIỂN THỊ THÔNG BÁO (N1: FLOATING CARD / N2: FULLSCREEN FOCUS)
 // ==========================================
 void drawNOTIF()
 {
@@ -697,92 +965,61 @@ void drawNOTIF()
 
     if (notifCount == 0)
     {
-        // Khung Glassmorphic mờ cho trạng thái trống
-        canvasSprite.fillRoundRect(20, 50, 200, 140, 16, 0x18E3);
-        canvasSprite.drawRoundRect(20, 50, 200, 140, 16, 0x39E7);
+        canvasSprite.fillRoundRect(20, 50, 200, 140, 16, color565(15, 23, 42));
+        canvasSprite.drawRoundRect(20, 50, 200, 140, 16, TFT_CYAN);
 
-        // Icon Envelope / Phong thư
         int cx = 120, cy = 105;
-        canvasSprite.drawRect(cx - 18, cy - 14, 36, 26, 0x7BEF);
-        canvasSprite.drawLine(cx - 18, cy - 14, cx, cy, 0x7BEF);
-        canvasSprite.drawLine(cx + 18, cy - 14, cx, cy, 0x7BEF);
+        canvasSprite.drawRect(cx - 18, cy - 14, 36, 26, TFT_WHITE);
+        canvasSprite.drawLine(cx - 18, cy - 14, cx, cy, TFT_WHITE);
+        canvasSprite.drawLine(cx + 18, cy - 14, cx, cy, TFT_WHITE);
 
         String emptyStr = "Không có thông báo mới";
         myFont.set_font(FONT_STATUS_INFO);
         uint16_t emptyLen = myFont.getLength(emptyStr);
-        myFont.print(120 - emptyLen / 2, 145, emptyStr, 0xBDF7, 0x18E3);
+        myFont.print(120 - emptyLen / 2, 145, emptyStr, TFT_WHITE, color565(15, 23, 42));
     }
     else
     {
         String appName = notifList[notifViewIndex].app;
         if (appName.length() == 0) appName = "Thông báo";
         uint16_t accent = getAppAccentColor(appName);
+        String senderTitle = notifList[notifViewIndex].title;
+        if (senderTitle.length() == 0) senderTitle = appName;
 
-        // 1. Top Header Arc Badge (y = 10..34)
+        // ---------------- MẪU N2-ALPHA: BIG HEADER APP PILL (THUẦN NOTIF DUY NHẤT) ----------------
+        // 1. Khung Pill Tên App ở đỉnh (cx=120, y=18, w=170, h=36)
+        uint16_t cardBg = color565(15, 23, 42);
+        canvasSprite.fillRoundRect(35, 18, 170, 36, 18, cardBg);
+        canvasSprite.drawRoundRect(35, 18, 170, 36, 18, accent);
+
+        // Icon Badge Tròn nhỏ bên trong Pill Header
+        canvasSprite.fillCircle(53, 36, 11, accent);
+        myFont.set_font(vietnamtimes12);
+        String initial = appName.substring(0, 1);
+        initial.toUpperCase();
+        myFont.print(48, 30, initial, TFT_WHITE, accent);
+
+        // Tên Ứng Dụng inside Header Pill
+        myFont.set_font(vietnamtimes12);
+        myFont.print(72, 30, appName, accent, cardBg);
+
+        // 2. Tên Người Gửi Chữ Đậm ở trung tâm (y = 68)
         myFont.set_font(FONT_NOTIF_TITLE);
-        String badgeText = appName;
-        badgeText.toUpperCase();
-        if (badgeText.length() > 12) badgeText = badgeText.substring(0, 10) + "..";
-        uint16_t badgeTextLen = myFont.getLength(badgeText);
-        int badgeW = badgeTextLen + 24;
-        if (badgeW < 76) badgeW = 76;
-        if (badgeW > 154) badgeW = 154;
+        uint16_t tLen = myFont.getLength(senderTitle);
+        myFont.print(120 - tLen / 2, 68, senderTitle, TFT_WHITE, TFT_BLACK);
 
-        // Curved top pill header
-        canvasSprite.fillRoundRect(120 - badgeW / 2, 10, badgeW, 24, 12, accent);
-        canvasSprite.drawRoundRect(120 - badgeW / 2, 10, badgeW, 24, 12, TFT_WHITE);
-        myFont.print(120 - badgeTextLen / 2, 14, badgeText, TFT_BLACK, accent);
+        // 3. Vạch phân cách Accent Horizontal Line (y = 92)
+        canvasSprite.drawFastHLine(35, 92, 170, accent);
 
-        // 2. Right-Edge Circular Arc Gauge (Thanh Vòng Cung Tiến Trình Bên Phải)
-        // Góc từ -35 độ đến +35 độ quanh tâm (120, 120), bán kính R = 113
-        float startDeg = -35.0f;
-        float endDeg = 35.0f;
-        float progressRatio = (float)(notifViewIndex + 1) / (float)notifCount;
-        float activeDeg = startDeg + (endDeg - startDeg) * progressRatio;
+        // 4. Nội dung tin nhắn Tiếng Việt tự động xuống dòng (y = 104)
+        printWrappedText(104, notifList[notifViewIndex].msg, color565(226, 232, 240), TFT_BLACK, 175);
 
-        for (float deg = startDeg; deg <= endDeg; deg += 3.5f)
-        {
-            float rad = deg * 0.0174532925f; // deg * PI / 180
-            int ax = 120 + (int)(113.0f * cos(rad));
-            int ay = 120 + (int)(113.0f * sin(rad));
-
-            if (deg <= activeDeg)
-            {
-                canvasSprite.fillCircle(ax, ay, 3, accent);
-            }
-            else
-            {
-                canvasSprite.fillCircle(ax, ay, 2, 0x39E7);
-            }
-        }
-
-        // 3. Khung chứa nội dung tin nhắn Glassmorphic Card (y = 40..186)
-        canvasSprite.fillRoundRect(15, 40, 195, 146, 16, 0x18E3);
-        canvasSprite.drawRoundRect(15, 40, 195, 146, 16, accent);
-
-        // 4. Tiêu đề thông báo
-        String notifTitle = notifList[notifViewIndex].title;
-        if (notifTitle.length() == 0) notifTitle = appName;
-        myFont.set_font(FONT_NOTIF_TITLE);
-        uint16_t titleLen = myFont.getLength(notifTitle);
-        if (titleLen > 165)
-        {
-            notifTitle = notifTitle.substring(0, 18) + "...";
-            titleLen = myFont.getLength(notifTitle);
-        }
-        myFont.print(112 - titleLen / 2, 48, notifTitle, TFT_WHITE, 0x18E3);
-
-        // Đường kẻ gạch ngang phân tách tiêu đề
-        canvasSprite.drawFastHLine(22, 68, 180, accent);
-
-        // 5. Nội dung thông báo tự động xuống dòng ôm lề
-        printWrappedText(74, notifList[notifViewIndex].msg, 0xE79C, 0x18E3, 178);
-
-        // 6. Dòng chỉ dẫn nút bấm (y = 212)
-        String footerStr = isNotifPopupTransient ? "Bấm nút: Đóng" : "Bấm nút: Tiếp theo";
-        myFont.set_font(FONT_HUD_INFO);
-        uint16_t footerLen = myFont.getLength(footerStr);
-        myFont.print(120 - footerLen / 2, 212, footerStr, 0x7BEF, TFT_BLACK);
+        // 5. Thanh đếm trang & phím bấm ở đáy (y = 186)
+        char pageBuf[32];
+        snprintf(pageBuf, sizeof(pageBuf), "[%d/%d] MODE: Xem tiếp", notifViewIndex + 1, notifCount);
+        myFont.set_font(FONT_STATUS_INFO);
+        uint16_t pLen = myFont.getLength(pageBuf);
+        myFont.print(120 - pLen / 2, 186, pageBuf, color565(148, 163, 184), TFT_BLACK);
     }
 
     canvasSprite.pushSprite(0, 0);

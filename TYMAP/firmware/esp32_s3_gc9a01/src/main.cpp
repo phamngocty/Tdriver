@@ -89,7 +89,7 @@ Mode selectedMode = STATUS_MODE;
 Mode previousModeBeforeNotif = STATUS_MODE;
 
 Preferences preferences;
-int hudTimeout = 3; // mặc định 3s
+int hudTimeout = 0; // mặc định 0 = Không tự đóng (Vĩnh viễn)
 
 // Notification Storage
 NotificationItem notifList[3];
@@ -218,6 +218,7 @@ CachedIcon iconCache[50];
 int cacheSize = 0;
 uint32_t currentIconHash = 0;
 bool hasCustomIcon = false;
+uint8_t staticIconIndex = 0;
 uint8_t customIconBitmap[288];
 
 
@@ -585,8 +586,12 @@ void renderJpegImage(const uint8_t *data, uint32_t size)
         canvasSprite.setSwapBytes(false);
         jpeg.close();
 
-        // Vẽ thêm thông tin đè lên bản đồ nếu ở chế độ MAP hoặc Popup HUD
-        if (currentMode == MAP_MODE || isPopupActive)
+        // Vẽ thêm thông tin đè lên bản đồ nếu ở chế độ MAP_HUD, MAP hoặc Popup HUD
+        if (currentMode == MAP_HUD_MODE || (currentMode == MAP_MODE && showMapHudCard))
+        {
+            drawMapHudOverlay();
+        }
+        else if (currentMode == MAP_MODE || isPopupActive)
         {
             drawMapOverlay();
         }
@@ -811,6 +816,24 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     {
                         hudTimeout = value.toInt();
                         preferences.putInt("hudTimeout", hudTimeout);
+                    }
+                    else if (key == "statusStyle")
+                    {
+                        statusStyle = (uint8_t)value.toInt();
+                        preferences.putUChar("statusStyle", statusStyle);
+                        screenNeedsRedraw = true;
+                    }
+                    else if (key == "notifStyle")
+                    {
+                        notifStyle = (uint8_t)value.toInt();
+                        preferences.putUChar("notifStyle", notifStyle);
+                        screenNeedsRedraw = true;
+                    }
+                    else if (key == "mapHudStyle")
+                    {
+                        mapHudStyle = (uint8_t)value.toInt();
+                        preferences.putUChar("mapHudStyle", mapHudStyle);
+                        screenNeedsRedraw = true;
                     }
                 }
             }
@@ -1346,9 +1369,12 @@ void setup()
 
     // Tải cài đặt từ bộ nhớ NVS
     preferences.begin("tymap", false);
-    hudTimeout = preferences.getInt("hudTimeout", 3);
+    hudTimeout = preferences.getInt("hudTimeout", 0); // Mặc định 0 = Vĩnh viễn (Không tự đóng)
     popupDuration = preferences.getInt("popupDuration", 5);
     brightness = preferences.getInt("brightness", 80);
+    statusStyle = preferences.getUChar("statusStyle", 0); // Mặc định Mẫu S4 (Cyber Dual Gauges)
+    notifStyle = preferences.getUChar("notifStyle", 1); // Mặc định Mẫu N2 (THUẦN NOTIF - Fullscreen Focus)
+    mapHudStyle = preferences.getUChar("mapHudStyle", 0); // Mặc định Mẫu MH1 (Compact Pill)
     setDisplayBrightness(brightness);
 
     NimBLEDevice::init("TYMAP-S3");
@@ -1489,11 +1515,15 @@ void setup()
 
     btnZoom.attachLongPressStart([]()
                                 {
-        if (currentMode == MAP_MODE && pDeviceCtrlChar) {
-            // Zoom Out: Gửi bit 1 = 1 (giá trị 2)
-            uint8_t val = 2;
-            pDeviceCtrlChar->setValue(&val, 1);
-            pDeviceCtrlChar->notify();
+        if (currentMode == MAP_HUD_MODE || currentMode == MAP_MODE) {
+            showMapHudCard = !showMapHudCard;
+            screenNeedsRedraw = true;
+            if (pDeviceCtrlChar) {
+                // Zoom Out: Gửi bit 1 = 1 (giá trị 2)
+                uint8_t val = 2;
+                pDeviceCtrlChar->setValue(&val, 1);
+                pDeviceCtrlChar->notify();
+            }
         } });
 }
 
@@ -1530,8 +1560,8 @@ void loop()
         sendDeviceStatus();
     }
 
-    // Kiểm tra timeout của HUD để về STATUS mode
-    if (currentMode == HUD_MODE && millis() - lastNavUpdate > (uint32_t)(hudTimeout * 1000))
+    // Kiểm tra timeout của HUD/MAP_HUD để về STATUS mode (chỉ đóng khi hudTimeout > 0)
+    if ((currentMode == HUD_MODE || currentMode == MAP_HUD_MODE) && hudTimeout > 0 && (millis() - lastNavUpdate > (uint32_t)(hudTimeout * 1000)))
     {
         currentMode = STATUS_MODE;
         screenNeedsRedraw = true;
@@ -1618,10 +1648,10 @@ void loop()
     }
     else
     {
-        if (currentMode == HUD_MODE)
+        if (currentMode == HUD_MODE || currentMode == MAP_HUD_MODE || currentMode == MAP_MODE)
         {
             myFont.set_font(FONT_HUD_STREET);
-            if (myFont.getLength(nextStreet) > 200)
+            if (myFont.getLength(nextStreet) > 110)
             {
                 screenNeedsRedraw = true;
             }
@@ -1634,6 +1664,7 @@ void loop()
             case HUD_MODE:
                 drawHUD();
                 break;
+            case MAP_HUD_MODE:
             case MAP_MODE:
                 if (hasActiveTile)
                 {

@@ -30,8 +30,18 @@
 #define FONT_MENU_OPTION vietnamtimes12   // Font các mục chọn trong menu
 // ====================================================================
 
+#define color565(r, g, b) canvasSprite.color565(r, g, b)
+
 // Khai báo chế độ hiển thị hệ thống
-enum Mode { HUD_MODE, MAP_MODE, STATUS_MODE, INFO_MODE, NOTIF_MODE };
+enum Mode { HUD_MODE, MAP_MODE, MAP_HUD_MODE, STATUS_MODE, INFO_MODE, NOTIF_MODE };
+
+extern bool showMapHudCard;
+extern uint8_t statusStyle; // 0=S1 Minimalist, 1=S2 Sport Racing, 2=S3 Dual Pill
+extern uint8_t notifStyle;  // 0=N1 Floating Card, 1=N2 Fullscreen Focus
+extern bool isMenuOpen;
+extern int menuSelectedIndex;
+extern unsigned long menuStartTime;
+extern int cacheSize;
 
 // Cấu trúc lưu trữ thông báo
 struct NotificationItem {
@@ -77,6 +87,11 @@ extern int phoneBatteryLevel;     // -1 = chưa biết, 0-100 = mức pin
 extern bool phoneBatteryCharging; // đang sạc hay không
 extern bool timeSynced;           // đã đồng bộ thời gian chưa
 
+// Style Selections
+extern uint8_t statusStyle; // 0 = S4 Cyber Dual Gauges, 1 = S5 Classic Analog Watch, 2 = S3 Dual Energy Pill
+extern uint8_t notifStyle;  // 0 = N1 Floating Card 3D, 1 = N2 Fullscreen Focus Card (Mẫu N2-Alpha)
+extern uint8_t mapHudStyle; // 0 = MH1 Compact Floating Pill (85%), 1 = MH3 Minimalist Badge (92%)
+
 // Dữ liệu Notifications
 extern NotificationItem notifList[3];
 extern int notifCount;
@@ -92,8 +107,10 @@ extern unsigned long trafficWarningStartTime;
 
 // Các nguyên mẫu hàm vẽ GUI
 void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset,
-                    int yOffset, int scale = 2);
+                    int yOffset, int scale = 2, uint16_t fgColor = TFT_WHITE);
+void drawArcSegment(TFT_eSprite &sprite, int cx, int cy, int r, int startAngle, int endAngle, uint16_t color);
 void drawHUD();
+void drawMapHudOverlay();
 void drawSTATUS();
 void drawMenuOverlay();
 void drawINFO();
