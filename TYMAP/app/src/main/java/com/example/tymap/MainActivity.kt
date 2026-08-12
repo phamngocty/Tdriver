@@ -16,7 +16,9 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.viewpager2.widget.ViewPager2
 import com.example.tymap.databinding.ActivityMainBinding
+import com.example.tymap.service.NavigationService
 import com.example.tymap.ui.MainPagerAdapter
+import com.example.tymap.utils.PrefsHelper
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -43,7 +45,7 @@ class MainActivity : AppCompatActivity() {
 
         setupViewPager()
         setupBottomNavigation()
-        com.example.tymap.utils.PrefsHelper.putBoolean(this, "render_tab_unlocked", false)
+        PrefsHelper.putBoolean(this, "render_tab_unlocked", false)
         updateRenderTabVisibility()
         handleIntent(intent)
         requestBatteryOptimizationExemption()
@@ -101,7 +103,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startNavigationService() {
-        val intent = Intent(this, com.example.tymap.service.NavigationService::class.java)
+        val intent = Intent(this, NavigationService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
@@ -161,12 +163,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun updateRenderTabVisibility() {
-        val isUnlocked = com.example.tymap.utils.PrefsHelper.getBoolean(this, "render_tab_unlocked", false)
+        val isUnlocked = PrefsHelper.getBoolean(this, "render_tab_unlocked", false)
         binding.bottomNavigation.setRenderTabVisible(isUnlocked)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        com.example.tymap.utils.PrefsHelper.putBoolean(this, "render_tab_unlocked", false)
+        PrefsHelper.putBoolean(this, "render_tab_unlocked", false)
     }
 }
