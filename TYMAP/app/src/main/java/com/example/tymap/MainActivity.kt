@@ -133,20 +133,14 @@ class MainActivity : AppCompatActivity() {
 
         binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
-                binding.bottomNavigation.menu.getItem(position).isChecked = true
+                binding.bottomNavigation.setSelectedTab(position, animate = true)
             }
         })
     }
 
     private fun setupBottomNavigation() {
-        binding.bottomNavigation.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_map -> binding.viewPager.currentItem = 0
-                R.id.nav_settings -> binding.viewPager.currentItem = 1
-                R.id.nav_notifications -> binding.viewPager.currentItem = 2
-                R.id.nav_render -> binding.viewPager.currentItem = 3
-            }
-            true
+        binding.bottomNavigation.setOnItemSelectedListener { position ->
+            binding.viewPager.currentItem = position
         }
     }
 
@@ -168,7 +162,7 @@ class MainActivity : AppCompatActivity() {
 
     fun updateRenderTabVisibility() {
         val isUnlocked = com.example.tymap.utils.PrefsHelper.getBoolean(this, "render_tab_unlocked", false)
-        binding.bottomNavigation.menu.findItem(R.id.nav_render)?.isVisible = isUnlocked
+        binding.bottomNavigation.setRenderTabVisible(isUnlocked)
     }
 
     override fun onDestroy() {

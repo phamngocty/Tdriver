@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="64dp"
+    android:background="@drawable/bg_liquid_nav_capsule"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:elevation="12dp"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp">
+
+    <LinearLayout
+        android:id="@+id/navContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <!-- Tab 0: Map -->
+        <LinearLayout
+            android:id="@+id/tabMap"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:id="@+id/bubbleMap"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/iconMap"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_map"
+                    app:tint="@color/colorTextMuted" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/labelMap"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/nav_map"
+                android:textColor="@color/colorTextMuted"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <!-- Tab 1: Settings -->
+        <LinearLayout
+            android:id="@+id/tabSettings"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:id="@+id/bubbleSettings"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/iconSettings"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_settings"
+                    app:tint="@color/colorTextMuted" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/labelSettings"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Cài đặt"
+                android:textColor="@color/colorTextMuted"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <!-- Tab 2: Notifications -->
+        <LinearLayout
+            android:id="@+id/tabNotifications"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:id="@+id/bubbleNotifications"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/iconNotifications"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_notifications"
+                    app:tint="@color/colorTextMuted" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/labelNotifications"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/nav_notifications"
+                android:textColor="@color/colorTextMuted"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+        <!-- Tab 3: Render (Dynamic) -->
+        <LinearLayout
+            android:id="@+id/tabRender"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:id="@+id/bubbleRender"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/iconRender"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_layers"
+                    app:tint="@color/colorTextMuted" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/labelRender"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Render"
+                android:textColor="@color/colorTextMuted"
+                android:textSize="10sp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</FrameLayout>
