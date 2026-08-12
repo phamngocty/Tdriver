@@ -80,6 +80,7 @@ bool isReceivingJpeg = false;
 volatile bool newMapImageAvailable = false;
 uint8_t *jpegBufferRender = nullptr;
 volatile uint32_t jpegSizeRender = 0;
+portMUX_TYPE mapBufferMux = portMUX_INITIALIZER_UNLOCKED;
 
 // Trạng thái Popup Bản đồ trong HUD
 bool isPopupActive = false;
@@ -930,9 +931,11 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                             isReceivingJpeg = false;
                             if (jpegBufferRender)
                             {
+                                taskENTER_CRITICAL(&mapBufferMux);
                                 memcpy(jpegBufferRender, jpegBuffer, jpegSize);
                                 jpegSizeRender = jpegSize;
                                 newMapImageAvailable = true;
+                                taskEXIT_CRITICAL(&mapBufferMux);
                             }
                             screenNeedsRedraw = true;
                             if (currentMode == HUD_MODE && popupEnabled)
@@ -967,9 +970,11 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     isReceivingJpeg = false;
                     if (jpegBufferRender)
                     {
+                        taskENTER_CRITICAL(&mapBufferMux);
                         memcpy(jpegBufferRender, jpegBuffer, jpegSize);
                         jpegSizeRender = jpegSize;
                         newMapImageAvailable = true;
+                        taskEXIT_CRITICAL(&mapBufferMux);
                     }
                     screenNeedsRedraw = true;
 
@@ -1318,6 +1323,8 @@ void setup()
             }
             if (tileCache[i].rgb565Data) {
                 memset(tileCache[i].rgb565Data, 0, TILE_SIZE * TILE_SIZE * 2);
+            } else {
+                Serial.printf("WARNING: Failed to allocate memory for tileCache[%d]\n", i);
             }
         }
         tileCache[i].lastUsed = 0;
