@@ -50,6 +50,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:singleLine="true"
                 android:text="@string/nav_map"
                 android:textColor="@color/colorTextMuted"
                 android:textSize="10sp" />
@@ -86,7 +89,10 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="Cài đặt"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="@string/nav_settings"
                 android:textColor="@color/colorTextMuted"
                 android:textSize="10sp" />
         </LinearLayout>
@@ -122,6 +128,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:singleLine="true"
                 android:text="@string/nav_notifications"
                 android:textColor="@color/colorTextMuted"
                 android:textSize="10sp" />
@@ -159,6 +168,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:singleLine="true"
                 android:text="Render"
                 android:textColor="@color/colorTextMuted"
                 android:textSize="10sp" />

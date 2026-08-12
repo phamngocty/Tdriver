@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">TYMAP</string>
-    <string name="nav_connection">Connection</string>
-    <string name="nav_map">Map</string>
-    <string name="nav_settings">Settings</string>
-    <string name="nav_notifications">Notifications</string>
+    <string name="nav_connection">Kết nối</string>
+    <string name="nav_map">Bản đồ</string>
+    <string name="nav_settings">Cài đặt</string>
+    <string name="nav_notifications">Thông báo</string>
 
     <!-- Notifications -->
     <string name="notifications_title">Notification Settings</string>

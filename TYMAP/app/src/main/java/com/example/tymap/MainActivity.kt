@@ -13,6 +13,9 @@ import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import android.view.ViewGroup
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.content.ContextCompat
 import androidx.viewpager2.widget.ViewPager2
 import com.example.tymap.databinding.ActivityMainBinding
@@ -143,6 +146,24 @@ class MainActivity : AppCompatActivity() {
     private fun setupBottomNavigation() {
         binding.bottomNavigation.setOnItemSelectedListener { position ->
             binding.viewPager.currentItem = position
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.bottomNavigation) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val params = view.layoutParams as ViewGroup.MarginLayoutParams
+            val density = resources.displayMetrics.density
+            val baseMarginBottom = (12 * density).toInt()
+            params.bottomMargin = baseMarginBottom + insets.bottom
+            view.layoutParams = params
+            windowInsets
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.viewPager) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val density = resources.displayMetrics.density
+            val navHeightWithMargin = (84 * density).toInt() + insets.bottom
+            view.setPadding(0, 0, 0, navHeightWithMargin)
+            windowInsets
         }
     }
 
