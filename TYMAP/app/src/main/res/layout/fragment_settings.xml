@@ -94,13 +94,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="8dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
                     android:padding="16dp">
 
@@ -109,7 +111,7 @@
                         android:layout_height="wrap_content"
                         android:text="1. Dịch vụ &amp; Kết nối"
                         android:textAppearance="?attr/textAppearanceSubtitle1"
-                        android:textColor="?attr/colorPrimary"
+                        android:textColor="@color/colorAccentCyan"
                         android:layout_marginBottom="12dp"
                         android:drawableStart="@drawable/ic_settings"
                         android:drawablePadding="8dp"
@@ -123,22 +125,23 @@
                         android:text="KẾT NỐI BLUETOOTH LE (ESP32)"
                         android:textSize="11sp"
                         android:textStyle="bold"
-                        android:textColor="?attr/colorPrimary"
+                        android:textColor="@color/colorAccentCyan"
                         android:layout_marginBottom="8dp"/>
 
                     <com.google.android.material.card.MaterialCardView
                         android:id="@+id/cardBleStatus"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        app:cardCornerRadius="8dp"
-                        app:cardElevation="1dp"
-                        app:strokeWidth="1dp"
-                        app:strokeColor="?attr/colorOutline"
+                        app:cardBackgroundColor="@android:color/transparent"
+                        app:cardCornerRadius="14dp"
+                        app:cardElevation="2dp"
+                        app:strokeWidth="0dp"
                         android:layout_marginBottom="12dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:background="@drawable/bg_glass_search"
                             android:orientation="vertical"
                             android:padding="12dp">
 
@@ -492,13 +495,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="8dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
                     android:padding="16dp">
 
@@ -634,13 +639,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="8dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
                     android:padding="16dp">
 
@@ -736,13 +743,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="32dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="4dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="8dp"
                 app:strokeWidth="0dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_card"
                     android:orientation="vertical"
                     android:padding="16dp">
 

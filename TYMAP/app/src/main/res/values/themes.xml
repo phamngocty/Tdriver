@@ -3,19 +3,19 @@
     <!-- Base application theme. Luôn sử dụng Dark Theme. -->
     <style name="Theme.TYMAP" parent="Theme.Material3.Dark.NoActionBar">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/blue_primary</item>
+        <item name="colorPrimary">@color/colorAccentCyan</item>
         <item name="colorOnPrimary">@color/white</item>
 
-        <!-- Cấu hình màu nền tối cố định -->
-        <item name="android:windowBackground">#121212</item>
-        <item name="colorSurface">#1C1C1E</item>
+        <!-- Cockpit Dark Glassmorphism Palette -->
+        <item name="android:windowBackground">@color/colorBackgroundDeep</item>
+        <item name="colorSurface">@color/colorSurfaceGlass</item>
         <item name="colorOnSurface">#FFFFFF</item>
-        <item name="colorSurfaceVariant">#2C2C2E</item>
-        <item name="colorOnSurfaceVariant">#AEAEB2</item>
+        <item name="colorSurfaceVariant">#1E293B</item>
+        <item name="colorOnSurfaceVariant">#94A3B8</item>
 
-        <!-- Thanh trạng thái và điều hướng -->
-        <item name="android:statusBarColor">#121212</item>
-        <item name="android:navigationBarColor">#121212</item>
+        <!-- Status Bar & Navigation Bar Transparent Cockpit Deep Background -->
+        <item name="android:statusBarColor">@color/colorBackgroundDeep</item>
+        <item name="android:navigationBarColor">@color/colorBackgroundDeep</item>
     </style>
 
     <style name="Theme.Transparent" parent="Theme.Material3.Dark.NoActionBar">
