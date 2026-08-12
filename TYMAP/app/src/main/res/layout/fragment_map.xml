@@ -2,9 +2,10 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/colorBackgroundDeep">
 
-    <!-- Search Bar -->
+    <!-- Search Bar & Map View -->
     <org.osmdroid.views.MapView
         android:id="@+id/mapView"
         android:layout_width="match_parent"
@@ -17,12 +18,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
+        app:cardBackgroundColor="@android:color/transparent"
         app:cardCornerRadius="24dp"
-        app:cardElevation="6dp">
+        app:cardElevation="8dp"
+        app:strokeWidth="0dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_glass_search"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingHorizontal="16dp"
@@ -32,7 +36,7 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_map"
-                app:tint="@color/blue_primary" />
+                app:tint="@color/colorAccentCyan" />
 
             <EditText
                 android:id="@+id/etSearch"
@@ -41,6 +45,8 @@
                 android:layout_weight="1"
                 android:background="@null"
                 android:hint="@string/search_here"
+                android:textColorHint="#94A3B8"
+                android:textColor="@android:color/white"
                 android:imeOptions="actionSearch"
                 android:inputType="text"
                 android:paddingHorizontal="12dp" />
@@ -57,6 +63,7 @@
                 android:layout_height="40dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_share"
+                app:tint="@color/colorAccentCyan"
                 android:visibility="gone" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
@@ -69,13 +76,16 @@
         android:layout_marginHorizontal="16dp"
         android:layout_marginTop="72dp"
         android:visibility="gone"
-        app:cardCornerRadius="8dp"
-        app:cardElevation="4dp">
+        app:cardBackgroundColor="@android:color/transparent"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="10dp"
+        app:strokeWidth="0dp">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvSuggestions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@drawable/bg_glass_card"
             android:maxHeight="300dp" />
     </com.google.android.material.card.MaterialCardView>
 
@@ -106,9 +116,9 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:src="@drawable/ic_my_location"
-            app:backgroundTint="@android:color/white"
+            app:backgroundTint="#D91E293B"
             app:fabSize="mini"
-            app:tint="@android:color/black" />
+            app:tint="@color/colorAccentCyan" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabLayers"
@@ -116,21 +126,21 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
             android:src="@drawable/ic_layers"
-            app:backgroundTint="@android:color/white"
+            app:backgroundTint="#D91E293B"
             app:fabSize="mini"
-            app:tint="@android:color/black" />
+            app:tint="@android:color/white" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabDisplayMode"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:src="@drawable/ic_speedometer"
-            app:backgroundTint="@android:color/white"
+            app:backgroundTint="#D91E293B"
             app:fabSize="mini"
-            app:tint="@android:color/black" />
+            app:tint="@color/colorAccentPurple" />
     </LinearLayout>
 
-    <!-- Bottom Sheet -->
+    <!-- Bottom Sheet Navigation -->
     <include
         android:id="@+id/bottomSheet"
         layout="@layout/bottom_sheet_navigation" />
@@ -153,18 +163,18 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
             android:src="@drawable/ic_add"
-            app:backgroundTint="@android:color/white"
+            app:backgroundTint="#D91E293B"
             app:fabSize="mini"
-            app:tint="@android:color/black" />
+            app:tint="@android:color/white" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabZoomOut"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:src="@drawable/ic_remove"
-            app:backgroundTint="@android:color/white"
+            app:backgroundTint="#D91E293B"
             app:fabSize="mini"
-            app:tint="@android:color/black" />
+            app:tint="@android:color/white" />
     </LinearLayout>
 
     <!-- Recenter Button (Center Bottom) -->
@@ -177,7 +187,7 @@
         android:text="@string/recenter"
         android:textColor="@android:color/white"
         android:visibility="gone"
-        app:backgroundTint="@color/blue_primary"
+        app:backgroundTint="@color/colorAccentCyan"
         app:icon="@drawable/ic_my_location"
         app:iconTint="@android:color/white"
         app:layout_anchor="@id/bottomSheet"
@@ -195,7 +205,7 @@
         android:layout_marginBottom="16dp"
         app:cardCornerRadius="32dp"
         app:cardBackgroundColor="#D91E293B"
-        app:strokeColor="#44FFFFFF"
+        app:strokeColor="#4438BDF8"
         app:strokeWidth="1.5dp"
         app:cardElevation="12dp">
 
@@ -210,7 +220,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0"
-                android:textColor="@android:color/white"
+                android:textColor="@color/colorAccentCyan"
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
@@ -238,12 +248,12 @@
         app:layout_anchorGravity="top|start"
         app:tint="@android:color/holo_red_dark" />
 
-    <!-- Full-screen Route Steps View (Google Maps style) -->
+    <!-- Full-screen Route Steps View -->
     <LinearLayout
         android:id="@+id/layoutRouteSteps"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#121212"
+        android:background="@color/colorBackgroundDeep"
         android:clickable="true"
         android:focusable="true"
         android:orientation="vertical"
@@ -253,7 +263,7 @@
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#1E1E1E"
+            android:background="#D9131B2E"
             android:padding="16dp">
 
             <ImageButton
@@ -287,7 +297,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="--"
-                    android:textColor="#AAAAAA"
+                    android:textColor="#94A3B8"
                     android:textSize="14sp" />
             </LinearLayout>
         </RelativeLayout>

@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="?attr/colorSurface">
+    android:background="@color/colorBackgroundDeep">
 
     <!-- Header / Title -->
     <TextView
@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:text="Cài đặt hệ thống"
         android:textAppearance="?attr/textAppearanceHeadline5"
-        android:textColor="?attr/colorPrimary"
+        android:textColor="@color/colorAccentCyan"
         android:layout_marginTop="16dp"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"

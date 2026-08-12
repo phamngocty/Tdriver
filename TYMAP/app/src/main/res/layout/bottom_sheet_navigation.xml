@@ -6,7 +6,9 @@
     android:layout_height="wrap_content"
     app:behavior_hideable="false"
     app:behavior_peekHeight="120dp"
-    app:cardCornerRadius="16dp"
+    app:cardBackgroundColor="#D9131B2E"
+    app:cardCornerRadius="24dp"
+    app:cardElevation="16dp"
     app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
     <LinearLayout
@@ -16,11 +18,11 @@
         android:padding="16dp">
 
         <View
-            android:layout_width="40dp"
+            android:layout_width="36dp"
             android:layout_height="4dp"
             android:layout_gravity="center_horizontal"
             android:layout_marginBottom="16dp"
-            android:background="#DDDDDD" />
+            android:background="#33FFFFFF" />
 
         <!-- 1. Place Info State (Search Result) -->
         <LinearLayout
@@ -35,14 +37,18 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Place Name"
-                android:textAppearance="?attr/textAppearanceHeadline6" />
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/tvPlaceAddress"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
                 android:text="Address"
-                android:textAppearance="?attr/textAppearanceBody2" />
+                android:textColor="#94A3B8"
+                android:textSize="13sp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -58,15 +64,21 @@
                     android:layout_marginEnd="8dp"
                     android:layout_weight="1"
                     android:text="@string/directions"
-                    app:icon="@drawable/ic_directions" />
+                    android:textColor="@color/colorAccentCyan"
+                    app:icon="@drawable/ic_directions"
+                    app:iconTint="@color/colorAccentCyan"
+                    app:strokeColor="@color/colorAccentCyan" />
 
                 <Button
                     android:id="@+id/btnStart"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:backgroundTint="@color/colorAccentCyan"
                     android:text="@string/start"
-                    app:icon="@drawable/ic_play" />
+                    android:textColor="@android:color/white"
+                    app:icon="@drawable/ic_play"
+                    app:iconTint="@android:color/white" />
             </LinearLayout>
         </LinearLayout>
 
@@ -83,7 +95,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="--"
-                android:textAppearance="?attr/textAppearanceHeadline6" />
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvAlternatives"
@@ -96,8 +110,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
+                android:backgroundTint="@color/colorAccentCyan"
                 android:text="@string/start"
-                app:icon="@drawable/ic_play" />
+                android:textColor="@android:color/white"
+                app:icon="@drawable/ic_play"
+                app:iconTint="@android:color/white" />
         </LinearLayout>
 
         <!-- 3. Navigation State (Active) -->
@@ -118,7 +135,8 @@
                     android:id="@+id/ivNavIcon"
                     android:layout_width="48dp"
                     android:layout_height="48dp"
-                    android:src="@drawable/ic_directions" />
+                    android:src="@drawable/ic_directions"
+                    app:tint="@color/colorAccentCyan" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -132,14 +150,17 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="--"
-                        android:textAppearance="?attr/textAppearanceHeadline6" />
+                        android:textColor="@android:color/white"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tvNavDistance"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="--"
-                        android:textAppearance="?attr/textAppearanceBody1" />
+                        android:textColor="@color/colorAccentCyan"
+                        android:textSize="14sp" />
                 </LinearLayout>
 
                 <ImageButton
@@ -148,18 +169,19 @@
                     android:layout_height="40dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/ic_directions"
-                    app:tint="@color/blue_primary" />
+                    app:tint="@color/colorAccentCyan" />
             </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginVertical="16dp"
-                android:background="#DDDDDD" />
+                android:layout_marginVertical="14dp"
+                android:background="#1FFFFFFF" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center_vertical"
                 android:orientation="horizontal">
 
                 <TextView
@@ -167,17 +189,21 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="--" />
+                    android:text="--"
+                    android:textColor="#10B981"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
 
                 <Button
                     android:id="@+id/btnEndNav"
                     style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:backgroundTint="#FF5252"
+                    android:backgroundTint="#EF4444"
                     android:text="@string/end"
                     android:textColor="@android:color/white"
-                    app:icon="@drawable/ic_stop" />
+                    app:icon="@drawable/ic_stop"
+                    app:iconTint="@android:color/white" />
             </LinearLayout>
         </LinearLayout>
 
