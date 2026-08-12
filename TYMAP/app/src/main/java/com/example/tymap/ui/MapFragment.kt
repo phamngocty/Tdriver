@@ -18,6 +18,8 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -220,6 +222,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        setupWindowInsets()
         setupMap()
         setupBottomSheet()
         setupSearch()
@@ -230,6 +233,26 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
         // Đảm bảo dịch vụ GPS đang chạy khi xem bản đồ
         ensureGpsRunning()
+    }
+
+    private fun setupWindowInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val density = resources.displayMetrics.density
+
+            // 1. Top Inset for Search Card (tránh camera nốt ruồi / status bar)
+            val searchParams = binding.searchCard.layoutParams as ViewGroup.MarginLayoutParams
+            searchParams.topMargin = (16 * density).toInt() + insets.top
+            binding.searchCard.layoutParams = searchParams
+
+            // 2. Bottom Inset for Bottom Sheet (đặt lề dưới bằng chiều cao LiquidNav + System Bar)
+            val navHeightWithMargin = (84 * density).toInt() + insets.bottom
+            val bsParams = binding.bottomSheet.navigationBottomSheet.layoutParams as ViewGroup.MarginLayoutParams
+            bsParams.bottomMargin = navHeightWithMargin
+            binding.bottomSheet.navigationBottomSheet.layoutParams = bsParams
+
+            windowInsets
+        }
     }
 
     private fun ensureGpsRunning() {
