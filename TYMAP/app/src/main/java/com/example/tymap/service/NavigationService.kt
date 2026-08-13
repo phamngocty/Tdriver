@@ -926,6 +926,7 @@ class NavigationService : Service() {
             var lastSentMapImageHash = -1L
             var wasTileStreamingActive = false
             var adaptiveQualityPenalty = 0 // Tự động giảm chất lượng nếu BLE/CPU bị quá tải
+            var averageWriteDurationMs = 250L // Dynamic BLE transfer duration tracker
 
             while (isActive) {
                 val loopStartTime = System.currentTimeMillis()
@@ -933,15 +934,26 @@ class NavigationService : Service() {
                 val isOsmOnlyInMode5 = captureMode == 5 && !isGmapsActive && NavigationRepository.navigationState.value
                 if (isMapModeActive || isPopupActive || isOsmOnlyInMode5) {
                     val fpsVal = PrefsHelper.getInt(this@NavigationService, "map_fps", 0)
-                    val fps = when (fpsVal) {
-                        0 -> 1
-                        1 -> 2
-                        2 -> 5
-                        3 -> 10
-                        4 -> 20 // MAX
-                        5 -> 20 // Smart peak
-                        else -> 1
+                    val loc = NavigationRepository.gpsLocation.value
+                    
+                    val baseFps = if (fpsVal == 0) {
+                        // Smart Mode
+                        val speedKmH = (loc?.speed ?: 0f) * 3.6f
+                        val distToNext = currentDistanceToNextMeters
+                        when {
+                            speedKmH < 1f -> 1.0 // 1 FPS when stopped
+                            distToNext > 500 -> 2.0 // 2 FPS when far
+                            distToNext > 200 -> 5.0 // 5 FPS when approaching
+                            else -> 20.0 // 20 FPS peak when turning
+                        }
+                    } else {
+                        // Max Mode (always request max 20 FPS, but still limited by BLE throughput below)
+                        20.0
                     }
+
+                    // Limit FPS based on measured BLE write duration (with 0.85 safety factor to avoid queue congestion)
+                    val bleMaxFps = (1000.0 / averageWriteDurationMs) * 0.85
+                    val fps = minOf(baseFps, bleMaxFps).coerceIn(0.2, 20.0) // Allow up to 20.0 FPS if BLE link is fast and stable
 
                     // 1. Đọc chất lượng do người dùng cấu hình từ PrefsHelper
                     val userQuality = PrefsHelper.getFloat(this@NavigationService, "jpeg_quality", 60f).toInt()
@@ -1015,6 +1027,7 @@ class NavigationService : Service() {
                         val frameSkippingEnabled = PrefsHelper.getBoolean(this@NavigationService, "frame_skipping", true) || fps >= 5
                         if (!frameSkippingEnabled || imageHash != lastSentMapImageHash) {
                             lastSentMapImageHash = imageHash
+                            val writeStart = System.currentTimeMillis()
                             if (isOled) {
                                 val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                                 if (bitmap != null) {
@@ -1023,6 +1036,10 @@ class NavigationService : Service() {
                                 }
                             } else {
                                 bleManager.writeMapImage(imageBytes)
+                            }
+                            val writeDuration = System.currentTimeMillis() - writeStart
+                            if (writeDuration > 10) {
+                                averageWriteDurationMs = (averageWriteDurationMs * 0.85 + writeDuration * 0.15).toLong().coerceIn(100L, 2000L)
                             }
                         } else {
                             android.util.Log.d("NavigationService", "Map image is identical, skipping transmission to save bandwidth.")
@@ -1054,22 +1071,7 @@ class NavigationService : Service() {
                         }
                     }
 
-                    val delayMs = when (fpsVal) {
-                        4 -> 20L // MAX: Max throughput (~50 FPS / min hardware delay)
-                        5 -> { // Smart High-FPS: Max FPS when moving or turning
-                            val loc = NavigationRepository.gpsLocation.value
-                            val speedKmH = (loc?.speed ?: 0f) * 3.6f
-                            val distToNext = currentDistanceToNextMeters
-
-                            when {
-                                speedKmH < 1f -> 3000L // 0.33 FPS when stopped
-                                distToNext > 500 -> 1000L // 1 FPS when far
-                                distToNext > 200 -> 300L  // 3.3 FPS
-                                else -> 30L              // MAX ~33 FPS when approaching/in turn
-                            }
-                        }
-                        else -> 1000L / fps
-                    }
+                    val delayMs = (1000 / fps).toLong()
 
                     // 3. Cơ chế an toàn Chống Quá Tải (Adaptive Load Safety):
                     val elapsedTimeMs = System.currentTimeMillis() - loopStartTime
@@ -1105,62 +1107,62 @@ class NavigationService : Service() {
         arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/", "https://b.basemaps.cartocdn.com/rastertiles/voyager/", "https://c.basemaps.cartocdn.com/rastertiles/voyager/"),
         "© OpenStreetMap contributors, © CARTO")
 
-    private val stadiaDark = object : XYTileSource("Stadia Alidade Smooth Dark", 1, 20, 256, ".png",
-        arrayOf("https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/"),
-        "© Stadia Maps, © OpenMapTiles © OpenStreetMap contributors") {
+    private val googleMaps = object : XYTileSource("Google Maps", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=m"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            val key = PrefsHelper.getSecureString(this@NavigationService, "api_key_stadia", "")
-            val keyParam = if (key.isNotEmpty()) "?api_key=$key" else ""
-            return "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/$z/$x/$y.png$keyParam"
+            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z"
         }
     }
 
-    private val esriCanvasDark = object : XYTileSource("Esri Canvas Dark", 1, 16, 256, "",
-        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/"),
-        "© ESRI") {
+    private val googleMapsDark = object : XYTileSource("Google Maps Dark", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=m"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/$z/$y/$x"
+            val style = "s.t:1|s.e:g|p.c:#ff242f3e,s.t:1|s.e:l.t.f|p.c:#ff746855,s.t:1|s.e:l.t.s|p.c:#ff242f3e,s.t:3|s.e:g.f|p.c:#ff242f3e,s.t:3|s.e:l.t.f|p.c:#ff746855,s.t:4|s.e:g.f|p.c:#ff212a37,s.t:5|s.e:g.f|p.c:#ff38414e,s.t:5|s.e:g.s|p.c:#ff212a37,s.t:5|s.e:l.t.f|p.c:#ff9ca5b3,s.t:6|s.e:g.f|p.c:#ff746855,s.t:6|s.e:g.s|p.c:#ff242f3e,s.t:6|s.e:l.t.f|p.c:#ffd59563,s.t:81|s.e:g.f|p.c:#ff17263c,s.t:82|s.e:g.f|p.c:#ff1f2835,s.t:82|s.e:l.t.f|p.c:#ff515c6d,s.t:82|s.e:l.t.s|p.c:#ff1f2835"
+            val encodedStyle = android.net.Uri.encode(style)
+            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z&apistyle=$encodedStyle"
         }
     }
 
-    private val esriCanvasLight = object : XYTileSource("Esri Canvas Light", 1, 16, 256, "",
-        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/"),
-        "© ESRI") {
+    private val googleMapsSatellite = object : XYTileSource("Google Satellite", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=s"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/$z/$y/$x"
+            return "https://mt1.google.com/vt/lyrs=s&x=$x&y=$y&z=$z"
         }
     }
 
-    private val satelliteSource = object : XYTileSource("Satellite (ESRI)", 1, 19, 256, "",
-        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"),
-        "© ESRI") {
+    private val googleMapsHybrid = object : XYTileSource("Google Hybrid", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=y"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
+            return "https://mt1.google.com/vt/lyrs=y&x=$x&y=$y&z=$z"
         }
     }
 
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
         list.add(mapCnPositron)
-        list.add(TileSourceFactory.MAPNIK)
         list.add(mapCnDark)
         list.add(mapCnVoyager)
-        list.add(stadiaDark)
-        list.add(esriCanvasDark)
-        list.add(esriCanvasLight)
-        list.add(satelliteSource)
+        list.add(googleMaps)
+        list.add(googleMapsDark)
+        list.add(googleMaps) // For Invert colors at index 5
+        list.add(googleMapsSatellite)
+        list.add(googleMapsHybrid)
 
         val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {
@@ -1168,7 +1170,11 @@ class NavigationService : Service() {
                 val baseUrl = customUrl.substringBefore("{z}")
                 val ext = "." + customUrl.substringAfterLast(".")
                 list.add(XYTileSource("Tùy chỉnh", 1, 20, 256, ext, arrayOf(baseUrl), "Custom"))
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                list.add(XYTileSource("Tùy chỉnh (Lỗi URL)", 1, 20, 256, ".png", arrayOf("https://a.basemaps.cartocdn.com/light_all/"), "Custom"))
+            }
+        } else {
+            list.add(XYTileSource("Tùy chỉnh (Chưa cấu hình)", 1, 20, 256, ".png", arrayOf("https://a.basemaps.cartocdn.com/light_all/"), "Custom"))
         }
         return list
     }
@@ -1200,6 +1206,18 @@ class NavigationService : Service() {
                 val selectedTileSource = tileSources.getOrNull(tileSourceIndex) ?: TileSourceFactory.MAPNIK
                 if (headlessMapView?.tileProvider?.tileSource != selectedTileSource) {
                     headlessMapView?.setTileSource(selectedTileSource)
+                }
+                
+                if (tileSourceIndex == 5) {
+                    val colorMatrix = android.graphics.ColorMatrix(floatArrayOf(
+                        -1.0f, 0.0f, 0.0f, 0.0f, 255f,
+                        0.0f, -1.0f, 0.0f, 0.0f, 255f,
+                        0.0f, 0.0f, -1.0f, 0.0f, 255f,
+                        0.0f, 0.0f, 0.0f, 1.0f, 0.0f
+                    ))
+                    headlessMapView?.overlayManager?.tilesOverlay?.setColorFilter(android.graphics.ColorMatrixColorFilter(colorMatrix))
+                } else {
+                    headlessMapView?.overlayManager?.tilesOverlay?.setColorFilter(null)
                 }
 
                 // Clear old overlays except reused markers to avoid memory bloat

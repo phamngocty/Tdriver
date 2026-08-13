@@ -693,7 +693,8 @@ class SettingsFragment : Fragment() {
         val hudTimeoutValues = arrayOf(0, 10, 30, 60, 180, 300)
         val currentHudTimeout = PrefsHelper.getInt(context, "hud_timeout_val", 0)
         val hudIdx = hudTimeoutValues.indexOf(currentHudTimeout).let { if (it >= 0) it else 0 }
-        setupSpinner(binding.spinnerHudTimeout, hudTimeoutOptions, hudIdx) { selectedIdx ->
+        setupSpinner(binding.
+        spinnerHudTimeout, hudTimeoutOptions, hudIdx) { selectedIdx ->
             val secVal = hudTimeoutValues[selectedIdx]
             PrefsHelper.putInt(context, "hud_timeout_val", secVal)
             NavigationService.bleManager?.writeSettings("hudTimeout=$secVal")
@@ -708,8 +709,9 @@ class SettingsFragment : Fragment() {
         }
 
         // 2. MAP
-        val mapSources = arrayOf("CartoDB Positron", "OSM Mapnik", "CartoDB Dark Matter", "CartoDB Voyager", "Stadia Alidade Smooth Dark", "Esri Canvas Dark", "Esri Canvas Light", "Vệ tinh (ESRI)", "Tùy chỉnh (MapCN/Self-Hosted)")
-        val initialTileSource = PrefsHelper.getInt(context, "tile_source", 0)
+        val mapSources = arrayOf("CartoDB Positron", "CartoDB Dark Matter", "CartoDB Voyager", "Google Maps (MT)", "Google Maps Dark (MT)", "Google Maps Đảo Màu (MT Invert)", "Google Maps Satellite (MT)", "Google Maps Hybrid (MT)", "Tùy chỉnh (MapCN/Self-Hosted)")
+        val rawTileSource = PrefsHelper.getInt(context, "tile_source", 0)
+        val initialTileSource = if (rawTileSource >= mapSources.size) 0 else rawTileSource
         binding.tilCustomTileUrl.visibility = if (initialTileSource == 8) View.VISIBLE else View.GONE
         setupSpinner(binding.spinnerTileSource, mapSources, initialTileSource) {
             PrefsHelper.putInt(context, "tile_source", it)
@@ -862,9 +864,16 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        val fpsList = arrayOf("1 FPS", "2 FPS", "5 FPS", "10 FPS", "MAX", "Smart")
-        setupSpinner(binding.spinnerMapFps, fpsList, PrefsHelper.getInt(context, "map_fps", 0)) {
-            PrefsHelper.putInt(context, "map_fps", it)
+        val fpsList = arrayOf("Tự động (Smart)", "Tối đa (Max)")
+        val rawFps = PrefsHelper.getInt(context, "map_fps", 0)
+        val initialFps = if (rawFps > 1) 0 else rawFps
+        setupSpinner(binding.spinnerMapFps, fpsList, initialFps) { position ->
+            PrefsHelper.putInt(context, "map_fps", position)
+            binding.tvMapFpsDesc.text = if (position == 0) {
+                "Khi dừng: 1 FPS để tiết kiệm pin. Khi đi: Tự động tăng lên 15-20 FPS mượt mà. Tự giảm FPS nếu BLE yếu để chống treo mạch."
+            } else {
+                "Luôn truyền ở tốc độ cao nhất (lên tới 20 FPS). Chỉ tự động giảm nếu BLE bị quá tải hoặc nhiễu để tránh treo mạch."
+            }
         }
 
         val initialQuality = PrefsHelper.getFloat(context, "jpeg_quality", 40f)
@@ -904,15 +913,6 @@ class SettingsFragment : Fragment() {
             PrefsHelper.putInt(context, "popup_duration", value.toInt())
             binding.tvValuePopupDuration.text = "${value.toInt()} giây"
             NavigationService.bleManager?.writeSettings("popupDuration=${value.toInt()}")
-        }
-
-        val initialHudTimeout = PrefsHelper.getInt(context, "hud_timeout", 3)
-        binding.sliderHudTimeout.value = initialHudTimeout.toFloat()
-        binding.tvValueHudTimeout.text = "${initialHudTimeout} giây"
-        binding.sliderHudTimeout.addOnChangeListener { _, value, _ ->
-            PrefsHelper.putInt(context, "hud_timeout", value.toInt())
-            binding.tvValueHudTimeout.text = "${value.toInt()} giây"
-            NavigationService.bleManager?.writeSettings("hudTimeout=${value.toInt()}")
         }
 
         // 5.5. OLED OPTIONS
@@ -976,15 +976,24 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        // OTA UPDATE
-        binding.btnOta.setOnClickListener {
-            Toast.makeText(context, "Đã khởi chạy kiểm tra OTA", Toast.LENGTH_SHORT).show()
-        }
-
         val version = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         } catch (e: Exception) { "1.0" }
         binding.tvVersion.text = "Phiên bản: $version"
+
+        // NÂNG CAO: toggle mở rộng các tùy chọn kỹ thuật
+        binding.toggleMapAdvanced.setOnClickListener {
+            val show = binding.layoutMapAdvanced.visibility != View.VISIBLE
+            binding.layoutMapAdvanced.visibility = if (show) View.VISIBLE else View.GONE
+            binding.toggleMapAdvanced.text = if (show) "Tùy chọn la bàn & khung hình  ▾" else "Tùy chọn la bàn & khung hình  ▸"
+        }
+        binding.toggleApiAdvanced.setOnClickListener {
+            val show = binding.layoutApiAdvanced.visibility != View.VISIBLE
+            binding.layoutApiAdvanced.visibility = if (show) View.VISIBLE else View.GONE
+            binding.toggleApiAdvanced.text = if (show) "Quân lý dịch vụ mạng & API  ▲" else "Quân lý dịch vụ mạng & API  ▼"
+        }
+
+        binding.layoutFrameSkipping.visibility = View.GONE
     }
 
     private fun isNotificationAccessEnabled(): Boolean {
@@ -1021,8 +1030,6 @@ class SettingsFragment : Fragment() {
     }
 
     private fun updateCropVisibility(mode: Int) {
-        binding.btnConfigCropGmaps.visibility = View.GONE
-        binding.tvCropSummaryGmaps.visibility = View.GONE
         binding.btnConfigCropMapTab.visibility = View.VISIBLE
         binding.tvCropSummaryMapTab.visibility = View.VISIBLE
     }
@@ -1031,15 +1038,6 @@ class SettingsFragment : Fragment() {
         val context = context ?: return
         val locale = Locale.getDefault()
         
-        val gX = PrefsHelper.getFloat(context, "gmaps_crop_x_norm", -1f)
-        if (gX >= 0) {
-            val gY = PrefsHelper.getFloat(context, "gmaps_crop_y_norm", 0f)
-            val gS = PrefsHelper.getFloat(context, "gmaps_crop_size_norm", 0f)
-            binding.tvCropSummaryGmaps.text = String.format(locale, "Vị trí đã lưu: X:%.2f, Y:%.2f, Size:%.2f", gX, gY, gS)
-        } else {
-            binding.tvCropSummaryGmaps.text = "Vị trí đã lưu: Chưa cài đặt"
-        }
-
         val mX = PrefsHelper.getFloat(context, "map_tab_crop_x_norm", -1f)
         if (mX >= 0) {
             val mY = PrefsHelper.getFloat(context, "map_tab_crop_y_norm", 0f)
@@ -1072,17 +1070,20 @@ class SettingsFragment : Fragment() {
             binding.cardMap.visibility = View.GONE
             binding.cardRouting.visibility = View.GONE
             binding.cardOled.visibility = View.GONE
+            binding.cardSystem.visibility = View.GONE
             
             when (checkedId) {
                 R.id.chipGeneral -> binding.cardGeneral.visibility = View.VISIBLE
                 R.id.chipMap -> binding.cardMap.visibility = View.VISIBLE
                 R.id.chipRouting -> binding.cardRouting.visibility = View.VISIBLE
                 R.id.chipData -> binding.cardOled.visibility = View.VISIBLE
+                R.id.chipSystem -> binding.cardSystem.visibility = View.VISIBLE
                 else -> {
                     binding.cardGeneral.visibility = View.VISIBLE
                     binding.cardMap.visibility = View.VISIBLE
                     binding.cardRouting.visibility = View.VISIBLE
                     binding.cardOled.visibility = View.VISIBLE
+                    binding.cardSystem.visibility = View.VISIBLE
                 }
             }
         }

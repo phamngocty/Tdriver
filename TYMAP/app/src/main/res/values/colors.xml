@@ -6,4 +6,13 @@
     <color name="route_alternative">#BDBDBD</color>
     <color name="route_selected">#1976D2</color>
     <color name="status_testing">#FFB300</color>
+
+    <!-- Cockpit Dark Glassmorphism Palette -->
+    <color name="colorBackgroundDeep">#090D16</color>
+    <color name="colorSurfaceGlass">#D90F172A</color>
+    <color name="colorSurfaceGlassBorder">#1FFFFFFF</color>
+    <color name="colorAccentCyan">#38BDF8</color>
+    <color name="colorAccentPurple">#8B5CF6</color>
+    <color name="colorAccentPurpleStart">#6366F1</color>
+    <color name="colorTextMuted">#64748B</color>
 </resources>

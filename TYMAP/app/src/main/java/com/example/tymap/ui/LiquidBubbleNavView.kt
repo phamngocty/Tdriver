@@ -73,8 +73,8 @@ class LiquidBubbleNavView @JvmOverloads constructor(
             val label = labels[index]
             val isSelected = index == position
 
-            val targetTranslationY = if (isSelected) -dpToPx(14f) else 0f
-            val targetScale = if (isSelected) 1.12f else 1.0f
+            val targetTranslationY = if (isSelected) -dpToPx(16f) else 0f
+            val targetScale = if (isSelected) 1.15f else 1.0f
 
             if (isSelected) {
                 bubble.setBackgroundResource(R.drawable.bg_liquid_active_bubble)

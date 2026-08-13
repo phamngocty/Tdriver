@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Theme Builder Visual Studio Mockup</title>
+<style>
+  :root {
+    --bg-dark: #090D16;
+    --glass-bg: rgba(19, 27, 46, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --cyan: #00e5ff;
+    --green: #10B981;
+    --purple: #8B5CF6;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+  }
+  body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  h2 { color: var(--cyan); margin-bottom: 6px; text-shadow: 0 0 10px rgba(0,229,255,0.3); }
+  .desc { color: var(--text-secondary); margin-bottom: 24px; font-size: 14px; text-align: center; max-width: 600px; line-height: 1.5; }
+  
+  .phone-frame {
+    width: 380px;
+    height: 880px;
+    border-radius: 40px;
+    background: #04060A;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.9), inset 0 0 0 8px #1A2235, inset 0 0 20px rgba(0,229,255,0.05);
+    display: flex;
+    flex-direction: column;
+  }
+  .phone-frame::before {
+    content: '';
+    position: absolute;
+    top: 8px; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 25px;
+    background: #1A2235;
+    border-bottom-left-radius: 18px; border-bottom-right-radius: 18px;
+    z-index: 10;
+  }
+
+  .header { padding: 45px 20px 15px; display: flex; align-items: center; justify-content: space-between; }
+  .back-btn { font-size: 20px; cursor: pointer; color: var(--text-secondary); }
+  .header h1 { font-size: 18px; margin: 0; font-weight: 700; color: #fff; }
+  .action-buttons-top { display: flex; gap: 8px; }
+  .save-btn-top { color: var(--text-secondary); cursor: pointer; font-size: 13px; font-weight: bold; }
+  .upload-btn-top { color: var(--cyan); cursor: pointer; font-size: 13px; font-weight: bold; }
+
+  .content {
+    flex: 1; overflow-y: auto; padding: 0 16px 24px;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; scrollbar-width: none;
+    position: relative;
+  }
+  .content::-webkit-scrollbar { display: none; }
+
+  /* Mode Category Tabs */
+  .category-tabs {
+    display: flex; width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+    border-radius: 12px; padding: 4px; box-sizing: border-box;
+  }
+  .tab-item {
+    flex: 1; text-align: center; padding: 8px; font-size: 12px; font-weight: bold;
+    color: var(--text-secondary); cursor: pointer; border-radius: 8px; transition: all 0.2s;
+  }
+  .tab-item.active {
+    background: var(--purple); color: #fff; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3);
+  }
+
+  /* Preset Selection Circle List */
+  .presets-container {
+    width: 100%; display: flex; flex-direction: column; gap: 6px;
+  }
+  .preset-row {
+    display: flex; gap: 8px; width: 100%;
+  }
+  .preset-btn {
+    flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+    padding: 8px; border-radius: 10px; text-align: center; font-size: 12px; font-weight: bold;
+    cursor: pointer; transition: all 0.2s; color: var(--text-secondary);
+  }
+  .preset-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--cyan); }
+  .preset-btn.active { background: rgba(0, 229, 255, 0.15); border-color: var(--cyan); color: var(--cyan); }
+
+  /* Circular ESP32 Screen Simulator */
+  .workspace-title { font-size: 12px; color: var(--text-secondary); align-self: flex-start; margin-left: 8px; font-weight: bold; }
+  .esp32-canvas {
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+    border: 5px solid #1E293B;
+    box-shadow: 0 0 25px rgba(0, 229, 255, 0.25), inset 0 0 15px rgba(255,255,255,0.1);
+    box-sizing: border-box;
+    cursor: default;
+    user-select: none;
+  }
+
+  .esp32-canvas::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: 
+      linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: center;
+    pointer-events: none;
+    border-radius: 50%;
+  }
+
+  /* Map background for MAP HUD */
+  .map-background {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    object-fit: cover; opacity: 0.6; display: none;
+  }
+
+  /* Draggable elements inside simulator */
+  .drag-element {
+    position: absolute;
+    padding: 4px 6px;
+    border: 1.5px dashed transparent;
+    cursor: move;
+    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-weight: bold;
+    transform: translate(-50%, -50%);
+    transition: border-color 0.15s;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .drag-element:hover { border-color: rgba(255,255,255,0.3); }
+  .drag-element.selected {
+    border-color: var(--cyan);
+    background: rgba(0, 229, 255, 0.08);
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+    z-index: 100;
+  }
+
+  /* Widget-specific styles */
+  .w-time { font-size: 32px; font-family: monospace; }
+  .w-date { font-size: 10px; text-transform: uppercase; color: var(--text-secondary); }
+  .w-speed { font-size: 28px; color: var(--green); font-family: monospace; }
+  .w-speed-unit { font-size: 9px; color: var(--text-secondary); font-weight: normal; margin-top: -4px; }
+  .w-battery { font-size: 11px; display: flex; align-items: center; gap: 4px; border: 1px solid #334155; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.4); }
+  .w-nav-arrow { font-size: 24px; color: var(--cyan); }
+  .w-nav-dist { font-size: 12px; color: var(--green); }
+  
+  /* Marquee container */
+  .w-marquee-container {
+    width: 140px;
+    overflow: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
+  }
+  .w-marquee-text {
+    display: inline-block;
+    padding-left: 100%;
+    animation: marquee 8s linear infinite;
+    font-size: 11px;
+    color: var(--cyan);
+  }
+  @keyframes marquee {
+    0% { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-100%, 0, 0); }
+  }
+
+  /* Floating pill / Card wrapper mock for HUD */
+  .hud-pill-wrap {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1.5px solid var(--cyan);
+    border-radius: 12px;
+    padding: 6px 12px;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+
+  /* Properties control panel */
+  .panel-card {
+    width: 100%;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    padding: 16px;
+    box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .panel-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; margin-bottom: 4px; }
+  .panel-title { font-size: 13px; font-weight: 700; color: var(--cyan); letter-spacing: 0.5px; text-transform: uppercase; }
+  
+  /* Alignment selector */
+  .align-group { display: flex; gap: 6px; }
+  .align-btn {
+    flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+    padding: 8px; border-radius: 8px; text-align: center; font-size: 12px; font-weight: bold;
+    cursor: pointer;
+  }
+  .align-btn.selected { background: var(--cyan); color: #000; border-color: var(--cyan); }
+
+  /* Widget checklist */
+  .widget-list-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 14px; padding: 6px 0;
+  }
+  .widget-info { display: flex; align-items: center; gap: 8px; }
+  .widget-indicator { width: 6px; height: 6px; border-radius: 50%; background: #475569; }
+  .widget-indicator.active { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+
+  .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); border-radius: 20px; transition: .4s; }
+  .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: .3s; }
+  input:checked + .slider { background-color: var(--green); }
+  input:checked + .slider:before { transform: translateX(16px); }
+
+  .coord-group { display: flex; gap: 12px; }
+  .coord-input { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .coord-input label { font-size: 11px; color: var(--text-secondary); }
+  .coord-input input {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+    border-radius: 6px; padding: 6px; color: #fff; text-align: center; font-size: 13px;
+  }
+
+  .color-picker { display: flex; gap: 8px; margin-top: 4px; }
+  .color-dot { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid transparent; cursor: pointer; }
+  .color-dot.selected { border-color: #fff; transform: scale(1.1); }
+
+  /* BLE Upload overlay simulation */
+  .upload-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(4, 6, 10, 0.95);
+    z-index: 500;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    text-align: center;
+  }
+  .progress-ring {
+    width: 80px; height: 80px;
+    border: 5px solid rgba(0, 229, 255, 0.1);
+    border-top: 5px solid var(--cyan);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+  }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  
+  .upload-success-icon { font-size: 48px; color: var(--green); margin-bottom: 16px; display: none; }
+  .upload-title { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
+  .upload-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 24px; }
+  
+  .btn-upload-action {
+    background: var(--purple); color: #fff; border: none; padding: 10px 24px; border-radius: 10px; font-weight: bold; cursor: pointer; display: none;
+  }
+  
+  .btn-big-upload {
+    width: 100%; background: linear-gradient(135deg, var(--cyan), #2563eb); border: none;
+    padding: 14px; border-radius: 14px; color: #fff; font-weight: bold; font-size: 15px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 8px 20px rgba(0,229,255,0.25);
+  }
+
+  .add-element-row {
+    display: flex; gap: 8px; width: 100%; margin-top: 4px;
+  }
+  .btn-add {
+    flex: 1; background: rgba(139, 92, 246, 0.15); border: 1px dashed var(--purple);
+    padding: 10px; border-radius: 10px; text-align: center; font-size: 11px; font-weight: bold;
+    color: var(--purple); cursor: pointer; transition: all 0.2s;
+  }
+  .btn-add:hover { background: rgba(139, 92, 246, 0.25); color: #fff; }
+
+</style>
+</head>
+<body>
+
+  <h2>Theme Builder Visual Studio Mockup</h2>
+  <div class="desc">
+    Mô phỏng bộ dựng giao diện chuyên sâu. Chọn phân loại giữa **STATUS (Đồng hồ)**, **NOTIF (Thông báo)**, hoặc **MAP HUD (Bản đồ)**, áp dụng các mẫu đặc trưng (S3, S4, S5, N1, N2, MH1, MH2) rồi kéo thả tùy chỉnh linh kiện.
+  </div>
+
+  <div class="phone-frame">
+    <div class="upload-overlay" id="uploadOverlay">
+      <div class="progress-ring" id="uploadProgress"></div>
+      <div class="upload-success-icon" id="uploadSuccess">✓</div>
+      <div class="upload-title" id="uploadTitle">Đang đóng gói cấu hình...</div>
+      <div class="upload-desc" id="uploadDesc">Đang truyền dữ liệu layout (JSON) qua sóng Bluetooth Low Energy đến mạch ESP32 S3...</div>
+      <button class="btn-upload-action" id="btnOverlayClose">ĐÓNG MÀN HÌNH</button>
+    </div>
+
+    <div class="header">
+      <div class="back-btn">◀</div>
+      <h1>Thiết kế Giao diện</h1>
+      <div class="action-buttons-top">
+        <span class="save-btn-top" id="btnSaveTop">Lưu</span>
+        <span class="upload-btn-top" id="btnUploadTop">Nạp BLE</span>
+      </div>
+    </div>
+    
+    <div class="content">
+      
+      <!-- Category Selection Tabs -->
+      <div class="category-tabs">
+        <div class="tab-item active" id="tabStatus" data-cat="status">ĐỒNG HỒ (STATUS)</div>
+        <div class="tab-item" id="tabNotif" data-cat="notif">THÔNG BÁO (NOTIF)</div>
+        <div class="tab-item" id="tabMap" data-cat="map">BẢN ĐỒ (MAP HUD)</div>
+      </div>
+
+      <!-- Presets Selector per category -->
+      <div class="presets-container">
+        <!-- Status Models -->
+        <div class="preset-row" id="rowPresetsStatus">
+          <div class="preset-btn active" data-model="s4">Mẫu S4 (Cyber Dual)</div>
+          <div class="preset-btn" data-model="s3">Mẫu S3 (Tối Giản)</div>
+          <div class="preset-btn" data-model="s5">Mẫu S5 (Racing Tab)</div>
+        </div>
+        <!-- Notif Models -->
+        <div class="preset-row" id="rowPresetsNotif" style="display: none;">
+          <div class="preset-btn active" data-model="n1">Mẫu N1 (Top Banner)</div>
+          <div class="preset-btn" data-model="n2">Mẫu N2 (Fullscreen)</div>
+        </div>
+        <!-- Map HUD Models -->
+        <div class="preset-row" id="rowPresetsMap" style="display: none;">
+          <div class="preset-btn active" data-model="mh1">Mẫu MH1 (Pill Nổi)</div>
+          <div class="preset-btn" data-model="mh2">Mẫu MH2 (Thanh Dưới)</div>
+        </div>
+      </div>
+
+      <!-- Workspace Area -->
+      <div class="workspace-title">Mặt đồng hồ giả lập (Kéo thả sắp xếp):</div>
+      <div class="esp32-canvas" id="esp32Canvas">
+        
+        <!-- Map image background (only visible in MAP HUD mode) -->
+        <img class="map-background" id="mapBg" src="https://api.mapbox.com/styles/v1/mapbox/dark-v10/static/106.68,10.78,15,0,0/240x240?access_token=mock" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22240%22><rect width=%22100%%22 height=%22100%%22 fill=%22%231A2235%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2364748B%22>Bản đồ nền</text></svg>'"/>
+
+        <!-- Brand Logo Widget -->
+        <div class="drag-element" id="wBrand" style="left: 120px; top: 35px; color: #475569" data-name="Logo thương hiệu" data-align="center">
+          <div style="font-size: 8px; font-weight: bold; letter-spacing: 1px;">TYMAP</div>
+        </div>
+
+        <!-- Draggable Time Widget -->
+        <div class="drag-element selected" id="wTime" style="left: 120px; top: 75px; color: #ffffff" data-name="Đồng hồ" data-align="center">
+          <div class="w-time">10:45</div>
+        </div>
+
+        <!-- Draggable Date Widget -->
+        <div class="drag-element" id="wDate" style="left: 120px; top: 115px; color: var(--text-secondary)" data-name="Ngày tháng" data-align="center">
+          <div class="w-date">Thứ năm, 13 thg 8</div>
+        </div>
+
+        <!-- Draggable Speed Widget -->
+        <div class="drag-element" id="wSpeed" style="left: 120px; top: 165px; color: var(--green)" data-name="Tốc độ xe" data-align="center">
+          <div class="w-speed">42<span class="w-speed-unit"> km/h</span></div>
+        </div>
+
+        <!-- Draggable Phone Battery Widget -->
+        <div class="drag-element" id="wBatPhone" style="left: 65px; top: 210px; color: var(--cyan)" data-name="Pin điện thoại" data-align="left">
+          <div class="w-battery">📱 85%</div>
+        </div>
+
+        <!-- Draggable Bike Battery Widget -->
+        <div class="drag-element" id="wBatBike" style="left: 175px; top: 210px; color: var(--amber)" data-name="Pin xe điện" data-align="right">
+          <div class="w-battery">🔋 90%</div>
+        </div>
+
+        <!-- Draggable Nav Arrow Widget (mainly for MAP HUD & Notif) -->
+        <div class="drag-element" id="wNav" style="left: 120px; top: 215px; color: var(--cyan); display: none;" data-name="Mũi tên chỉ đường" data-align="center">
+          <div class="w-nav-arrow">➔</div>
+          <div class="w-nav-dist">150m</div>
+        </div>
+
+        <!-- Draggable Notification Icon Widget -->
+        <div class="drag-element" id="wNotifIcon" style="left: 120px; top: 60px; color: var(--amber); display: none;" data-name="Icon Thông báo" data-align="center">
+          <div style="font-size: 24px;">💬</div>
+        </div>
+
+        <!-- Draggable Notification Title Widget -->
+        <div class="drag-element" id="wNotifTitle" style="left: 120px; top: 110px; color: #ffffff; display: none;" data-name="Tiêu đề tin nhắn" data-align="center">
+          <div style="font-size: 13px; font-weight: bold;">Nguyễn Văn A</div>
+        </div>
+
+        <!-- Draggable Notification Body Widget -->
+        <div class="drag-element" id="wNotifBody" style="left: 120px; top: 155px; color: var(--text-secondary); display: none;" data-name="Nội dung tin nhắn" data-align="center">
+          <div style="font-size: 11px; text-align: center; max-width: 160px; overflow: hidden; white-space: normal;">Alo chiều nay có chạy xe không?</div>
+        </div>
+
+      </div>
+
+      <!-- Add Custom elements panel -->
+      <div class="add-element-row">
+        <div class="btn-add" id="btnAddMarquee">+ Thêm chữ cuộn</div>
+        <div class="btn-add" id="btnAddStatic">+ Thêm nhãn tĩnh</div>
+      </div>
+
+      <!-- Properties Control Panel -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-title" id="editWidgetTitle">Cấu hình: Đồng hồ</div>
+          <div style="font-size:11px; color:var(--text-secondary)" id="editWidgetId">wTime</div>
+        </div>
+
+        <!-- Coordinates editor -->
+        <div class="coord-group">
+          <div class="coord-input">
+            <label>Tọa độ X (Ngang)</label>
+            <input type="number" id="inputX" value="120" min="10" max="230">
+          </div>
+          <div class="coord-input">
+            <label>Tọa độ Y (Dọc)</label>
+            <input type="number" id="inputY" value="75" min="10" max="230">
+          </div>
+        </div>
+
+        <!-- Alignment options -->
+        <div class="control-group">
+          <div class="control-label">Căn lề (Alignment)</div>
+          <div class="align-group">
+            <div class="align-btn" id="alignLeft" data-align="left">Trái</div>
+            <div class="align-btn selected" id="alignCenter" data-align="center">Căn Giữa</div>
+            <div class="align-btn" id="alignRight" data-align="right">Phải</div>
+          </div>
+        </div>
+
+        <!-- Custom text content editor (visible when custom label is selected) -->
+        <div class="control-group" id="customTextGroup" style="display: none;">
+          <div class="control-label">Nội dung văn bản</div>
+          <input type="text" id="inputCustomText" value="Văn bản mới" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; padding: 8px; color: #fff; font-size: 13px; outline: none;">
+        </div>
+
+        <!-- Color picker for selected element -->
+        <div class="control-group">
+          <div class="control-label">Màu sắc hiển thị</div>
+          <div class="color-picker" id="elementColorPicker">
+            <div class="color-dot selected" style="background: #ffffff" data-color="#ffffff"></div>
+            <div class="color-dot" style="background: #00e5ff" data-color="#00e5ff"></div>
+            <div class="color-dot" style="background: #10B981" data-color="#10B981"></div>
+            <div class="color-dot" style="background: #F59E0B" data-color="#F59E0B"></div>
+            <div class="color-dot" style="background: #EF4444" data-color="#EF4444"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Widget list toggles -->
+      <div class="panel-card">
+        <div class="panel-title" style="margin-bottom: 4px;">Danh sách linh kiện hiển thị</div>
+        <div id="togglesContainer">
+          <!-- Dynamic toggles will be managed based on Mode -->
+        </div>
+      </div>
+      
+      <!-- BIG UPLOAD BUTTON -->
+      <button class="btn-big-upload" id="btnBigUpload">
+        <span>📲 NẠP LÊN ĐỒNG HỒ</span>
+      </button>
+
+    </div>
+  </div>
+
+  <script>
+    const esp32Canvas = document.getElementById('esp32Canvas');
+    const editWidgetTitle = document.getElementById('editWidgetTitle');
+    const editWidgetId = document.getElementById('editWidgetId');
+    const inputX = document.getElementById('inputX');
+    const inputY = document.getElementById('inputY');
+    const colorDots = document.querySelectorAll('.color-dot');
+    const alignBtns = document.querySelectorAll('.align-btn');
+    const customTextGroup = document.getElementById('customTextGroup');
+    const inputCustomText = document.getElementById('inputCustomText');
+    
+    // Category tabs & preset containers
+    const tabStatus = document.getElementById('tabStatus');
+    const tabNotif = document.getElementById('tabNotif');
+    const tabMap = document.getElementById('tabMap');
+    
+    const rowPresetsStatus = document.getElementById('rowPresetsStatus');
+    const rowPresetsNotif = document.getElementById('rowPresetsNotif');
+    const rowPresetsMap = document.getElementById('rowPresetsMap');
+    const mapBg = document.getElementById('mapBg');
+    const togglesContainer = document.getElementById('togglesContainer');
+    
+    let currentCategory = 'status';
+    let currentModel = 's4';
+    let selectedElement = document.getElementById('wTime');
+    let customElementsCount = 0;
+
+    // Define all widgets and their Vietnamese names
+    const widgetMetadata = {
+      'wTime': '🕒 Đồng hồ',
+      'wDate': '📅 Ngày tháng',
+      'wSpeed': '⚡ Tốc độ di chuyển',
+      'wBatPhone': '📱 Pin điện thoại',
+      'wBatBike': '🔋 Pin xe điện (Bike)',
+      'wNav': '➔ Mũi tên chỉ hướng',
+      'wBrand': '🏷 Logo thương hiệu',
+      'wNotifIcon': '💬 Icon thông báo',
+      'wNotifTitle': '👤 Tên người gửi',
+      'wNotifBody': '✉ Nội dung tin nhắn'
+    };
+
+    // 1. DYNAMIC TOGGLE LIST MANAGER BASED ON CATEGORY
+    function updateTogglesList() {
+      togglesContainer.innerHTML = '';
+      let list = [];
+      if (currentCategory === 'status') {
+        list = ['wTime', 'wDate', 'wSpeed', 'wBatPhone', 'wBatBike', 'wBrand'];
+      } else if (currentCategory === 'notif') {
+        list = ['wTime', 'wNotifIcon', 'wNotifTitle', 'wNotifBody', 'wBrand'];
+      } else if (currentCategory === 'map') {
+        list = ['wNav', 'wSpeed', 'wTime'];
+      }
+
+      list.forEach(id => {
+        const name = widgetMetadata[id];
+        const element = document.getElementById(id);
+        const isVisible = element.style.display !== 'none';
+        
+        const row = document.createElement('div');
+        row.className = 'widget-list-row';
+        row.innerHTML = `
+          <div class="widget-info"><span class="widget-indicator ${isVisible ? 'active' : ''}" id="ind-${id}"></span> ${name}</div>
+          <label class="switch"><input type="checkbox" id="switch-${id}" ${isVisible ? 'checked' : ''}><span class="slider"></span></label>
+        `;
+        togglesContainer.appendChild(row);
+
+        // Bind switch event
+        const checkbox = row.querySelector('#switch-' + id);
+        checkbox.addEventListener('change', (e) => {
+          const isChecked = e.target.checked;
+          const indicator = row.querySelector('#ind-' + id);
+          if (isChecked) {
+            element.style.display = 'flex';
+            indicator.classList.add('active');
+            selectWidget(element);
+          } else {
+            element.style.display = 'none';
+            indicator.classList.remove('active');
+            if (selectedElement === element) {
+              const visible = Array.from(document.querySelectorAll('.drag-element')).find(item => item.style.display !== 'none');
+              if (visible) selectWidget(visible);
+            }
+          }
+        });
+      });
+    }
+
+    // 2. SELECT ELEMENT INTERACTION
+    function selectWidget(el) {
+      document.querySelectorAll('.drag-element').forEach(item => item.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedElement = el;
+      
+      editWidgetTitle.textContent = "Cấu hình: " + el.getAttribute('data-name');
+      editWidgetId.textContent = el.id;
+      
+      inputX.value = parseInt(el.style.left) || 120;
+      inputY.value = parseInt(el.style.top) || 120;
+      
+      // Update Alignment buttons
+      const currentAlign = el.getAttribute('data-align') || 'center';
+      alignBtns.forEach(btn => {
+        btn.classList.remove('selected');
+        if (btn.getAttribute('data-align') === currentAlign) {
+          btn.classList.add('selected');
+        }
+      });
+      
+      // Show/Hide custom text input
+      if (el.id.startsWith('customText') || el.id.startsWith('customMarquee')) {
+        customTextGroup.style.display = 'flex';
+        inputCustomText.value = el.querySelector('.w-marquee-text') ? el.querySelector('.w-marquee-text').textContent : el.textContent;
+      } else {
+        customTextGroup.style.display = 'none';
+      }
+      
+      // Highlight color dot
+      const elementColor = el.style.color || '#ffffff';
+      colorDots.forEach(dot => {
+        dot.classList.remove('selected');
+        const dotColor = dot.getAttribute('data-color');
+        if (dotColor === elementColor || 
+           (elementColor.includes('var(--text-secondary)') && dotColor === '#94a3b8') ||
+           (elementColor.includes('var(--cyan)') && dotColor === '#00e5ff') ||
+           (elementColor.includes('var(--green)') && dotColor === '#10b981') ||
+           (elementColor.includes('var(--amber)') && dotColor === '#f59e0b') ||
+           (elementColor.includes('var(--red)') && dotColor === '#ef4444')) {
+          dot.classList.add('selected');
+        }
+      });
+    }
+
+    function setupDragElementClick(el) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectWidget(el);
+      });
+    }
+
+    document.querySelectorAll('.drag-element').forEach(el => setupDragElementClick(el));
+
+    // 3. COORDINATE CHANGES
+    inputX.addEventListener('input', (e) => {
+      if (selectedElement) {
+        let xVal = parseInt(e.target.value) || 0;
+        xVal = Math.max(10, Math.min(230, xVal));
+        selectedElement.style.left = xVal + 'px';
+        
+        if (xVal !== 120) {
+          alignBtns.forEach(btn => btn.classList.remove('selected'));
+          selectedElement.setAttribute('data-align', 'custom');
+        } else {
+          document.getElementById('alignCenter').classList.add('selected');
+          selectedElement.setAttribute('data-align', 'center');
+        }
+      }
+    });
+
+    inputY.addEventListener('input', (e) => {
+      if (selectedElement) {
+        let yVal = parseInt(e.target.value) || 0;
+        yVal = Math.max(10, Math.min(230, yVal));
+        selectedElement.style.top = yVal + 'px';
+      }
+    });
+
+    // 4. ALIGNMENT SELECTION
+    alignBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        if (!selectedElement) return;
+        alignBtns.forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        
+        const align = btn.getAttribute('data-align');
+        selectedElement.setAttribute('data-align', align);
+        
+        if (align === 'center') {
+          selectedElement.style.left = '120px';
+          inputX.value = 120;
+        } else if (align === 'left') {
+          selectedElement.style.left = '65px';
+          inputX.value = 65;
+        } else if (align === 'right') {
+          selectedElement.style.left = '175px';
+          inputX.value = 175;
+        }
+      });
+    });
+
+    // 5. CUSTOM TEXT INPUT CHANGED
+    inputCustomText.addEventListener('input', (e) => {
+      if (!selectedElement) return;
+      const text = e.target.value;
+      const marqueeText = selectedElement.querySelector('.w-marquee-text');
+      if (marqueeText) {
+        marqueeText.textContent = text;
+      } else {
+        selectedElement.textContent = text;
+      }
+    });
+
+    // 6. ADDING NEW ELEMENTS
+    document.getElementById('btnAddMarquee').addEventListener('click', () => {
+      customElementsCount++;
+      const id = 'customMarquee_' + customElementsCount;
+      const newEl = document.createElement('div');
+      newEl.id = id;
+      newEl.className = 'drag-element';
+      newEl.setAttribute('data-name', 'Chữ cuộn ' + customElementsCount);
+      newEl.setAttribute('data-align', 'center');
+      newEl.style.left = '120px';
+      newEl.style.top = '140px';
+      newEl.style.color = 'var(--cyan)';
+      
+      newEl.innerHTML = `
+        <div class="w-marquee-container">
+          <div class="w-marquee-text">Văn bản cuộn mới ${customElementsCount}</div>
+        </div>
+      `;
+      
+      esp32Canvas.appendChild(newEl);
+      setupDragElementClick(newEl);
+      selectWidget(newEl);
+    });
+
+    document.getElementById('btnAddStatic').addEventListener('click', () => {
+      customElementsCount++;
+      const id = 'customText_' + customElementsCount;
+      const newEl = document.createElement('div');
+      newEl.id = id;
+      newEl.className = 'drag-element';
+      newEl.setAttribute('data-name', 'Nhãn tĩnh ' + customElementsCount);
+      newEl.setAttribute('data-align', 'center');
+      newEl.style.left = '120px';
+      newEl.style.top = '145px';
+      newEl.style.color = '#ffffff';
+      newEl.style.fontSize = '12px';
+      newEl.textContent = 'Label Tĩnh ' + customElementsCount;
+      
+      esp32Canvas.appendChild(newEl);
+      setupDragElementClick(newEl);
+      selectWidget(newEl);
+    });
+
+    // 7. DRAG & DROP LOGIC
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let elementStartX = 0;
+    let elementStartY = 0;
+
+    esp32Canvas.addEventListener('mousedown', (e) => {
+      const target = e.target.closest('.drag-element');
+      if (target) {
+        selectWidget(target);
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        elementStartX = parseInt(target.style.left) || 120;
+        elementStartY = parseInt(target.style.top) || 120;
+        esp32Canvas.style.cursor = 'move';
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging && selectedElement) {
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        
+        let newX = elementStartX + dx;
+        let newY = elementStartY + dy;
+        
+        newX = Math.max(10, Math.min(230, newX));
+        newY = Math.max(10, Math.min(230, newY));
+        
+        selectedElement.style.left = newX + 'px';
+        selectedElement.style.top = newY + 'px';
+        
+        inputX.value = newX;
+        inputY.value = newY;
+        
+        if (newX !== 120) {
+          alignBtns.forEach(btn => btn.classList.remove('selected'));
+          selectedElement.setAttribute('data-align', 'custom');
+        } else {
+          document.getElementById('alignCenter').classList.add('selected');
+          selectedElement.setAttribute('data-align', 'center');
+        }
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        esp32Canvas.style.cursor = 'default';
+      }
+    });
+
+    // Support Touch Events
+    esp32Canvas.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      const target = e.target.closest('.drag-element');
+      if (target) {
+        selectWidget(target);
+        isDragging = true;
+        dragStartX = touch.clientX;
+        dragStartY = touch.clientY;
+        elementStartX = parseInt(target.style.left) || 120;
+        elementStartY = parseInt(target.style.top) || 120;
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchmove', (e) => {
+      if (isDragging && selectedElement) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - dragStartX;
+        const dy = touch.clientY - dragStartY;
+        
+        let newX = elementStartX + dx;
+        let newY = elementStartY + dy;
+        
+        newX = Math.max(10, Math.min(230, newX));
+        newY = Math.max(10, Math.min(230, newY));
+        
+        selectedElement.style.left = newX + 'px';
+        selectedElement.style.top = newY + 'px';
+        
+        inputX.value = newX;
+        inputY.value = newY;
+        
+        if (e.cancelable) e.preventDefault();
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchend', () => { isDragging = false; });
+
+    // 8. COLOR CHANGE
+    colorDots.forEach(dot => {
+      dot.addEventListener('click', (e) => {
+        if (!selectedElement) return;
+        colorDots.forEach(d => d.classList.remove('selected'));
+        dot.classList.add('selected');
+        const color = dot.getAttribute('data-color');
+        selectedElement.style.color = color;
+        const speedNum = selectedElement.querySelector('.w-speed');
+        if (speedNum) speedNum.style.color = color;
+        const marqueeText = selectedElement.querySelector('.w-marquee-text');
+        if (marqueeText) marqueeText.style.color = color;
+      });
+    });
+
+    // 9. CATEGORY TAB SELECTION LOGIC
+    function switchCategory(cat) {
+      currentCategory = cat;
+      
+      // Update Tab CSS
+      document.querySelectorAll('.tab-item').forEach(item => item.classList.remove('active'));
+      document.getElementById('tab' + cat.charAt(0).toUpperCase() + cat.slice(1)).classList.add('active');
+      
+      // Hide all preset rows
+      rowPresetsStatus.style.display = 'none';
+      rowPresetsNotif.style.display = 'none';
+      rowPresetsMap.style.display = 'none';
+      
+      // Show appropriate preset row
+      if (cat === 'status') {
+        rowPresetsStatus.style.display = 'flex';
+        mapBg.style.display = 'none';
+        applyModelPreset('s4');
+      } else if (cat === 'notif') {
+        rowPresetsNotif.style.display = 'flex';
+        mapBg.style.display = 'none';
+        applyModelPreset('n1');
+      } else if (cat === 'map') {
+        rowPresetsMap.style.display = 'flex';
+        mapBg.style.display = 'block';
+        applyModelPreset('mh1');
+      }
+    }
+
+    tabStatus.addEventListener('click', () => switchCategory('status'));
+    tabNotif.addEventListener('click', () => switchCategory('notif'));
+    tabMap.addEventListener('click', () => switchCategory('map'));
+
+    // 10. APPLY MODEL PRESET
+    function applyModelPreset(model) {
+      currentModel = model;
+      
+      // Update Preset Button Active Style
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('data-model') === model) {
+          btn.classList.add('active');
+        }
+      });
+
+      // Hide all widgets first
+      const allWidgets = ['wTime', 'wDate', 'wSpeed', 'wBatPhone', 'wBatBike', 'wNav', 'wBrand', 'wNotifIcon', 'wNotifTitle', 'wNotifBody'];
+      allWidgets.forEach(id => {
+        document.getElementById(id).style.display = 'none';
+      });
+
+      // Remove any custom marquee/static elements
+      document.querySelectorAll('.drag-element').forEach(el => {
+        if (el.id.startsWith('customText') || el.id.startsWith('customMarquee')) {
+          el.remove();
+        }
+      });
+
+      // Show and position widgets according to specific models
+      if (model === 's4') { // S4 Cyber Dual
+        const wTime = document.getElementById('wTime');
+        wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '75px'; wTime.style.color = '#ffffff';
+        wTime.setAttribute('data-align', 'center');
+
+        const wDate = document.getElementById('wDate');
+        wDate.style.display = 'flex'; wDate.style.left = '120px'; wDate.style.top = '115px'; wDate.style.color = 'var(--text-secondary)';
+        wDate.setAttribute('data-align', 'center');
+
+        const wSpeed = document.getElementById('wSpeed');
+        wSpeed.style.display = 'flex'; wSpeed.style.left = '120px'; wSpeed.style.top = '165px'; wSpeed.style.color = 'var(--green)';
+        wSpeed.setAttribute('data-align', 'center');
+
+        const wBatPhone = document.getElementById('wBatPhone');
+        wBatPhone.style.display = 'flex'; wBatPhone.style.left = '65px'; wBatPhone.style.top = '210px'; wBatPhone.style.color = 'var(--cyan)';
+        wBatPhone.setAttribute('data-align', 'left');
+
+        const wBatBike = document.getElementById('wBatBike');
+        wBatBike.style.display = 'flex'; wBatBike.style.left = '175px'; wBatBike.style.top = '210px'; wBatBike.style.color = 'var(--amber)';
+        wBatBike.setAttribute('data-align', 'right');
+
+        const wBrand = document.getElementById('wBrand');
+        wBrand.style.display = 'flex'; wBrand.style.left = '120px'; wBrand.style.top = '35px'; wBrand.style.color = '#475569';
+        wBrand.setAttribute('data-align', 'center');
+
+        selectWidget(wTime);
+      } 
+      else if (model === 's3') { // S3 Classic Minimal
+        const wTime = document.getElementById('wTime');
+        wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '100px'; wTime.style.color = '#ffffff';
+        wTime.setAttribute('data-align', 'center');
+
+        const wDate = document.getElementById('wDate');
+        wDate.style.display = 'flex'; wDate.style.left = '120px'; wDate.style.top = '145px'; wDate.style.color = 'var(--text-secondary)';
+        wDate.setAttribute('data-align', 'center');
+
+        const wBatPhone = document.getElementById('wBatPhone');
+        wBatPhone.style.display = 'flex'; wBatPhone.style.left = '120px'; wBatPhone.style.top = '185px'; wBatPhone.style.color = 'var(--cyan)';
+        wBatPhone.setAttribute('data-align', 'center');
+
+        selectWidget(wTime);
+      }
+      else if (model === 's5') { // S5 Racing Sporty
+        const wSpeed = document.getElementById('wSpeed');
+        wSpeed.style.display = 'flex'; wSpeed.style.left = '120px'; wSpeed.style.top = '90px'; wSpeed.style.color = 'var(--green)';
+        wSpeed.setAttribute('data-align', 'center');
+
+        const wTime = document.getElementById('wTime');
+        wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '155px'; wTime.style.color = '#ffffff';
+        wTime.setAttribute('data-align', 'center');
+
+        const wBatPhone = document.getElementById('wBatPhone');
+        wBatPhone.style.display = 'flex'; wBatPhone.style.left = '65px'; wBatPhone.style.top = '200px'; wBatPhone.style.color = 'var(--cyan)';
+        wBatPhone.setAttribute('data-align', 'left');
+
+        const wBatBike = document.getElementById('wBatBike');
+        wBatBike.style.display = 'flex'; wBatBike.style.left = '175px'; wBatBike.style.top = '200px'; wBatBike.style.color = 'var(--amber)';
+        wBatBike.setAttribute('data-align', 'right');
+
+        selectWidget(wSpeed);
+      }
+      else if (model === 'n1') { // N1 Top Banner
+        const wBrand = document.getElementById('wBrand');
+        wBrand.style.display = 'flex'; wBrand.style.left = '120px'; wBrand.style.top = '35px'; wBrand.style.color = '#475569';
+        wBrand.setAttribute('data-align', 'center');
+
+        const wTime = document.getElementById('wTime');
+        wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '100px'; wTime.style.color = '#ffffff';
+        wTime.setAttribute('data-align', 'center');
+
+        const wNotifTitle = document.getElementById('wNotifTitle');
+        wNotifTitle.style.display = 'flex'; wNotifTitle.style.left = '120px'; wNotifTitle.style.top = '170px'; wNotifTitle.style.color = 'var(--amber)';
+        wNotifTitle.setAttribute('data-align', 'center');
+
+        selectWidget(wNotifTitle);
+      }
+      else if (model === 'n2') { // N2 Fullscreen Focus
+        const wNotifIcon = document.getElementById('wNotifIcon');
+        wNotifIcon.style.display = 'flex'; wNotifIcon.style.left = '120px'; wNotifIcon.style.top = '60px';
+        wNotifIcon.setAttribute('data-align', 'center');
+
+        const wNotifTitle = document.getElementById('wNotifTitle');
+        wNotifTitle.style.display = 'flex'; wNotifTitle.style.left = '120px'; wNotifTitle.style.top = '110px'; wNotifTitle.style.color = '#ffffff';
+        wNotifTitle.setAttribute('data-align', 'center');
+
+        const wNotifBody = document.getElementById('wNotifBody');
+        wNotifBody.style.display = 'flex'; wNotifBody.style.left = '120px'; wNotifBody.style.top = '155px'; wNotifBody.style.color = 'var(--text-secondary)';
+        wNotifBody.setAttribute('data-align', 'center');
+
+        selectWidget(wNotifTitle);
+      }
+      else if (model === 'mh1') { // MH1 Compact Pill
+        const wNav = document.getElementById('wNav');
+        wNav.style.display = 'flex'; wNav.style.left = '120px'; wNav.style.top = '195px'; wNav.style.color = 'var(--cyan)';
+        wNav.setAttribute('data-align', 'center');
+
+        const wTime = document.getElementById('wTime');
+        wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '45px'; wTime.style.color = '#ffffff';
+        wTime.setAttribute('data-align', 'center');
+
+        selectWidget(wNav);
+      }
+      else if (model === 'mh2') { // MH2 Bottom Bar / Layout
+        const wNav = document.getElementById('wNav');
+        wNav.style.display = 'flex'; wNav.style.left = '80px'; wNav.style.top = '195px'; wNav.style.color = 'var(--cyan)';
+        wNav.setAttribute('data-align', 'left');
+
+        const wSpeed = document.getElementById('wSpeed');
+        wSpeed.style.display = 'flex'; wSpeed.style.left = '175px'; wSpeed.style.top = '195px'; wSpeed.style.color = 'var(--green)';
+        wSpeed.setAttribute('data-align', 'right');
+
+        const wTime = document.getElementById('wTime');
+        wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '45px'; wTime.style.color = '#ffffff';
+        wTime.setAttribute('data-align', 'center');
+
+        selectWidget(wNav);
+      }
+
+      // Update checklist controls
+      updateTogglesList();
+    }
+
+    // Attach click events to all preset buttons dynamically
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        applyModelPreset(btn.getAttribute('data-model'));
+      });
+    });
+
+    // 11. UPLOAD SIMULATION
+    const uploadOverlay = document.getElementById('uploadOverlay');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const uploadSuccess = document.getElementById('uploadSuccess');
+    const uploadTitle = document.getElementById('uploadTitle');
+    const uploadDesc = document.getElementById('uploadDesc');
+    const btnOverlayClose = document.getElementById('btnOverlayClose');
+
+    function triggerBleUpload() {
+      uploadOverlay.style.display = 'flex';
+      uploadProgress.style.display = 'block';
+      uploadSuccess.style.display = 'none';
+      btnOverlayClose.style.display = 'none';
+      uploadTitle.textContent = "Đang đóng gói cấu hình...";
+      uploadDesc.textContent = "Đang mã hóa dữ liệu tọa độ X, Y, màu sắc, căn lề và trạng thái hiển thị của các linh kiện thành chuỗi JSON BLE...";
+        
+      setTimeout(() => {
+        uploadTitle.textContent = "Đang gửi dữ liệu...";
+        uploadDesc.textContent = "Đang truyền dữ liệu layout qua đặc tính BLE CHA_SETTINGS của đồng hồ ESP32...";
+      }, 1500);
+
+      setTimeout(() => {
+        uploadProgress.style.display = 'none';
+        uploadSuccess.style.display = 'block';
+        btnOverlayClose.style.display = 'block';
+        uploadTitle.textContent = "Nạp Thành Công!";
+        uploadDesc.textContent = "Mạch ESP32 S3 đã nhận diện phân mục " + currentCategory.toUpperCase() + " và lưu model " + currentModel.toUpperCase() + " cấu hình mới vào Flash.";
+      }, 3500);
+    }
+
+    document.getElementById('btnBigUpload').addEventListener('click', triggerBleUpload);
+    document.getElementById('btnUploadTop').addEventListener('click', triggerBleUpload);
+    btnOverlayClose.addEventListener('click', () => {
+      uploadOverlay.style.display = 'none';
+    });
+    
+    document.getElementById('btnSaveTop').addEventListener('click', () => {
+      alert("Đã lưu cấu hình layout vào bộ nhớ đệm của điện thoại!");
+    });
+
+    // Initial load
+    switchCategory('status');
+  </script>
+</body>
+</html>

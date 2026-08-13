@@ -148,23 +148,35 @@ class MainActivity : AppCompatActivity() {
             binding.viewPager.currentItem = position
         }
 
+        val density = resources.displayMetrics.density
+        val baseMarginBottom = (12 * density).toInt()
+        val bubbleOvershoot = (16 * density).toInt()
+
+        // Single source of truth: the vertical space the floating Liquid nav
+        // (capsule + raised bubble) occupies. Reserved as bottom padding on the
+        // ViewPager so every fragment's content (incl. the map's operation
+        // buttons and bottom sheet) is kept strictly above the nav bar.
+        fun applyBottomClearance() {
+            val navHeight = binding.bottomNavigation.height
+            if (navHeight <= 0) return // not laid out yet; retried on insets/layout
+            val params = binding.bottomNavigation.layoutParams as ViewGroup.MarginLayoutParams
+            val navOccupiedSpace = navHeight + params.bottomMargin
+            binding.viewPager.setPadding(0, 0, 0, navOccupiedSpace + bubbleOvershoot)
+        }
+
+        // Keep the capsule above the system navigation bar and recompute the
+        // content clearance whenever the insets change.
         ViewCompat.setOnApplyWindowInsetsListener(binding.bottomNavigation) { view, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
             val params = view.layoutParams as ViewGroup.MarginLayoutParams
-            val density = resources.displayMetrics.density
-            val baseMarginBottom = (12 * density).toInt()
             params.bottomMargin = baseMarginBottom + insets.bottom
             view.layoutParams = params
+            view.post { applyBottomClearance() }
             windowInsets
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.viewPager) { view, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val density = resources.displayMetrics.density
-            val navHeightWithMargin = (84 * density).toInt() + insets.bottom
-            view.setPadding(0, 0, 0, navHeightWithMargin)
-            windowInsets
-        }
+        // Cover the first layout pass and late inset dispatch.
+        binding.bottomNavigation.post { applyBottomClearance() }
     }
 
     private fun requestBatteryOptimizationExemption() {

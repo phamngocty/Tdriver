@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TYMAP · Tab Cài đặt — Redesign v1</title>
+<style>
+  :root{
+    --bg:#090D16; --glass:rgba(19,27,46,.82); --glass2:rgba(30,41,59,.55);
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.05);
+    --cyan:#38BDF8; --purple:#8B5CF6; --green:#10B981; --amber:#F59E0B;
+    --txt:#F1F5F9; --muted:#94A3B8; --dim:#64748B;
+    --r:18px; --shadow:0 8px 30px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    color:var(--txt);
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(56,189,248,.10), transparent 60%),
+      radial-gradient(900px 500px at 110% 20%, rgba(139,92,246,.12), transparent 55%),
+      #05070d;
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;padding:24px;gap:34px;
+  }
+  .stage-info{max-width:340px;color:var(--muted);font-size:14px;line-height:1.55}
+  .stage-info h1{color:var(--cyan);font-size:22px;margin:0 0 10px;letter-spacing:.3px}
+  .stage-info b{color:var(--txt)}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;
+    border:1px solid var(--line);background:var(--glass2);color:var(--muted);margin:4px 6px 0 0}
+  .badge.cyan{color:var(--cyan);border-color:rgba(56,189,248,.35)}
+  .badge.green{color:var(--green);border-color:rgba(16,185,129,.35)}
+
+  /* Phone frame */
+  .phone{
+    width:400px;height:840px;border-radius:44px;position:relative;flex:0 0 auto;
+    background:linear-gradient(160deg,#1a2233,#0b0f1a 40%,#080b13);
+    padding:12px;box-shadow:0 40px 80px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.06);
+  }
+  .phone::before{content:"";position:absolute;top:20px;left:50%;transform:translateX(-50%);
+    width:110px;height:24px;border-radius:20px;background:#000;z-index:5}
+  .screen{
+    width:100%;height:100%;border-radius:34px;overflow:hidden;position:relative;background:var(--bg);
+  }
+  .scroller{height:100%;overflow-y:auto;padding:58px 16px 26px;scrollbar-width:thin;scrollbar-color:#1e293b transparent}
+  .scroller::-webkit-scrollbar{width:5px}
+  .scroller::-webkit-scrollbar-thumb{background:#1e293b;border-radius:4px}
+
+  /* Header */
+  .hdr{display:flex;align-items:center;gap:12px;padding:6px 4px 14px}
+  .hdr .gear{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;flex:0 0 auto;
+    background:linear-gradient(135deg,rgba(139,92,246,.35),rgba(56,189,248,.25));border:1px solid rgba(139,92,246,.4)}
+  .hdr h2{margin:0;font-size:19px;font-weight:800;letter-spacing:.2px}
+  .hdr p{margin:2px 0 0;font-size:12px;color:var(--dim)}
+  .hdr .search{margin-left:auto;width:38px;height:38px;border-radius:12px;border:1px solid var(--line);
+    background:var(--glass2);display:grid;place-items:center;color:var(--muted)}
+
+  /* Chips */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 14px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;padding:8px 15px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;
+    color:var(--muted);background:var(--glass2);border:1px solid var(--line);transition:.18s;user-select:none}
+  .chip:hover{color:var(--txt)}
+  .chip.on{color:#04121c;background:linear-gradient(135deg,#7dd3fc,#38BDF8);border-color:transparent;
+    box-shadow:0 4px 16px rgba(56,189,248,.35)}
+
+  /* Card */
+  .card{margin-bottom:16px;border-radius:var(--r);background:var(--glass);border:1px solid var(--line);
+    box-shadow:var(--shadow);overflow:hidden;backdrop-filter:blur(10px)}
+  .card-h{padding:15px 16px 11px;display:flex;align-items:center;gap:9px;font-size:13px;font-weight:800;
+    letter-spacing:.4px}
+  .card-h .dot{width:8px;height:8px;border-radius:50%}
+  .card-h .count{margin-left:auto;font-size:11px;font-weight:600;color:var(--dim)}
+  .card.c-purple .card-h{color:var(--purple)} .card.c-purple .dot{background:var(--purple);box-shadow:0 0 10px var(--purple)}
+  .card.c-cyan .card-h{color:var(--cyan)} .card.c-cyan .dot{background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+  .card.c-green .card-h{color:var(--green)} .card.c-green .dot{background:var(--green);box-shadow:0 0 10px var(--green)}
+  .card.c-amber .card-h{color:var(--amber)} .card.c-amber .dot{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+
+  /* Settings row */
+  .rows{padding:0 6px 8px}
+  .row{display:flex;align-items:center;gap:12px;padding:11px 10px;border-radius:13px;cursor:pointer;transition:.15s}
+  .row:hover{background:rgba(255,255,255,.035)}
+  .row + .row{margin-top:2px}
+  .row .ic{width:34px;height:34px;border-radius:10px;flex:0 0 auto;display:grid;place-items:center;font-size:16px}
+  .row .ic.p{background:rgba(139,92,246,.16);color:var(--purple)}
+  .row .ic.c{background:rgba(56,189,248,.14);color:var(--cyan)}
+  .row .ic.g{background:rgba(16,185,129,.14);color:var(--green)}
+  .row .ic.a{background:rgba(245,158,11,.14);color:var(--amber)}
+  .row .ic.d{background:rgba(148,163,184,.12);color:var(--muted)}
+  .row .t{min-width:0;flex:1}
+  .row .t .l{font-size:14px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .t .s{font-size:11.5px;color:var(--dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .val{font-size:12.5px;font-weight:700;color:var(--cyan);white-space:nowrap}
+  .row .chev{color:var(--dim);font-size:13px}
+  .divider{height:1px;background:var(--line);margin:4px 14px}
+
+  /* Status pill */
+  .status{display:flex;align-items:center;gap:12px;padding:12px 12px;margin:2px 6px 10px;border-radius:14px;
+    background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(56,189,248,.07));border:1px solid rgba(16,185,129,.28)}
+  .status .pulse{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(16,185,129,.5);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)}70%{box-shadow:0 0 0 8px rgba(16,185,129,0)}100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}}
+  .status .nm{font-size:14px;font-weight:800}
+  .status .mac{font-size:11px;color:var(--dim)}
+  .status .rssi{margin-left:auto;font-size:12px;font-weight:800;color:var(--green);background:rgba(16,185,129,.14);
+    padding:4px 9px;border-radius:999px;border:1px solid rgba(16,185,129,.3)}
+
+  /* Quick commands */
+  .quick{display:flex;gap:8px;padding:2px 10px 10px}
+  .quick button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:13px;
+    background:var(--glass2);border:1px solid var(--line);color:var(--muted);font-size:10.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .quick button:hover{color:var(--txt);border-color:rgba(255,255,255,.16)}
+  .quick button .e{font-size:18px}
+
+  /* Toggle */
+  .switch{position:relative;width:46px;height:27px;flex:0 0 auto;cursor:pointer}
+  .switch input{opacity:0;width:0;height:0}
+  .switch .knob{position:absolute;inset:0;border-radius:999px;background:#263449;transition:.2s;border:1px solid var(--line)}
+  .switch .knob::after{content:"";position:absolute;top:2.5px;left:3px;width:20px;height:20px;border-radius:50%;background:#94A3B8;transition:.2s}
+  .switch input:checked + .knob{background:rgba(16,185,129,.35);border-color:var(--green)}
+  .switch input:checked + .knob::after{transform:translateX(19px);background:var(--green);box-shadow:0 0 10px var(--green)}
+
+  /* Slider */
+  .sl{flex:0 0 auto;width:110px;height:6px;border-radius:99px;background:#1e293b;position:relative}
+  .sl i{position:absolute;inset:0;right:auto;width:var(--v);border-radius:99px;background:linear-gradient(90deg,var(--cyan),#22d3ee)}
+  .sl i::after{content:"";position:absolute;right:-7px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 0 8px rgba(56,189,248,.8)}
+
+  /* Perm badge */
+  .pbadge{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px}
+  .pbadge.ok{color:var(--green);background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3)}
+  .pbadge.cta{color:#04121c;background:linear-gradient(135deg,#7dd3fc,#38BDF8);border:none;cursor:pointer}
+
+  /* hidden state */
+  .card.hide{display:none}
+  .foot{text-align:center;font-size:11px;color:var(--dim);padding:6px 0 4px}
+</style>
+</head>
+<body>
+
+<div class="stage-info">
+  <h1>⚙ Tab Cài đặt — Redesign v1</h1>
+  <p>Thiết kế lại theo <b>Cockpit Dark Glassmorphism</b> (#090D16). Mỗi mục là một <b>settings row</b>: icon + tiêu đề + phụ đề + giá trị hiện tại bên phải → <b>trực quan &amp; dùng nhanh</b> hơn.</p>
+  <span class="badge cyan">Chip lọc hoạt động</span>
+  <span class="badge green">Toggle / slider demo</span>
+  <p style="margin-top:14px;font-size:12px">👉 Bấm thử các chip bên dưới để lọc nhóm, gạt toggle, kéo slider — y như app thật.</p>
+</div>
+
+<div class="phone">
+  <div class="screen">
+    <div class="scroller" id="scroller">
+
+      <!-- Header -->
+      <div class="hdr">
+        <div class="gear">⚙️</div>
+        <div>
+          <h2>Cài đặt hệ thống</h2>
+          <p>TYMAP Cockpit · HUD &amp; kết nối</p>
+        </div>
+        <div class="search">⌕</div>
+      </div>
+
+      <!-- Filter chips -->
+      <div class="chips" id="chips">
+        <div class="chip on" data-f="all">Tất cả</div>
+        <div class="chip" data-f="ketnoi">Kết nối</div>
+        <div class="chip" data-f="bando">Bản đồ</div>
+        <div class="chip" data-f="duong">Dẫn đường</div>
+        <div class="chip" data-f="oled">OLED</div>
+        <div class="chip" data-f="hethong">Hệ thống</div>
+      </div>
+
+      <!-- KẾT NỐI -->
+      <div class="card c-purple" data-g="ketnoi">
+        <div class="card-h"><span class="dot"></span>KẾT NỐI BLE · ESP32 HUD<span class="count">● Online</span></div>
+        <div class="status">
+          <div class="pulse"></div>
+          <div><div class="nm">TYMAP GC9A01</div><div class="mac">C4:5B:BE:12:3F:90</div></div>
+          <div class="rssi">-62 dBm</div>
+        </div>
+        <div class="rows">
+          <div class="row"><span class="ic d">🕘</span><div class="t"><div class="l">Lịch sử kết nối</div><div class="s">3 thiết bị đã lưu</div></div><div class="val">3</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic p">📡</span><div class="t"><div class="l">Quét thiết bị lân cận</div><div class="s">BLE 5.0 · tự dừng sau 15s</div></div><span class="pbadge cta">Quét</span></div>
+        </div>
+        <div class="quick">
+          <button><span class="e">🕒</span>Đồng bộ giờ</button>
+          <button><span class="e">⛅</span>Thời tiết</button>
+          <button><span class="e">📶</span>Trạng thái</button>
+        </div>
+        <div class="divider"></div>
+        <div class="rows">
+          <div class="row"><span class="ic g">⚙</span><div class="t"><div class="l">Chạy dịch vụ ngầm</div><div class="s">Duy trì BLE &amp; đọc GPS nền</div></div>
+            <label class="switch"><input type="checkbox" checked><span class="knob"></span></label></div>
+        </div>
+      </div>
+
+      <!-- BẢN ĐỒ -->
+      <div class="card c-cyan" data-g="bando">
+        <div class="card-h"><span class="dot"></span>HIỂN THỊ &amp; TRUYỀN ẢNH MAX-FPS<span class="count">CartoDB Dark</span></div>
+        <div class="rows">
+          <div class="row"><span class="ic c">🗺</span><div class="t"><div class="l">Nguồn bản đồ nền</div><div class="s">CartoDB · Stadia · Esri · Vệ tinh</div></div><div class="val">Dark Matter</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic c">🎬</span><div class="t"><div class="l">Chế độ truyền ảnh</div><div class="s">Capture Google Maps / OSM</div></div><div class="val">GMaps</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic c">⚡</span><div class="t"><div class="l">Tốc độ khung hình</div><div class="s">Độ mượt khi truyền lên HUD</div></div><div class="val">15 FPS</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic c">🖼</span><div class="t"><div class="l">Chất lượng JPEG</div><div class="s">Cân bằng nét ảnh / tốc độ</div></div>
+            <div class="sl" style="--v:72%"><i></i></div><div class="val">80%</div></div>
+          <div class="row"><span class="ic g">📴</span><div class="t"><div class="l">Ưu tiên bản đồ Offline</div><div class="s">Dùng tile đệm khi mất mạng</div></div>
+            <label class="switch"><input type="checkbox" checked><span class="knob"></span></label></div>
+        </div>
+      </div>
+
+      <!-- DẪN ĐƯỜNG -->
+      <div class="card c-green" data-g="duong">
+        <div class="card-h"><span class="dot"></span>POPUP NGÃ RẼ &amp; DẪN ĐƯỜNG<span class="count">OSRM</span></div>
+        <div class="rows">
+          <div class="row"><span class="ic g">🔔</span><div class="t"><div class="l">Báo rẽ lần 1</div><div class="s">Khoảng cách từ điểm rẽ</div></div>
+            <div class="sl" style="--v:65%"><i></i></div><div class="val">800 m</div></div>
+          <div class="row"><span class="ic g">🔔</span><div class="t"><div class="l">Báo rẽ lần 2</div><div class="s">Cảnh báo gần điểm rẽ</div></div>
+            <div class="sl" style="--v:45%"><i></i></div><div class="val">200 m</div></div>
+          <div class="row"><span class="ic g">⏱</span><div class="t"><div class="l">Thời gian hiện Popup</div><div class="s">Giữ thông tin trên màn hình</div></div><div class="val">5s</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic g">🛣</span><div class="t"><div class="l">Máy chủ lộ trình</div><div class="s">OSRM · Valhalla · ORS · GraphHopper</div></div><div class="val">OSRM</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic d">🛵</span><div class="t"><div class="l">Phương tiện</div><div class="s">Ảnh hưởng cách tính tuyến</div></div><div class="val">Xe máy</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic a">🗣</span><div class="t"><div class="l">Chỉ dẫn giọng nói (TTS)</div><div class="s">Nhắc rẽ khi đang chạy</div></div>
+            <label class="switch"><input type="checkbox" checked><span class="knob"></span></label></div>
+          <div class="row"><span class="ic c">🌐</span><div class="t"><div class="l">Ngôn ngữ</div><div class="s">Giọng đọc &amp; tên đường</div></div><div class="val">Tiếng Việt</div><span class="chev">›</span></div>
+        </div>
+      </div>
+
+      <!-- OLED -->
+      <div class="card c-amber" data-g="oled">
+        <div class="card-h"><span class="dot"></span>PHẦN CỨNG ESP32 &amp; OLED<span class="count">240×240</span></div>
+        <div class="rows">
+          <div class="row"><span class="ic a">🔍</span><div class="t"><div class="l">Độ thu phóng mặc định</div><div class="s">Khi mở bản đồ</div></div>
+            <div class="sl" style="--v:56%"><i></i></div><div class="val">15</div></div>
+          <div class="row"><span class="ic a">🧭</span><div class="t"><div class="l">Hướng xoay bản đồ</div><div class="s">Theo đầu xe / Bắc luôn lên</div></div><div class="val">Theo xe</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic a">🌓</span><div class="t"><div class="l">Ngưỡng đen trắng OLED</div><div class="s">0–255, cân bằng nét chữ</div></div>
+            <div class="sl" style="--v:50%"><i></i></div><div class="val">128</div></div>
+          <div class="row"><span class="ic a">▪</span><div class="t"><div class="l">Dithering mịn ảnh</div><div class="s">Làm mượt vùng gradient</div></div>
+            <label class="switch"><input type="checkbox" checked><span class="knob"></span></label></div>
+          <div class="row"><span class="ic a">🎨</span><div class="t"><div class="l">Bộ lọc màu thông minh</div><div class="s">Giữ màu nhấn Cyan / Gold</div></div>
+            <label class="switch"><input type="checkbox"><span class="knob"></span></label></div>
+        </div>
+      </div>
+
+      <!-- HỆ THỐNG -->
+      <div class="card c-cyan" data-g="hethong">
+        <div class="card-h"><span class="dot"></span>QUYỀN ỨNG DỤNG<span class="count">2/6 chưa cấp</span></div>
+        <div class="rows">
+          <div class="row"><span class="ic g">📍</span><div class="t"><div class="l">Quyền vị trí (GPS &amp; nền)</div><div class="s">Dẫn đường + tốc độ khi tắt màn hình</div></div><span class="pbadge ok">✓ Đã cấp</span></div>
+          <div class="row"><span class="ic g">📶</span><div class="t"><div class="l">Quyền Bluetooth LE</div><div class="s">Quét &amp; kết nối HUD</div></div><span class="pbadge ok">✓ Đã cấp</span></div>
+          <div class="row"><span class="ic a">🔔</span><div class="t"><div class="l">Đọc thông báo</div><div class="s">Google Maps · Zalo · Messenger</div></div><span class="pbadge cta">Cấp</span></div>
+          <div class="row"><span class="ic a">🖥</span><div class="t"><div class="l">Ghi màn hình</div><div class="s">Truyền ảnh Google Maps</div></div><span class="pbadge cta">Cấp</span></div>
+          <div class="row"><span class="ic d">🔋</span><div class="t"><div class="l">Tắt tối ưu hóa pin</div><div class="s">Giữ dịch vụ chạy nền ổn định</div></div><span class="pbadge ok">✓ Đã cấp</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-h" style="padding-top:12px"><span class="dot"></span>TÙY CHỌN CHUNG<span class="count"></span></div>
+        <div class="rows">
+          <div class="row"><span class="ic c">🎨</span><div class="t"><div class="l">Giao diện (Theme)</div><div class="s">Luôn tối Cockpit</div></div><div class="val">Tối</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic d">📏</span><div class="t"><div class="l">Đơn vị khoảng cách</div><div class="s">Hiển thị trên HUD</div></div><div class="val">km/m</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic d">🕑</span><div class="t"><div class="l">Định dạng thời gian</div><div class="s">Đồng hồ &amp; ETA</div></div><div class="val">24h</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic c">🧩</span><div class="t"><div class="l">Dịch vụ mạng &amp; API</div><div class="s">14 dịch vụ · kiểm tra sức khỏe</div></div><div class="val">14</div><span class="chev">›</span></div>
+          <div class="row"><span class="ic p">🔄</span><div class="t"><div class="l">Cập nhật phần mềm (OTA)</div><div class="s">App Android · Firmware ESP32</div></div><span class="chev">›</span></div>
+        </div>
+      </div>
+
+      <div class="foot">TYMAP · Phiên bản 1.0.0 — bản phác thảo giao diện</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Filter chips work like the real tab
+  var chips = document.querySelectorAll('.chip');
+  var cards = document.querySelectorAll('.card');
+  chips.forEach(function(c){
+    c.addEventListener('click', function(){
+      chips.forEach(function(x){x.classList.remove('on')});
+      c.classList.add('on');
+      var f = c.dataset.f;
+      cards.forEach(function(k){
+        k.classList.toggle('hide', f !== 'all' && k.dataset.g !== f);
+      });
+    });
+  });
+</script>
+</body>
+</html>

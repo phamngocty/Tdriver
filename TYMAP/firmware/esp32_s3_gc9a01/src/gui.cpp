@@ -781,7 +781,7 @@ void drawMenuOverlay()
 
     // In tên Tiếng Việt chế độ đang chọn ở tâm vòng tròn (y = 124)
     String selectedName = "";
-    switch (menuSelectedIndex) {
+        switch (menuSelectedIndex) {
         case 0: selectedName = "DẪN ĐƯỜNG"; break;
         case 1: selectedName = "BẢN ĐỒ"; break;
         case 2: selectedName = "TRẠNG THÁI"; break;

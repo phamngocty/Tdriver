@@ -137,62 +137,62 @@ class MapFragment : Fragment(), IOrientationConsumer {
         arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/", "https://b.basemaps.cartocdn.com/rastertiles/voyager/", "https://c.basemaps.cartocdn.com/rastertiles/voyager/"),
         "© OpenStreetMap contributors, © CARTO")
 
-    private val stadiaDark = object : XYTileSource("Stadia Alidade Smooth Dark", 1, 20, 256, ".png",
-        arrayOf("https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/"),
-        "© Stadia Maps, © OpenMapTiles © OpenStreetMap contributors") {
+    private val googleMaps = object : XYTileSource("Google Maps", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=m"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            val key = PrefsHelper.getSecureString(requireContext(), "api_key_stadia", "")
-            val keyParam = if (key.isNotEmpty()) "?api_key=$key" else ""
-            return "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/$z/$x/$y.png$keyParam"
+            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z"
         }
     }
 
-    private val esriCanvasDark = object : XYTileSource("Esri Canvas Dark", 1, 16, 256, "",
-        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/"),
-        "© ESRI") {
+    private val googleMapsDark = object : XYTileSource("Google Maps Dark", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=m"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/$z/$y/$x"
+            val style = "s.t:1|s.e:g|p.c:#ff242f3e,s.t:1|s.e:l.t.f|p.c:#ff746855,s.t:1|s.e:l.t.s|p.c:#ff242f3e,s.t:3|s.e:g.f|p.c:#ff242f3e,s.t:3|s.e:l.t.f|p.c:#ff746855,s.t:4|s.e:g.f|p.c:#ff212a37,s.t:5|s.e:g.f|p.c:#ff38414e,s.t:5|s.e:g.s|p.c:#ff212a37,s.t:5|s.e:l.t.f|p.c:#ff9ca5b3,s.t:6|s.e:g.f|p.c:#ff746855,s.t:6|s.e:g.s|p.c:#ff242f3e,s.t:6|s.e:l.t.f|p.c:#ffd59563,s.t:81|s.e:g.f|p.c:#ff17263c,s.t:82|s.e:g.f|p.c:#ff1f2835,s.t:82|s.e:l.t.f|p.c:#ff515c6d,s.t:82|s.e:l.t.s|p.c:#ff1f2835"
+            val encodedStyle = android.net.Uri.encode(style)
+            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z&apistyle=$encodedStyle"
         }
     }
 
-    private val esriCanvasLight = object : XYTileSource("Esri Canvas Light", 1, 16, 256, "",
-        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/"),
-        "© ESRI") {
+    private val googleMapsSatellite = object : XYTileSource("Google Satellite", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=s"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/$z/$y/$x"
+            return "https://mt1.google.com/vt/lyrs=s&x=$x&y=$y&z=$z"
         }
     }
 
-    private val satelliteSource = object : XYTileSource("Satellite (ESRI)", 1, 19, 256, "",
-        arrayOf("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"),
-        "© ESRI") {
+    private val googleMapsHybrid = object : XYTileSource("Google Hybrid", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=y"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/$z/$y/$x"
+            return "https://mt1.google.com/vt/lyrs=y&x=$x&y=$y&z=$z"
         }
     }
 
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
         list.add(mapCnPositron)
-        list.add(TileSourceFactory.MAPNIK)
         list.add(mapCnDark)
         list.add(mapCnVoyager)
-        list.add(stadiaDark)
-        list.add(esriCanvasDark)
-        list.add(esriCanvasLight)
-        list.add(satelliteSource)
+        list.add(googleMaps)
+        list.add(googleMapsDark)
+        list.add(googleMaps) // For Invert colors at index 5
+        list.add(googleMapsSatellite)
+        list.add(googleMapsHybrid)
 
         val customUrl = PrefsHelper.getString(requireContext(), "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {
@@ -200,7 +200,11 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 val baseUrl = customUrl.substringBefore("{z}")
                 val ext = "." + customUrl.substringAfterLast(".")
                 list.add(XYTileSource("Tùy chỉnh", 1, 20, 256, ext, arrayOf(baseUrl), "Custom"))
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                list.add(XYTileSource("Tùy chỉnh (Lỗi URL)", 1, 20, 256, ".png", arrayOf("https://a.basemaps.cartocdn.com/light_all/"), "Custom"))
+            }
+        } else {
+            list.add(XYTileSource("Tùy chỉnh (Chưa cấu hình)", 1, 20, 256, ".png", arrayOf("https://a.basemaps.cartocdn.com/light_all/"), "Custom"))
         }
         return list
     }
@@ -245,11 +249,17 @@ class MapFragment : Fragment(), IOrientationConsumer {
             searchParams.topMargin = (16 * density).toInt() + insets.top
             binding.searchCard.layoutParams = searchParams
 
-            // 2. Bottom Inset for Bottom Sheet (đặt lề dưới bằng chiều cao LiquidNav + System Bar)
-            val navHeightWithMargin = (84 * density).toInt() + insets.bottom
-            val bsParams = binding.bottomSheet.navigationBottomSheet.layoutParams as ViewGroup.MarginLayoutParams
-            bsParams.bottomMargin = navHeightWithMargin
-            binding.bottomSheet.navigationBottomSheet.layoutParams = bsParams
+            // 2. Suggestions drop below the search card, so it must follow the
+            //    same status-bar offset or it will overlap the search bar on
+            //    edge-to-edge (Android 15 / targetSdk 35) devices.
+            val suggestionsParams = binding.suggestionsCard.layoutParams as ViewGroup.MarginLayoutParams
+            suggestionsParams.topMargin = (72 * density).toInt() + insets.top
+            binding.suggestionsCard.layoutParams = suggestionsParams
+
+            // Note: the bottom-sheet floating card uses a fixed 16dp gap defined
+            // in bottom_sheet_navigation.xml. MainActivity already insets the
+            // fragment above the Liquid nav via the ViewPager bottom padding, so
+            // no nav height / system bar bottom inset is re-applied here.
 
             windowInsets
         }
@@ -271,6 +281,19 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.mapView.apply {
             overlays.clear()
             setTileSource(sources[index])
+            
+            if (index == 5) {
+                val colorMatrix = android.graphics.ColorMatrix(floatArrayOf(
+                    -1.0f, 0.0f, 0.0f, 0.0f, 255f,
+                    0.0f, -1.0f, 0.0f, 0.0f, 255f,
+                    0.0f, 0.0f, -1.0f, 0.0f, 255f,
+                    0.0f, 0.0f, 0.0f, 1.0f, 0.0f
+                ))
+                overlayManager.tilesOverlay.setColorFilter(android.graphics.ColorMatrixColorFilter(colorMatrix))
+            } else {
+                overlayManager.tilesOverlay.setColorFilter(null)
+            }
+            
             setMultiTouchControls(true)
             zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
             isTilesScaledToDpi = true 
@@ -300,7 +323,10 @@ class MapFragment : Fragment(), IOrientationConsumer {
             userMarker = Marker(this).apply {
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                 icon = createUserIcon(context)
-                setFlat(false) // Rotation relative to Screen (0 = 12h)
+                // FLAT marker: icon nằm trên mặt bản đồ và TỰ XOAY THEO bản đồ khi người dùng
+                // xoay map. marker.rotation = -heading => nón xanh luôn chỉ đúng hướng thực tế
+                // trên bản đồ đã xoay (osmdroid: total = mapOrientation - marker.rotation).
+                setFlat(true)
                 infoWindow = null
                 setOnMarkerClickListener { _, _ -> true }
             }
@@ -317,6 +343,11 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
             // 4. Rotation UI
             overlays.add(RotationGestureOverlay(this))
+
+            // Setting "Hướng bản đồ" (map_orientation): 0 = Hướng Bắc, 1 = Hướng đi
+            NavigationRepository.setTrackUpMode(
+                PrefsHelper.getInt(context, "map_orientation", 1) == 1
+            )
 
             // Map Listeners
             addMapListener(object : MapListener {
@@ -500,18 +531,13 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 }
             }
             override fun onSlide(bottomSheet: View, slideOffset: Float) {
-                if (slideOffset > 0f) {
-                    val extraShift = -slideOffset * (bottomSheet.height - bottomSheetBehavior.peekHeight)
-                    binding.zoomControls.translationY = extraShift
-                    binding.fabLocation.translationY = extraShift
-                    binding.btnRecenter.translationY = extraShift
-                    binding.cardGpsSpeedometer.translationY = extraShift
-                } else {
-                    binding.zoomControls.translationY = 0f
-                    binding.fabLocation.translationY = 0f
-                    binding.btnRecenter.translationY = 0f
-                    binding.cardGpsSpeedometer.translationY = 0f
-                }
+                // Only bottom-anchored controls (which the expanding sheet would
+                // otherwise cover) follow the sheet. fabLocation lives in the
+                // top-right stack, so it must NOT move here.
+                val shift = if (slideOffset > 0f) -slideOffset * (bottomSheet.height - bottomSheetBehavior.peekHeight) else 0f
+                binding.zoomControls.translationY = shift
+                binding.btnRecenter.translationY = shift
+                binding.cardGpsSpeedometer.translationY = shift
             }
         })
 
@@ -800,12 +826,26 @@ class MapFragment : Fragment(), IOrientationConsumer {
             val sources = getTileSources()
             val sourceNames = sources.map { it.name() }
             val currentIdx = PrefsHelper.getInt(requireContext(), "tile_source", 0)
+            val safeIdx = if (currentIdx >= sources.size) 0 else currentIdx
             
             AlertDialog.Builder(requireContext())
                 .setTitle("Nguồn bản đồ")
-                .setSingleChoiceItems(sourceNames.toTypedArray(), currentIdx) { dialog, which ->
+                .setSingleChoiceItems(sourceNames.toTypedArray(), safeIdx) { dialog, which ->
                     PrefsHelper.putInt(requireContext(), "tile_source", which)
                     binding.mapView.setTileSource(sources[which])
+                    
+                    if (which == 5) {
+                        val colorMatrix = android.graphics.ColorMatrix(floatArrayOf(
+                            -1.0f, 0.0f, 0.0f, 0.0f, 255f,
+                            0.0f, -1.0f, 0.0f, 0.0f, 255f,
+                            0.0f, 0.0f, -1.0f, 0.0f, 255f,
+                            0.0f, 0.0f, 0.0f, 1.0f, 0.0f
+                        ))
+                        binding.mapView.overlayManager.tilesOverlay.setColorFilter(android.graphics.ColorMatrixColorFilter(colorMatrix))
+                    } else {
+                        binding.mapView.overlayManager.tilesOverlay.setColorFilter(null)
+                    }
+
                     Toast.makeText(requireContext(), sources[which].name(), Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
                 }
@@ -939,18 +979,22 @@ class MapFragment : Fragment(), IOrientationConsumer {
                         
                         val isTrackUp = NavigationRepository.isTrackUpMode.value
                         if (isTrackUp) {
-                            // Chế độ Track Up: Bản đồ xoay ngược trackUpHeading, Marker hướng thẳng (0f = 12h)
+                            // Chế độ Track Up: Bản đồ xoay ngược trackUpHeading => hướng đi lên 12h.
+                            // Flat marker rotation = -trackUpHeading => nón chỉ thẳng đứng (12h).
                             val trackUpHeading = if (isMoving) location.bearing else lastHeading
                             animateMapRotation(binding.mapView.mapOrientation, -trackUpHeading)
-                            animateMarkerRotation(0f)
+                            animateMarkerRotation((-trackUpHeading + 360f) % 360f)
                         } else {
-                            // Chế độ North Up: Bản đồ hướng Bắc (0f), Marker xoay theo northUpHeading (2h)
-                            val northUpHeading = if (isMoving) location.bearing else (-lastHeading + 360f) % 360f
+                            // Chế độ North Up: Bản đồ hướng Bắc (0f), Marker xoay theo northUpHeading.
+                            // (osmdroid vẽ flat marker: total = mapOrientation - marker.rotation
+                            //  nên set marker.rotation = -heading để nón chỉ đúng hướng thực tế)
+                            val northUpHeading = (-(if (isMoving) location.bearing else lastHeading) + 360f) % 360f
                             animateMapRotation(binding.mapView.mapOrientation, 0f)
                             animateMarkerRotation(northUpHeading)
                         }
                     } else {
-                        val northUpHeading = if (isMoving) location.bearing else (-lastHeading + 360f) % 360f
+                        // Không theo dõi (đã xoay/pan tay): flat marker tự xoay theo bản đồ
+                        val northUpHeading = (-(if (isMoving) location.bearing else lastHeading) + 360f) % 360f
                         animateMarkerRotation(northUpHeading)
                     }
                     
@@ -1012,7 +1056,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
                         binding.mapView.controller.setZoom(PrefsHelper.getFloat(requireContext(), "default_zoom", 15f).toDouble())
                         binding.mapView.controller.animateTo(GeoPoint(it.latitude, it.longitude))
                         animateMapRotation(binding.mapView.mapOrientation, -it.bearing)
-                        animateMarkerRotation(0f)
+                        animateMarkerRotation((-it.bearing + 360f) % 360f)
                     }
                 } else {
                     binding.bottomSheet.layoutNavigation.visibility = View.GONE
@@ -1445,7 +1489,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
            }
            
            val regionId = UUID.randomUUID().toString().substring(0, 8)
-           val tileSourceIndex = PrefsHelper.getInt(context, "tile_source", 0)
+           val rawTileSourceIndex = PrefsHelper.getInt(context, "tile_source", 0)
+           val tileSourceIndex = if (rawTileSourceIndex >= getTileSources().size) 0 else rawTileSourceIndex
 
            val intent = Intent(context, OfflineDownloadService::class.java).apply {
                action = OfflineDownloadService.ACTION_START_DOWNLOAD
@@ -1527,11 +1572,19 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     override fun onOrientationChanged(orientation: Float, source: IOrientationProvider?) {
         val rawOrientation = (orientation + 360f) % 360f
-        lastHeading = rawOrientation
+        // Setting "Bù góc la bàn" (compass_offset_mode): bù thêm 0/90/180/270 vào góc cảm biến thô
+        val compassOffset = PrefsHelper.getInt(requireContext(), "compass_offset_mode", 0).toFloat()
+        // Setting "Đảo chiều la bàn khi đứng yên" (invert_heading): bù thêm 180° khi đứng yên
+        val invertHeading = PrefsHelper.getBoolean(requireContext(), "invert_heading", false)
+        val baseHeading = (rawOrientation + compassOffset) % 360f
+        val correctedHeading = (baseHeading + if (invertHeading) 180f else 0f) % 360f
+        lastHeading = correctedHeading
         NavigationRepository.updateCompassHeading(rawOrientation)
 
-        // Khắc phục đối xứng 10h -> 2h (-sign) dành riêng cho North-Up mode đứng yên
-        val northUpOrientation = (-rawOrientation + 360f) % 360f
+        // osmdroid vẽ flat marker: total = mapOrientation - marker.rotation
+        // nên set marker.rotation = -heading (bản vá đối xứng 10h -> 2h); flat marker
+        // tự xoay theo bản đồ nên hướng nhìn luôn đúng kể cả khi xoay map bằng tay.
+        val northUpOrientation = (-correctedHeading + 360f) % 360f
 
         lifecycleScope.launch(Dispatchers.Main) {
             val currentLoc = NavigationRepository.gpsLocation.value
@@ -1543,14 +1596,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 if (isFollowing) {
                     if (isTrackUp) {
                         // CHẾ ĐỘ TRACK-UP (XOAY BẢN ĐỒ):
-                        // - Bản đồ xoay theo góc cảm biến gốc -rawOrientation (2h)
-                        // - Nón xanh LUÔN CHỈ THẲNG ĐỨNG 12H (rotation = 0f)
-                        animateMapRotation(binding.mapView.mapOrientation, -rawOrientation)
-                        animateMarkerRotation(0f)
+                        // - Bản đồ xoay ngược heading đã hiệu chỉnh (-correctedHeading)
+                        // - Nón xanh rotation = -heading => chỉ thẳng đứng 12H
+                        animateMapRotation(binding.mapView.mapOrientation, -correctedHeading)
+                        animateMarkerRotation(northUpOrientation)
                     } else {
                         // CHẾ ĐỘ NORTH-UP (BẢN ĐỒ HƯỚNG BẮC): 
                         // - Bản đồ cố định hướng Bắc (0f)
-                        // - Nón xanh xoay theo northUpOrientation (chỉ đúng 2h dọc theo đường Phan Văn Mảng)
+                        // - Nón xanh xoay theo northUpOrientation (hướng nhìn thực tế)
                         animateMapRotation(binding.mapView.mapOrientation, 0f)
                         animateMarkerRotation(northUpOrientation)
                     }

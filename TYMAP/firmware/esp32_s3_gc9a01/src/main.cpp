@@ -540,7 +540,7 @@ void sendDeviceStatus()
     String modeStr = "STATUS";
     if (currentMode == HUD_MODE)
         modeStr = "HUD";
-    else if (currentMode == MAP_MODE)
+    else if (currentMode == MAP_MODE || currentMode == MAP_HUD_MODE)
         modeStr = "MAP";
     else if (currentMode == INFO_MODE)
         modeStr = "INFO";
@@ -1479,8 +1479,15 @@ void setup()
         if (!isMenuOpen)
         {
             isMenuOpen = true;
-            menuSelectedIndex = (int)currentMode;
-            if (menuSelectedIndex > 3) menuSelectedIndex = 2; // STATUS mặc định
+            switch (currentMode) {
+                case HUD_MODE: menuSelectedIndex = 0; break;
+                case MAP_MODE:
+                case MAP_HUD_MODE: menuSelectedIndex = 1; break;
+                case STATUS_MODE: menuSelectedIndex = 2; break;
+                case INFO_MODE: menuSelectedIndex = 3; break;
+                case NOTIF_MODE: menuSelectedIndex = 4; break;
+                default: menuSelectedIndex = 2; break;
+            }
             menuStartTime = millis();
             screenNeedsRedraw = true;
         }
@@ -1495,7 +1502,15 @@ void setup()
     btnMode.attachLongPressStart([]()
                                 {
         if (isMenuOpen) {
-            selectedMode = (Mode)menuSelectedIndex;
+            Mode newMode = currentMode;
+            switch (menuSelectedIndex) {
+                case 0: newMode = HUD_MODE; break;
+                case 1: newMode = MAP_MODE; break;
+                case 2: newMode = STATUS_MODE; break;
+                case 3: newMode = INFO_MODE; break;
+                case 4: newMode = NOTIF_MODE; break;
+            }
+            selectedMode = newMode;
             currentMode = selectedMode;
             isMenuOpen = false;
 

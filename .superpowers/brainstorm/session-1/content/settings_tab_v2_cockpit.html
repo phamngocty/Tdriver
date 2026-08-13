@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Cockpit Settings Mockup</title>
+<style>
+  :root {
+    --bg-dark: #090D16;
+    --glass-bg: rgba(19, 27, 46, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --cyan: #00e5ff;
+    --green: #10B981;
+    --purple: #8B5CF6;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+  }
+  body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  h2 { color: var(--cyan); margin-bottom: 6px; text-shadow: 0 0 10px rgba(0,229,255,0.3); }
+  .desc { color: var(--text-secondary); margin-bottom: 24px; font-size: 14px; text-align: center; max-width: 500px; line-height: 1.5; }
+  
+  .phone-frame {
+    width: 380px;
+    height: 820px;
+    border-radius: 40px;
+    background: #04060A;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.9), inset 0 0 0 8px #1A2235, inset 0 0 20px rgba(0,229,255,0.05);
+    display: flex;
+    flex-direction: column;
+  }
+  .phone-frame::before {
+    content: '';
+    position: absolute;
+    top: 8px; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 25px;
+    background: #1A2235;
+    border-bottom-left-radius: 18px; border-bottom-right-radius: 18px;
+    z-index: 10;
+  }
+
+  .header { padding: 45px 20px 15px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 26px; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .header .search-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%; width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center; color: var(--text-primary);
+  }
+
+  .filter-scroll {
+    display: flex; overflow-x: auto; padding: 0 20px 12px; gap: 8px; scrollbar-width: none;
+  }
+  .filter-scroll::-webkit-scrollbar { display: none; }
+  
+  .chip {
+    padding: 6px 14px; border-radius: 20px;
+    background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+    color: var(--text-secondary); font-size: 13px; font-weight: 600; white-space: nowrap;
+    cursor: pointer;
+  }
+  .chip.active {
+    background: rgba(139, 92, 246, 0.15); border-color: var(--purple); color: var(--purple);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
+  }
+
+  .content-scroll {
+    flex: 1; overflow-y: auto; padding: 0 16px 24px;
+    display: flex; flex-direction: column; gap: 16px; scrollbar-width: none;
+  }
+  .content-scroll::-webkit-scrollbar { display: none; }
+
+  .settings-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 12px 16px;
+    font-size: 12px; font-weight: 700; color: var(--cyan); letter-spacing: 0.5px;
+    text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.03);
+    background: rgba(0,0,0,0.2);
+  }
+
+  .settings-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    position: relative;
+  }
+  .settings-row:active {
+    background: rgba(255,255,255,0.05);
+  }
+  .settings-row:last-child { border-bottom: none; }
+  
+  .row-left { display: flex; align-items: center; gap: 12px; }
+  .row-icon { font-size: 18px; width: 24px; text-align: center; }
+  .row-title { font-size: 15px; font-weight: 500; color: var(--text-primary); }
+  .row-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  
+  .row-right { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  
+  /* Controls & Badges */
+  .badge {
+    padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 700;
+  }
+  .badge.green { background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+  .badge.amber { background: rgba(245, 158, 11, 0.15); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+  
+  .btn-action {
+    background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border);
+    padding: 6px 12px; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 600;
+  }
+  .btn-action.primary { background: var(--purple); border: none; color: #fff; }
+  
+  .val-text { color: var(--text-secondary); }
+  .val-arrow { color: #475569; font-size: 12px; }
+  
+  .ble-device {
+    background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; margin: 12px 16px;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+  }
+  .ble-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .ble-name { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .ble-mac { font-size: 12px; color: var(--text-secondary); }
+  .quick-actions { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .qa-btn {
+    flex: 1; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 10px;
+    text-align: center; font-size: 18px; border: 1px solid var(--glass-border);
+  }
+  
+  .switch { position: relative; display: inline-block; width: 42px; height: 24px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255,255,255,0.1); border-radius: 24px; transition: .4s; }
+  .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: .3s; }
+  input:checked + .slider { background-color: var(--green); }
+  input:checked + .slider:before { transform: translateX(18px); }
+
+</style>
+</head>
+<body>
+
+  <h2>Phác thảo Giao diện Cài đặt mới</h2>
+  <div class="desc">
+    Tách biệt rõ ràng phần cài đặt Giao diện (Theme) cho thiết bị ngoại vi và phần cài đặt chung của hệ thống.
+  </div>
+
+  <div class="phone-frame">
+    <div class="header">
+      <h1>⚙ Cài đặt</h1>
+      <div class="search-btn">🔍</div>
+    </div>
+    
+    <div class="filter-scroll">
+      <div class="chip">Tất cả</div>
+      <div class="chip active">Giao diện</div>
+      <div class="chip">Kết nối</div>
+      <div class="chip">Bản đồ</div>
+      <div class="chip">Hệ thống</div>
+    </div>
+    
+    <div class="content-scroll">
+      
+      <!-- Card KẾT NỐI -->
+      <div class="settings-card">
+        <div class="card-header">KẾT NỐI (BLE)</div>
+        
+        <div class="ble-device">
+          <div class="ble-header">
+            <div class="ble-name"><span class="dot green"></span> TYMAP GC9A01</div>
+            <div class="badge green">RSSI -62 dBm</div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="ble-mac">C4:5B:BE:4A:21</div>
+            <div style="color: var(--red); font-size: 12px; font-weight: bold; cursor: pointer;">NGẮT KẾT NỐI</div>
+          </div>
+        </div>
+
+        <div class="quick-actions">
+          <div class="qa-btn">🕒</div>
+          <div class="qa-btn">⚡</div>
+          <div class="qa-btn">📶</div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">⌖</div>
+            <div class="row-title">Lịch sử kết nối</div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">3 thiết bị</span> <span class="val-arrow">▶</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Card GIAO DIỆN & CHỦ ĐỀ -->
+      <div class="settings-card">
+        <div class="card-header" style="color: var(--purple)">Cài đặt Theme (Giao diện)</div>
+        
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">🎨</div>
+            <div>
+              <div class="row-title">Giao diện ứng dụng</div>
+              <div class="row-subtitle">Chế độ sáng/tối của App</div>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">Tối (Dark)</span> <span class="val-arrow">▼</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">🕒</div>
+            <div>
+              <div class="row-title">Đồng hồ &amp; Pin (STATUS)</div>
+              <div class="row-subtitle">Kiểu giao diện màn hình trạng thái ESP32</div>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">Cyber Dual Gauges (S4)</span> <span class="val-arrow">▼</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">💬</div>
+            <div>
+              <div class="row-title">Thông báo tin nhắn (NOTIF)</div>
+              <div class="row-subtitle">Kiểu giao diện màn hình tin nhắn ESP32</div>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">Fullscreen Focus (N2)</span> <span class="val-arrow">▼</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">🎴</div>
+            <div>
+              <div class="row-title">Thẻ nổi MAP HUD</div>
+              <div class="row-subtitle">Mẫu hiển thị chỉ đường đè trên bản đồ</div>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">Compact Floating Pill (MH1)</span> <span class="val-arrow">▼</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card TÙY CHỌN HỆ THỐNG -->
+      <div class="settings-card">
+        <div class="card-header">Tùy chọn chung (Hệ thống)</div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">⏰</div>
+            <div>
+              <div class="row-title">Định dạng thời gian</div>
+              <div class="row-subtitle">Hiển thị định dạng 12h hoặc 24h</div>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">24h</span> <span class="val-arrow">▼</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">📏</div>
+            <div>
+              <div class="row-title">Đơn vị khoảng cách</div>
+              <div class="row-subtitle">Hệ mét (km/m) hoặc hệ Anh (mi/ft)</div>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">Hệ mét (km)</span> <span class="val-arrow">▼</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">⏱</div>
+            <div>
+              <div class="row-title">Tự động đóng HUD</div>
+              <div class="row-subtitle">Tự động quay về màn hình đồng hồ</div>
+            </div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">15 giây</span> <span class="val-arrow">▼</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Card HỆ THỐNG & QUYỀN -->
+      <div class="settings-card">
+        <div class="card-header">Hệ thống &amp; Quyền</div>
+        
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon" style="color: var(--green)">✓</div>
+            <div class="row-title">Quyền Vị trí</div>
+          </div>
+          <div class="row-right">
+            <div class="badge green">Đã cấp</div>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon" style="color: var(--green)">✓</div>
+            <div class="row-title">Quyền Bluetooth</div>
+          </div>
+          <div class="row-right">
+            <div class="badge green">Đã cấp</div>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon" style="color: var(--amber)">⚠</div>
+            <div>
+              <div class="row-title">Đọc thông báo</div>
+              <div class="row-subtitle">Cần thiết cho HUD</div>
+            </div>
+          </div>
+          <div class="row-right">
+            <button class="btn-action primary">Cấp quyền</button>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="row-left">
+            <div class="row-icon">🌐</div>
+            <div class="row-title">Quản lý API / Dịch vụ</div>
+          </div>
+          <div class="row-right">
+            <span class="val-text">14 dịch vụ</span> <span class="val-arrow">▶</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>

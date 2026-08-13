@@ -4,15 +4,17 @@
     android:id="@+id/mainLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="false"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:background="@color/colorBackgroundDeep">
 
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewPager"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="match_parent"
         android:clipToPadding="false"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:clipChildren="false" />
 
     <com.example.tymap.ui.LiquidBubbleNavView
         android:id="@+id/bottomNavigation"

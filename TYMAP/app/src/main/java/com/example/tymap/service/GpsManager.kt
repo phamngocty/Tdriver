@@ -77,7 +77,7 @@ class GpsManager(private val context: Context) {
             
         } catch (e: Exception) {
             NavigationRepository.addLog("GPS Start Error: ${e.message}")
-            isUpdating = false
+            stopLocationUpdates()
         }
     }
 
