@@ -109,6 +109,7 @@
     box-sizing: border-box;
     cursor: default;
     user-select: none;
+    flex-shrink: 0;
   }
 
   .esp32-canvas::after {
@@ -191,6 +192,212 @@
     padding: 6px 12px;
     display: flex; align-items: center; gap: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+
+  /* MAP HUD Card Overlays Style */
+  .mh-overlay-card {
+    position: absolute;
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 45;
+    font-family: 'Inter', sans-serif;
+  }
+  .mh-icon-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: 900;
+  }
+  .mh1-card {
+    left: 30px;
+    top: 180px;
+    width: 180px;
+    height: 44px;
+    border-radius: 22px;
+    border: 1.5px solid var(--green);
+    background: rgba(15, 23, 42, 0.95);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+  }
+  .mh1-card .mh-icon-circle {
+    width: 30px;
+    height: 30px;
+    background: var(--green);
+    color: #000;
+    font-size: 16px;
+  }
+  .mh1-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    width: 120px;
+    text-align: left;
+  }
+  .mh-dist {
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .mh-dist.green { color: var(--green); }
+  .mh-dist.amber { color: var(--amber); }
+  .mh-street {
+    font-size: 10px;
+    color: #fff;
+    white-space: nowrap;
+    text-align: left;
+  }
+  .mh2-card {
+    left: 10px;
+    top: 196px;
+    width: 220px;
+    height: 36px;
+    border-radius: 18px;
+    border: 1px solid #334155;
+    background: rgba(15, 23, 42, 0.95);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+  }
+  .mh-icon-circle-outline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: 900;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: 1.5px solid var(--green);
+    color: var(--green);
+    font-size: 12px;
+  }
+  .mh2-street {
+    font-size: 11px;
+    color: #fff;
+    overflow: hidden;
+    width: 165px;
+    white-space: nowrap;
+    text-align: left;
+  }
+  .mh3-card {
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .mh3-badge {
+    position: absolute;
+    left: 24px;
+    top: 24px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid var(--amber);
+    background: rgba(15, 23, 42, 0.95);
+    color: var(--amber);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+  .mh3-dist-pill {
+    position: absolute;
+    left: 70px;
+    top: 28px;
+    width: 90px;
+    height: 28px;
+    border-radius: 14px;
+    border: 1.5px solid var(--amber);
+    background: rgba(15, 23, 42, 0.95);
+    color: var(--amber);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+  .mh3-street-pill {
+    position: absolute;
+    left: 30px;
+    top: 200px;
+    width: 180px;
+    height: 28px;
+    border-radius: 14px;
+    border: 1.5px solid #334155;
+    background: rgba(15, 23, 42, 0.95);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+  .mh4-card {
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .mh4-icon-circle {
+    position: absolute;
+    left: 20px;
+    top: 85px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1.5px solid var(--green);
+    background: rgba(15, 23, 42, 0.95);
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+  .mh4-speed {
+    position: absolute;
+    left: 90px;
+    top: 50px;
+    font-size: 42px;
+    font-family: monospace;
+    font-weight: 900;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+  }
+  .mh4-speed-unit {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: bold;
+    margin-top: 2px;
+  }
+  .mh4-battery {
+    position: absolute;
+    left: 60px;
+    top: 160px;
+    width: 120px;
+    height: 24px;
+    border-radius: 12px;
+    border: 1.5px solid var(--cyan);
+    background: rgba(15, 23, 42, 0.95);
+    color: var(--cyan);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
   }
 
   /* Properties control panel */
@@ -344,6 +551,8 @@
         <div class="preset-row" id="rowPresetsMap" style="display: none;">
           <div class="preset-btn active" data-model="mh1">Mẫu MH1 (Pill Nổi)</div>
           <div class="preset-btn" data-model="mh2">Mẫu MH2 (Thanh Dưới)</div>
+          <div class="preset-btn" data-model="mh3">Mẫu MH3 (Badge Góc)</div>
+          <div class="preset-btn" data-model="mh4">Mẫu MH4 (Mini HUD)</div>
         </div>
       </div>
 
@@ -352,7 +561,33 @@
       <div class="esp32-canvas" id="esp32Canvas">
         
         <!-- Map image background (only visible in MAP HUD mode) -->
-        <img class="map-background" id="mapBg" src="https://api.mapbox.com/styles/v1/mapbox/dark-v10/static/106.68,10.78,15,0,0/240x240?access_token=mock" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22240%22><rect width=%22100%%22 height=%22100%%22 fill=%22%231A2235%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2364748B%22>Bản đồ nền</text></svg>'"/>
+        <img class="map-background" id="mapBg" src="https://api.mapbox.com/styles/v1/mapbox/dark-v10/static/106.68,10.78,15,0,0/240x240?access_token=mock" onerror="this.src='data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22240%22%3E%3Crect width=%22100%%22 height=%22100%%22 fill=%22%231A2235%22/%3E%3Ctext x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2364748B%22%3EBản đồ nền%3C/text%3E%3C/svg%3E'"/>
+
+        <!-- MAP HUD Card Overlays -->
+        <div id="mh1Card" class="mh-overlay-card mh1-card" style="display: none;">
+          <div class="mh-icon-circle green">➔</div>
+          <div class="mh1-info">
+            <div class="mh-dist green">150m</div>
+            <div class="mh-street">Đường Nguyễn Trãi</div>
+          </div>
+        </div>
+
+        <div id="mh2Card" class="mh-overlay-card mh2-card" style="display: none;">
+          <div class="mh-icon-circle-outline">➔</div>
+          <div class="mh2-street">Đường Nguyễn Trãi</div>
+        </div>
+
+        <div id="mh3Card" class="mh-overlay-card mh3-card" style="display: none;">
+          <div class="mh3-badge">➔</div>
+          <div class="mh3-dist-pill">250m</div>
+          <div class="mh3-street-pill">Đường Láng</div>
+        </div>
+
+        <div id="mh4Card" class="mh-overlay-card mh4-card" style="display: none;">
+          <div class="mh4-icon-circle">➔</div>
+          <div class="mh4-speed">45<span class="mh4-speed-unit">KM/H</span></div>
+          <div class="mh4-battery">PIN: 72%</div>
+        </div>
 
         <!-- Brand Logo Widget -->
         <div class="drag-element" id="wBrand" style="left: 120px; top: 35px; color: #475569" data-name="Logo thương hiệu" data-align="center">
@@ -881,6 +1116,11 @@
         document.getElementById(id).style.display = 'none';
       });
 
+      // Hide all card overlays first
+      document.querySelectorAll('.mh-overlay-card').forEach(el => {
+        el.style.display = 'none';
+      });
+
       // Remove any custom marquee/static elements
       document.querySelectorAll('.drag-element').forEach(el => {
         if (el.id.startsWith('customText') || el.id.startsWith('customMarquee')) {
@@ -981,30 +1221,48 @@
         selectWidget(wNotifTitle);
       }
       else if (model === 'mh1') { // MH1 Compact Pill
-        const wNav = document.getElementById('wNav');
-        wNav.style.display = 'flex'; wNav.style.left = '120px'; wNav.style.top = '195px'; wNav.style.color = 'var(--cyan)';
-        wNav.setAttribute('data-align', 'center');
+        document.getElementById('mh1Card').style.display = 'flex';
 
         const wTime = document.getElementById('wTime');
         wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '45px'; wTime.style.color = '#ffffff';
         wTime.setAttribute('data-align', 'center');
 
-        selectWidget(wNav);
+        selectWidget(wTime);
       }
-      else if (model === 'mh2') { // MH2 Bottom Bar / Layout
-        const wNav = document.getElementById('wNav');
-        wNav.style.display = 'flex'; wNav.style.left = '80px'; wNav.style.top = '195px'; wNav.style.color = 'var(--cyan)';
-        wNav.setAttribute('data-align', 'left');
+      else if (model === 'mh2') { // MH2 Bottom Bar
+        document.getElementById('mh2Card').style.display = 'flex';
+
+        const wTime = document.getElementById('wTime');
+        wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '45px'; wTime.style.color = '#ffffff';
+        wTime.setAttribute('data-align', 'center');
+
+        selectWidget(wTime);
+      }
+      else if (model === 'mh3') { // MH3 Badge Góc
+        document.getElementById('mh3Card').style.display = 'block';
+
+        const wTime = document.getElementById('wTime');
+        wTime.style.display = 'flex'; wTime.style.left = '45px'; wTime.style.top = '215px'; wTime.style.color = '#ffffff';
+        wTime.setAttribute('data-align', 'center');
 
         const wSpeed = document.getElementById('wSpeed');
-        wSpeed.style.display = 'flex'; wSpeed.style.left = '175px'; wSpeed.style.top = '195px'; wSpeed.style.color = 'var(--green)';
-        wSpeed.setAttribute('data-align', 'right');
+        wSpeed.style.display = 'flex'; wSpeed.style.left = '195px'; wSpeed.style.top = '215px'; wSpeed.style.color = 'var(--cyan)';
+        wSpeed.setAttribute('data-align', 'center');
 
-        const wTime = document.getElementById('wTime');
-        wTime.style.display = 'flex'; wTime.style.left = '120px'; wTime.style.top = '45px'; wTime.style.color = '#ffffff';
-        wTime.setAttribute('data-align', 'center');
+        selectWidget(wTime);
+      }
+      else if (model === 'mh4') { // MH4 Mini HUD
+        document.getElementById('mh4Card').style.display = 'block';
 
-        selectWidget(wNav);
+        const wSpeed = document.getElementById('wSpeed');
+        wSpeed.style.display = 'flex'; wSpeed.style.left = '120px'; wSpeed.style.top = '90px'; wSpeed.style.color = '#ffffff';
+        wSpeed.setAttribute('data-align', 'center');
+
+        const wBatBike = document.getElementById('wBatBike');
+        wBatBike.style.display = 'flex'; wBatBike.style.left = '120px'; wBatBike.style.top = '172px'; wBatBike.style.color = 'var(--cyan)';
+        wBatBike.setAttribute('data-align', 'center');
+
+        selectWidget(wSpeed);
       }
 
       // Update checklist controls

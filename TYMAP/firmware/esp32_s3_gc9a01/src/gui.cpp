@@ -31,6 +31,28 @@ void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset, int
     }
 }
 
+void drawCustomIconResized(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset, int yOffset, int targetW, int targetH, uint16_t fgColor)
+{
+    for (int y = 0; y < targetH; y++)
+    {
+        for (int x = 0; x < targetW; x++)
+        {
+            int srcX = x * 48 / targetW;
+            int srcY = y * 48 / targetH;
+            if (srcX >= 48) srcX = 47;
+            if (srcY >= 48) srcY = 47;
+
+            int byteIdx = (srcY * 48 + srcX) / 8;
+            int bitPos = 7 - (srcX % 8);
+            bool isPixel = (bitmap[byteIdx] & (1 << bitPos)) != 0;
+            if (isPixel)
+            {
+                sprite.drawPixel(xOffset + x, yOffset + y, fgColor);
+            }
+        }
+    }
+}
+
 // ==========================================
 // 1. GIAO DIỆN DẪN ĐƯỜNG (HUD) - PHONG CÁCH GALAXY WATCH 7
 // ==========================================
@@ -156,7 +178,71 @@ void drawMapHudOverlay()
 {
     if (!showMapHudCard) return;
 
-    if (mapHudStyle == 1)
+    if (mapHudStyle == 4)
+    {
+        // ================= MẪU MH5: BẢN ĐỒ THUẦN (Tắt toàn bộ HUD) =================
+        return; // Không vẽ đè bất kỳ UI nào lên bản đồ
+    }
+    else if (mapHudStyle == 1)
+    {
+        // ================= MẪU MH2: THANH DƯỚI =================
+        uint16_t cardBgColor = color565(15, 23, 42);
+        canvasSprite.fillRoundRect(10, 196, 220, 36, 18, cardBgColor);
+        canvasSprite.drawRoundRect(10, 196, 220, 36, 18, color565(51, 65, 85));
+
+        // 1. Icon Mũi tên Rẽ bên trái (cx=28, cy=214, r=12)
+        int ax = 28, ay = 214;
+        uint16_t accent = TFT_GREEN;
+        if (hasCustomIcon) {
+            drawCustomIconResized(canvasSprite, customIconBitmap, 16, 202, 24, 24, accent);
+        } else {
+            switch (navDirIdx) {
+                case 4: case 5: case 6: // Turn Left
+                    canvasSprite.drawLine(ax + 4, ay + 5, ax + 4, ay - 2, accent);
+                    canvasSprite.drawLine(ax + 4, ay - 2, ax - 5, ay - 2, accent);
+                    canvasSprite.fillTriangle(ax - 5, ay - 2, ax - 1, ay - 5, ax - 1, ay + 1, accent);
+                    break;
+                case 1: case 2: case 3: // Turn Right
+                    canvasSprite.drawLine(ax - 4, ay + 5, ax - 4, ay - 2, accent);
+                    canvasSprite.drawLine(ax - 4, ay - 2, ax + 5, ay - 2, accent);
+                    canvasSprite.fillTriangle(ax + 5, ay - 2, ax + 1, ay - 5, ax + 1, ay + 1, accent);
+                    break;
+                default: // Straight / Arrow Up
+                    canvasSprite.drawLine(ax, ay + 5, ax, ay - 5, accent);
+                    canvasSprite.fillTriangle(ax, ay - 6, ax - 3, ay - 1, ax + 3, ay - 1, accent);
+                    break;
+            }
+        }
+
+        // 2. Tên đường chỉ dẫn chữ trắng marquee bên phải (x=50, y=205)
+        myFont.set_font(vietnamtimes12);
+        uint16_t streetLen = myFont.getLength(nextStreet);
+        int visibleWidth = 160;
+        if (streetLen > visibleWidth)
+        {
+            clipMinX = 50;
+            clipMaxX = 50 + visibleWidth;
+            clipMinY = 196;
+            clipMaxY = 232;
+
+            int range = streetLen - visibleWidth + 30;
+            int scrollMs = millis() % (range * 35 + 1200);
+            int scrollX = 0;
+            if (scrollMs > 1200) {
+                scrollX = (scrollMs - 1200) / 35;
+            }
+
+            myFont.print(50 - scrollX, 207, nextStreet, TFT_WHITE, cardBgColor);
+
+            clipMinX = 0; clipMaxX = 240;
+            clipMinY = 0; clipMaxY = 240;
+        }
+        else
+        {
+            myFont.print(50, 207, nextStreet, TFT_WHITE, cardBgColor);
+        }
+    }
+    else if (mapHudStyle == 2)
     {
         // ================= MẪU MH3: MINIMALIST BADGE (HIỂN THỊ 92% BẢN ĐỒ) =================
         uint16_t cardBgColor = color565(15, 23, 42);
@@ -167,7 +253,7 @@ void drawMapHudOverlay()
         canvasSprite.drawCircle(42, 42, 18, accent);
 
         if (hasCustomIcon) {
-            drawCustomIcon(canvasSprite, customIconBitmap, 27, 27, 1);
+            drawCustomIconResized(canvasSprite, customIconBitmap, 29, 29, 26, 26, accent);
         } else {
             int ax = 42, ay = 42;
             switch (navDirIdx) {
@@ -226,6 +312,56 @@ void drawMapHudOverlay()
             myFont.print(120 - streetLen / 2, 206, nextStreet, TFT_WHITE, cardBgColor);
         }
     }
+    else if (mapHudStyle == 3)
+    {
+        // ================= MẪU MH4: MINI HUD =================
+        uint16_t cardBgColor = color565(15, 23, 42);
+        
+        // 1. Vẽ Icon điều hướng (cx=40, cy=105, r=20)
+        int ax = 40, ay = 105;
+        uint16_t accent = TFT_GREEN;
+        canvasSprite.fillCircle(ax, ay, 20, cardBgColor);
+        canvasSprite.drawCircle(ax, ay, 20, accent);
+        if (hasCustomIcon) {
+            drawCustomIconResized(canvasSprite, customIconBitmap, 26, 91, 28, 28, accent);
+        } else {
+            switch (navDirIdx) {
+                case 4: case 5: case 6: // Turn Left
+                    canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, accent);
+                    canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, accent);
+                    canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, accent);
+                    break;
+                case 1: case 2: case 3: // Turn Right
+                    canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, accent);
+                    canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, accent);
+                    canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, accent);
+                    break;
+                default: // Straight / Arrow Up
+                    canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, accent);
+                    canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, accent);
+                    break;
+            }
+        }
+
+        // 2. Vẽ Tốc độ ở giữa (x=90, y=80)
+        char spdBuf[16];
+        snprintf(spdBuf, sizeof(spdBuf), "%d", gpsSpeed);
+        myFont.set_font(FONT_CLOCK);
+        myFont.print(90, 80, spdBuf, TFT_WHITE, TFT_BLACK);
+        
+        myFont.set_font(vietnamtimes12);
+        myFont.print(165, 110, "KM/H", color565(148, 163, 184), TFT_BLACK);
+
+        // 3. Vẽ Pin xe ở dưới (x=60, y=160, w=120, h=24)
+        canvasSprite.fillRoundRect(60, 160, 120, 24, 12, cardBgColor);
+        canvasSprite.drawRoundRect(60, 160, 120, 24, 12, TFT_CYAN);
+        
+        char batBuf[16];
+        snprintf(batBuf, sizeof(batBuf), "PIN: %.1fV", batteryVoltage);
+        myFont.set_font(vietnamtimes12);
+        uint16_t batLen = myFont.getLength(batBuf);
+        myFont.print(120 - batLen / 2, 166, batBuf, TFT_CYAN, cardBgColor);
+    }
     else
     {
         // ================= MẪU MH1: COMPACT FLOATING PILL (HIỂN THỊ 85% BẢN ĐỒ) =================
@@ -236,7 +372,7 @@ void drawMapHudOverlay()
         // Icon Mũi Tên Rẽ Xanh Lá Neon (cx=48, cy=202, r=15)
         canvasSprite.fillCircle(48, 202, 15, TFT_GREEN);
         if (hasCustomIcon) {
-            drawCustomIcon(canvasSprite, customIconBitmap, 33, 187, 1);
+            drawCustomIconResized(canvasSprite, customIconBitmap, 36, 190, 24, 24, TFT_BLACK);
         } else {
             int ax = 48, ay = 202;
             switch (navDirIdx) {
@@ -588,6 +724,72 @@ void drawSTATUS()
         canvasSprite.fillRoundRect(124, 140, 98, 34, 10, color565(15, 23, 42));
         canvasSprite.drawRoundRect(124, 140, 98, 34, 10, TFT_CYAN);
         myFont.print(130, 149, phoneBuf, TFT_CYAN, color565(15, 23, 42));
+    }
+    else if (statusStyle == 3)
+    {
+        // ---------------- S6: CLASSIC ANALOG/DIGITAL ----------------
+        // 1. Date at top (y=30)
+        const char* dayOfWeekVi[] = { "CN", "T2", "T3", "T4", "T5", "T6", "T7" };
+        int dow = rtc.getDayofWeek();
+        if (dow < 0 || dow > 6) dow = 0;
+        String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m");
+        myFont.set_font(vietnamtimes12);
+        uint16_t dateLen = myFont.getLength(dateStr);
+        myFont.print(120 - dateLen / 2, 30, dateStr, TFT_CYAN, TFT_BLACK);
+
+        // 2. Time at center-top (y=70)
+        String timeStr = rtc.getTime("%H:%M");
+        myFont.set_font(FONT_CLOCK);
+        uint16_t timeLen = myFont.getLength(timeStr);
+        myFont.print(120 - timeLen / 2, 70, timeStr, TFT_WHITE, TFT_BLACK);
+
+        // 3. Dual Battery Bars (y=140)
+        // Bike Battery
+        canvasSprite.drawRect(50, 140, 50, 12, color565(71, 85, 105));
+        canvasSprite.fillRect(52, 142, (int)((batteryVoltage/15.0f)*46), 8, TFT_GREEN);
+        myFont.set_font(vietnamtimes12);
+        myFont.print(50, 155, "XE", TFT_GREEN, TFT_BLACK);
+
+        // Phone Battery
+        canvasSprite.drawRect(140, 140, 50, 12, color565(71, 85, 105));
+        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
+        canvasSprite.fillRect(142, 142, (int)((pBat/100.0f)*46), 8, TFT_CYAN);
+        myFont.print(140, 155, "ĐT", TFT_CYAN, TFT_BLACK);
+
+        // 4. Brand at bottom (y=200)
+        myFont.set_font(vietnamtimes12);
+        myFont.print(95, 200, "TYMAP", color565(71, 85, 105), TFT_BLACK);
+    }
+    else if (statusStyle == 4)
+    {
+        // ---------------- S7: SPORT ACTIVITY ----------------
+        // 1. Time at top (y=25) in Cyan
+        String timeStr = rtc.getTime("%H:%M");
+        myFont.set_font(vietnamtimes12);
+        uint16_t timeLen = myFont.getLength(timeStr);
+        myFont.print(120 - timeLen / 2, 25, timeStr, TFT_CYAN, TFT_BLACK);
+
+        // 2. Speed at center (y=70)
+        char spdBuf[16];
+        snprintf(spdBuf, sizeof(spdBuf), "%d", gpsSpeed);
+        myFont.set_font(FONT_CLOCK);
+        uint16_t spdLen = myFont.getLength(spdBuf);
+        myFont.print(120 - spdLen / 2, 70, spdBuf, TFT_WHITE, TFT_BLACK);
+        myFont.set_font(vietnamtimes12);
+        myFont.print(120 + spdLen / 2 + 5, 100, "KM/H", color565(148, 163, 184), TFT_BLACK);
+
+        // 3. Battery Bar at bottom (y=155)
+        canvasSprite.fillRoundRect(30, 155, 180, 8, 4, color565(30, 41, 59));
+        int vSpan = (int)((batteryVoltage / 15.0f) * 180.0f);
+        if (vSpan > 180) vSpan = 180;
+        uint16_t vColor = (batteryVoltage > 12.0f) ? TFT_GREEN : ((batteryVoltage > 11.0f) ? TFT_YELLOW : TFT_RED);
+        canvasSprite.fillRoundRect(30, 155, vSpan, 8, 4, vColor);
+
+        // 4. Battery Text (y=180)
+        char batBuf[32];
+        snprintf(batBuf, sizeof(batBuf), "PIN XE: %.1fV", batteryVoltage);
+        uint16_t batLen = myFont.getLength(batBuf);
+        myFont.print(120 - batLen / 2, 180, batBuf, TFT_WHITE, TFT_BLACK);
     }
     else
     {
@@ -1023,4 +1225,30 @@ void drawNOTIF()
     }
 
     canvasSprite.pushSprite(0, 0);
+}
+
+
+// ==========================================
+// CUSTOM THEME LAYOUT CONFIG PARSER (THEME STUDIO BUILDER)
+// ==========================================
+bool hasCustomLayoutConfig = false;
+
+void parseAndApplyLayoutJson(const String& jsonStr) {
+    if (jsonStr.length() == 0) return;
+    
+    if (jsonStr.indexOf("s4") != -1) statusStyle = 0;
+    else if (jsonStr.indexOf("s5") != -1) statusStyle = 1;
+    else if (jsonStr.indexOf("s3") != -1) statusStyle = 2;
+    else if (jsonStr.indexOf("s6") != -1) statusStyle = 3;
+    else if (jsonStr.indexOf("s7") != -1) statusStyle = 4;
+    else if (jsonStr.indexOf("n1") != -1) notifStyle = 0;
+    else if (jsonStr.indexOf("n2") != -1) notifStyle = 1;
+    else if (jsonStr.indexOf("mh1") != -1) mapHudStyle = 0;
+    else if (jsonStr.indexOf("mh2") != -1) mapHudStyle = 1;
+    else if (jsonStr.indexOf("mh3") != -1) mapHudStyle = 2;
+    else if (jsonStr.indexOf("mh4") != -1) mapHudStyle = 3;
+    else if (jsonStr.indexOf("mh5") != -1) mapHudStyle = 4;
+    
+    hasCustomLayoutConfig = true;
+    Serial.printf("GUI: Applied custom layout JSON config via BLE (statusStyle=%d, notifStyle=%d, mapHudStyle=%d)\n", (int)statusStyle, (int)notifStyle, (int)mapHudStyle);
 }

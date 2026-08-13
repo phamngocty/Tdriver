@@ -18,13 +18,18 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.content.ContextCompat
 import androidx.viewpager2.widget.ViewPager2
+import androidx.lifecycle.lifecycleScope
 import com.example.tymap.databinding.ActivityMainBinding
+import com.example.tymap.repository.NavigationRepository
 import com.example.tymap.service.NavigationService
 import com.example.tymap.ui.MainPagerAdapter
 import com.example.tymap.utils.PrefsHelper
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+    private var oledDeviceConnected = false
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -50,10 +55,30 @@ class MainActivity : AppCompatActivity() {
         setupBottomNavigation()
         PrefsHelper.putBoolean(this, "render_tab_unlocked", false)
         updateRenderTabVisibility()
+        observeOledConnection()
         handleIntent(intent)
         requestBatteryOptimizationExemption()
         
         checkAndRequestPermissions()
+    }
+
+    // Tự hiện tab Render (ESP32 OLED) khi đang kết nối thiết bị OLED qua BLE.
+    private fun observeOledConnection() {
+        lifecycleScope.launch {
+            combine(
+                NavigationRepository.bleConnectionState,
+                NavigationRepository.deviceStatus
+            ) { state, status ->
+                val connected = state == NavigationRepository.BleConnectionState.Connected ||
+                    state == NavigationRepository.BleConnectionState.Ready
+                val display = status["display"] ?: ""
+                connected && (display.contains("OLED", ignoreCase = true) ||
+                    display.contains("SSD1306", ignoreCase = true))
+            }.collect { isOled ->
+                oledDeviceConnected = isOled
+                updateRenderTabVisibility()
+            }
+        }
     }
 
     private fun checkAndRequestPermissions() {
@@ -197,7 +222,12 @@ class MainActivity : AppCompatActivity() {
 
     fun updateRenderTabVisibility() {
         val isUnlocked = PrefsHelper.getBoolean(this, "render_tab_unlocked", false)
-        binding.bottomNavigation.setRenderTabVisible(isUnlocked)
+        val visible = isUnlocked || oledDeviceConnected
+        binding.bottomNavigation.setRenderTabVisible(visible)
+        // Tránh rơi vào màn hình trống nếu tab Render bị ẩn khi đang mở.
+        if (!visible && binding.viewPager.currentItem == 3) {
+            binding.viewPager.currentItem = 0
+        }
     }
 
     override fun onDestroy() {

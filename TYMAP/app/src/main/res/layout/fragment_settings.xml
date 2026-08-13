@@ -1421,6 +1421,12 @@
 
                     <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="10dp"/>
 
+                    <LinearLayout
+                        android:id="@+id/layoutOledSettings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
                     <!-- Threshold -->
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
                         <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_layers" app:tint="#F59E0B"/>
@@ -1572,6 +1578,7 @@
                         </LinearLayout>
                         <com.google.android.material.slider.Slider android:id="@+id/sliderOledTolerance" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="100" android:stepSize="1" />
                         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/switchOledFilterInvert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Đảo kết quả lọc" />
+                    </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -1899,6 +1906,31 @@
                         android:textStyle="bold"
                         android:textColor="@color/colorAccentCyan"
                         android:layout_marginBottom="4dp"/>
+
+                    <!-- Hiển thị OLED thủ công -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingVertical="4dp">
+                        <FrameLayout android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_icon_tint" android:padding="7dp">
+                            <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_layers" app:tint="@color/colorAccentCyan" />
+                        </FrameLayout>
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Hiện Cài đặt OLED (Thủ công)" android:textSize="13sp" android:textColor="#F1F5F9" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tự động ẩn khi không dùng màn OLED" android:textSize="10sp" android:textColor="#94A3B8" />
+                        </LinearLayout>
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchManualShowOled"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
 
                     <!-- Time format -->
                     <LinearLayout

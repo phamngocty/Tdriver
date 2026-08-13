@@ -14,9 +14,13 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.switchmaterial.SwitchMaterial
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -26,7 +30,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import kotlinx.coroutines.*
-import com.example.tymap.ui.maneuverIconRes
 import com.example.tymap.R
 import com.example.tymap.databinding.FragmentMapBinding
 import com.example.tymap.repository.NavigationRepository
@@ -67,7 +70,6 @@ import android.graphics.DashPathEffect
 import android.graphics.RectF
 import android.widget.CheckBox
 import android.widget.TextView
-import android.widget.EditText
 import android.content.DialogInterface
 import com.example.tymap.utils.OfflineFileTileProvider
 import com.example.tymap.service.OfflineDownloadService
@@ -108,6 +110,11 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private var isFollowing = true
     private var isFirstLocation = true
     private var lastHeading: Float = 0f
+
+    // GPS Smoothing and Dynamic Updates
+    private var filteredLat = 0.0
+    private var filteredLon = 0.0
+    private var lastLocationTime = 0L
 
     private val screenCaptureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
@@ -538,8 +545,16 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 binding.zoomControls.translationY = shift
                 binding.btnRecenter.translationY = shift
                 binding.cardGpsSpeedometer.translationY = shift
+                binding.cardSpeedLimitSign.translationY = shift
             }
         })
+
+        binding.cardGpsSpeedometer.setOnClickListener {
+            showSpeedLimitSettingsDialog()
+        }
+        binding.cardSpeedLimitSign.setOnClickListener {
+            showSpeedLimitSettingsDialog()
+        }
 
         routeAlternativeAdapter = RouteAlternativeAdapter { selectRoute(it) }
         binding.bottomSheet.rvAlternatives.layoutManager = LinearLayoutManager(requireContext())
@@ -937,6 +952,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     private var mapRotationAnimator: android.animation.ValueAnimator? = null
+    private var markerPositionAnimator: android.animation.ValueAnimator? = null
     
     private fun animateMapRotation(currentRotation: Float, targetRotation: Float) {
         mapRotationAnimator?.cancel()
@@ -964,19 +980,39 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 NavigationRepository.gpsLocation.collect { location ->
                     if (location == null) return@collect
                     
-                    val point = GeoPoint(location.latitude, location.longitude)
+                    val now = System.currentTimeMillis()
+                    var animDuration = 1000L
+                    if (lastLocationTime > 0) {
+                        val diff = now - lastLocationTime
+                        if (diff in 200..3000) {
+                            animDuration = diff
+                        }
+                    }
+                    lastLocationTime = now
+
+                    // Low-pass filter (Exponential Moving Average) to eliminate GPS noise/jitter
+                    val alpha = 0.45 
+                    val rawLat = location.latitude
+                    val rawLon = location.longitude
                     
-                    // 1. Cập nhật vị trí dấu chấm xanh
-                    userMarker?.setPosition(point)
+                    if (filteredLat == 0.0 || filteredLon == 0.0 || isFirstLocation) {
+                        filteredLat = rawLat
+                        filteredLon = rawLon
+                    } else {
+                        filteredLat = filteredLat + alpha * (rawLat - filteredLat)
+                        filteredLon = filteredLon + alpha * (rawLon - filteredLon)
+                    }
+                    
+                    val point = GeoPoint(filteredLat, filteredLon)
+                    
+                    // 1. Cập nhật vị trí dấu chấm xanh (và camera bản đồ) bằng animation mượt tự động co giãn thời gian
+                    animateMarkerPosition(point, animDuration)
                     
                     // 2. Xử lý xoay bản đồ và Marker theo chế độ
                     val speed = location.speed
                     val isMoving = speed > 1.5f && location.hasBearing()
                     
                     if (isFollowing) {
-                        // Rule APP-25: Dùng animateTo với 200ms
-                        binding.mapView.controller.animateTo(point, binding.mapView.zoomLevelDouble, 200L)
-                        
                         val isTrackUp = NavigationRepository.isTrackUpMode.value
                         if (isTrackUp) {
                             // Chế độ Track Up: Bản đồ xoay ngược trackUpHeading => hướng đi lên 12h.
@@ -1000,18 +1036,44 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     
                     if (isFirstLocation) {
                         val zoom = PrefsHelper.getFloat(requireContext(), "default_zoom", 15f).toDouble()
-                        binding.mapView.controller.animateTo(point, zoom, 200L)
+                        binding.mapView.controller.setZoom(zoom)
                         isFirstLocation = false
                     }
                     
                     val speedKmh = (location.speed * 3.6f).toInt().coerceAtLeast(0)
                     binding.tvGpsSpeedValue.text = "$speedKmh"
 
+                    val isSpeedWarningEnabled = PrefsHelper.getBoolean(requireContext(), "speed_warning", true)
                     val speedLimit = PrefsHelper.getInt(requireContext(), "speed_threshold", 60)
-                    binding.ivSpeedWarning.visibility = if (speedKmh > speedLimit) View.VISIBLE else View.GONE
                     
-                    // Rule APP-23: invalidate tối đa 1 lần mỗi 100ms
-                    binding.mapView.postInvalidateDelayed(100)
+                    if (isSpeedWarningEnabled && speedLimit > 0) {
+                        binding.cardSpeedLimitSign.visibility = View.VISIBLE
+                        binding.tvSpeedLimitSignValue.text = "$speedLimit"
+
+                        when {
+                            speedKmh > speedLimit -> { // Trạng thái CẢNH BÁO QUÁ TỐC ĐỘ (Đỏ Rực)
+                                binding.cardSpeedLimitSign.setStrokeColor(android.graphics.Color.parseColor("#DC2626"))
+                                binding.cardSpeedLimitSign.setCardBackgroundColor(android.graphics.Color.parseColor("#FEF2F2"))
+                                binding.ivSpeedWarning.visibility = View.VISIBLE
+                            }
+                            speedKmh >= speedLimit - 5 -> { // Trạng thái CHÚ Ý GẦN GIỚI HẠN (Vàng Cam)
+                                binding.cardSpeedLimitSign.setStrokeColor(android.graphics.Color.parseColor("#F59E0B"))
+                                binding.cardSpeedLimitSign.setCardBackgroundColor(android.graphics.Color.parseColor("#FFFFFF"))
+                                binding.ivSpeedWarning.visibility = View.GONE
+                            }
+                            else -> { // Trạng thái AN TOÀN (Viền Đỏ Nền Trắng Chuẩn)
+                                binding.cardSpeedLimitSign.setStrokeColor(android.graphics.Color.parseColor("#EF4444"))
+                                binding.cardSpeedLimitSign.setCardBackgroundColor(android.graphics.Color.parseColor("#FFFFFF"))
+                                binding.ivSpeedWarning.visibility = View.GONE
+                            }
+                        }
+                    } else {
+                        binding.cardSpeedLimitSign.visibility = View.GONE
+                        binding.ivSpeedWarning.visibility = View.GONE
+                    }
+                    
+                    // Thực hiện vẽ lại tức thì để đồng bộ hoá mượt mà
+                    binding.mapView.invalidate()
                 }
             }
         }
@@ -1240,7 +1302,57 @@ class MapFragment : Fragment(), IOrientationConsumer {
             addUpdateListener { animator ->
                 val value = animator.animatedValue as Float
                 marker.rotation = value
-                binding.mapView.postInvalidateDelayed(50)
+                binding.mapView.invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun animateMarkerPosition(targetPoint: GeoPoint, durationMs: Long) {
+        val marker = userMarker ?: return
+        markerPositionAnimator?.cancel()
+
+        val startPoint = marker.position
+        if (startPoint == null || isFirstLocation) {
+            marker.position = targetPoint
+            if (isFollowing) {
+                binding.mapView.controller.setCenter(targetPoint)
+            }
+            binding.mapView.postInvalidateDelayed(50)
+            return
+        }
+
+        val startLat = startPoint.latitude
+        val startLon = startPoint.longitude
+        val targetLat = targetPoint.latitude
+        val targetLon = targetPoint.longitude
+
+        val distance = startPoint.distanceToAsDouble(targetPoint)
+        if (distance > 500.0) { // Set instantly if distance is too large (avoid panning long distance)
+            marker.position = targetPoint
+            if (isFollowing) {
+                binding.mapView.controller.setCenter(targetPoint)
+            }
+            binding.mapView.postInvalidateDelayed(50)
+            return
+        }
+
+        markerPositionAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            // Thêm 200ms vào thời gian hiệu ứng để đảm bảo chấm xanh trượt liên tục, không bị khựng lại trước khi GPS tiếp theo tới
+            duration = durationMs + 200L
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { animator ->
+                val fraction = animator.animatedValue as Float
+                val lat = startLat + fraction * (targetLat - startLat)
+                val lon = startLon + fraction * (targetLon - startLon)
+                val interpolatedPoint = GeoPoint(lat, lon)
+
+                marker.position = interpolatedPoint
+                if (isFollowing) {
+                    binding.mapView.controller.setCenter(interpolatedPoint)
+                } else {
+                    binding.mapView.invalidate()
+                }
             }
             start()
         }
@@ -1614,6 +1726,112 @@ class MapFragment : Fragment(), IOrientationConsumer {
             
             binding.mapView.postInvalidateDelayed(100)
         }
+    }
+
+    private fun showSpeedLimitSettingsDialog() {
+        val context = context ?: return
+        val dialog = BottomSheetDialog(context)
+        val dialogView = layoutInflater.inflate(R.layout.dialog_speed_limit_settings, null)
+        dialog.setContentView(dialogView)
+
+        val etCustomSpeed = dialogView.findViewById<EditText>(R.id.etCustomSpeed)
+        val swAutoSpeedLimit = dialogView.findViewById<SwitchMaterial>(R.id.swAutoSpeedLimit)
+        val swSpeedWarning = dialogView.findViewById<SwitchMaterial>(R.id.swSpeedWarning)
+        val swVoiceWarning = dialogView.findViewById<SwitchMaterial>(R.id.swVoiceWarning)
+        val swEspWarning = dialogView.findViewById<SwitchMaterial>(R.id.swEspWarning)
+        val btnSave = dialogView.findViewById<Button>(R.id.btnSaveSpeedLimit)
+
+        val currentThreshold = PrefsHelper.getInt(context, "speed_threshold", 60)
+        val currentAutoSpeed = PrefsHelper.getBoolean(context, "auto_speed_limit", true)
+        val currentSpeedWarning = PrefsHelper.getBoolean(context, "speed_warning", true)
+        val currentVoiceWarning = PrefsHelper.getBoolean(context, "voice_speed_warning", true)
+        val currentEspWarning = PrefsHelper.getBoolean(context, "esp_speed_warning", true)
+
+        etCustomSpeed?.setText(currentThreshold.toString())
+        swAutoSpeedLimit?.isChecked = currentAutoSpeed
+        swSpeedWarning?.isChecked = currentSpeedWarning
+        swVoiceWarning?.isChecked = currentVoiceWarning
+        swEspWarning?.isChecked = currentEspWarning
+
+        val presetButtons = mapOf(
+            R.id.btnSpeed30 to 30,
+            R.id.btnSpeed40 to 40,
+            R.id.btnSpeed50 to 50,
+            R.id.btnSpeed60 to 60,
+            R.id.btnSpeed70 to 70,
+            R.id.btnSpeed80 to 80,
+            R.id.btnSpeed90 to 90,
+            R.id.btnSpeed100 to 100
+        )
+
+        var selectedIntervalSec = PrefsHelper.getInt(context, "speed_warning_interval", 15)
+
+        val intervalButtons = mapOf(
+            R.id.btnInterval5s to 5,
+            R.id.btnInterval10s to 10,
+            R.id.btnInterval15s to 15,
+            R.id.btnInterval30s to 30,
+            R.id.btnInterval60s to 60
+        )
+
+        fun updateIntervalButtonSelection(selected: Int) {
+            intervalButtons.forEach { (id, interval) ->
+                val btn = dialogView.findViewById<Button>(id)
+                if (interval == selected) {
+                    btn?.setBackgroundColor(Color.parseColor("#00E5FF"))
+                    btn?.setTextColor(Color.parseColor("#0F172A"))
+                } else {
+                    btn?.setBackgroundColor(Color.TRANSPARENT)
+                    btn?.setTextColor(Color.parseColor("#F8FAFC"))
+                }
+            }
+        }
+
+        updateIntervalButtonSelection(selectedIntervalSec)
+
+        intervalButtons.forEach { (id, interval) ->
+            dialogView.findViewById<Button>(id)?.setOnClickListener {
+                selectedIntervalSec = interval
+                updateIntervalButtonSelection(selectedIntervalSec)
+            }
+        }
+
+        presetButtons.forEach { (id, valSpeed) ->
+            dialogView.findViewById<Button>(id)?.setOnClickListener {
+                etCustomSpeed?.setText(valSpeed.toString())
+            }
+        }
+
+        btnSave?.setOnClickListener {
+            val inputVal = etCustomSpeed?.text?.toString()?.toIntOrNull() ?: currentThreshold
+            val finalThreshold = inputVal.coerceIn(10, 200)
+
+            PrefsHelper.putInt(context, "speed_threshold", finalThreshold)
+            PrefsHelper.putInt(context, "manual_speed_threshold", finalThreshold)
+            PrefsHelper.putInt(context, "speed_warning_interval", selectedIntervalSec)
+            PrefsHelper.putBoolean(context, "auto_speed_limit", swAutoSpeedLimit?.isChecked == true)
+            PrefsHelper.putBoolean(context, "speed_warning", swSpeedWarning?.isChecked == true)
+            PrefsHelper.putBoolean(context, "voice_speed_warning", swVoiceWarning?.isChecked == true)
+            PrefsHelper.putBoolean(context, "esp_speed_warning", swEspWarning?.isChecked == true)
+
+            // Cập nhật giao diện cảnh báo & biển báo tức thì
+            val isWarnEnabled = swSpeedWarning?.isChecked == true
+            if (isWarnEnabled && finalThreshold > 0) {
+                binding.cardSpeedLimitSign.visibility = View.VISIBLE
+                binding.tvSpeedLimitSignValue.text = "$finalThreshold"
+                val currentLoc = NavigationRepository.gpsLocation.value
+                val currentSpeedKmh = currentLoc?.let { (it.speed * 3.6f).toInt() } ?: 0
+                binding.ivSpeedWarning.visibility = if (currentSpeedKmh > finalThreshold) View.VISIBLE else View.GONE
+            } else {
+                binding.cardSpeedLimitSign.visibility = View.GONE
+                binding.ivSpeedWarning.visibility = View.GONE
+            }
+
+            Toast.makeText(context, "Đã lưu tốc độ giới hạn: $finalThreshold km/h", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     override fun onDestroyView() { super.onDestroyView(); _binding = null }

@@ -7,18 +7,6 @@
 #include <TFT_eSPI.h>
 
 // ==================== CẤU HÌNH FONT CHỮ HỆ THỐNG ====================
-// Giải thích quy chuẩn đặt tên Font:
-// - [tên_font][cỡ_chữ]x[khoảng_cách_chữ_pixel][b (nếu in đậm)]
-// Ví dụ:
-//   - vietnamtimes8x2: chữ cỡ 8, khoảng cách các chữ 2px
-//   - time12x2b: chữ số cỡ 12, khoảng cách các chữ 2px, in đậm (b)
-//
-// Các Font khả dụng từ thư viện FontMaker (được tự động extern từ
-// MyFontMaker.h):
-// - time4x8, time10x4, time12x2b
-// - vietnamtimes6x2, vietnamtimes7x2r, vietnamtimes8x2, vietnamtimes10x2,
-// vietnamtimes12, vietnamtimes12x2b
-
 #define FONT_CLOCK f_to_vai               // Font đồng hồ lớn (STATUS)
 #define FONT_HUD_DIST h_to2               // Font khoảng cách rẽ (HUD)
 #define FONT_HUD_STREET vietnamtimes14x4b // Font tên đường / chỉ dẫn (HUD)
@@ -36,7 +24,7 @@
 enum Mode { HUD_MODE, MAP_MODE, MAP_HUD_MODE, STATUS_MODE, INFO_MODE, NOTIF_MODE };
 
 extern bool showMapHudCard;
-extern uint8_t statusStyle; // 0=S1 Minimalist, 1=S2 Sport Racing, 2=S3 Dual Pill
+extern uint8_t statusStyle; // 0=S4 Cyber Dual Gauges, 1=S5 Classic Analog, 2=S3 Dual Energy Pill
 extern uint8_t notifStyle;  // 0=N1 Floating Card, 1=N2 Fullscreen Focus
 extern bool isMenuOpen;
 extern int menuSelectedIndex;
@@ -70,7 +58,7 @@ extern String distToNext;
 extern String totalDist;
 extern String eta;
 extern String ete;
-extern int navDirIdx; // maneuver index từ mapManeuverToIcon() của app Android
+extern int navDirIdx;
 extern int gpsSpeed;
 extern uint8_t staticIconIndex;
 extern bool hasCustomIcon;
@@ -105,9 +93,15 @@ extern uint8_t trafficWarningType;
 extern uint8_t trafficWarningValue;
 extern unsigned long trafficWarningStartTime;
 
+// Custom Theme Layout Config from Theme Studio Builder
+extern bool hasCustomLayoutConfig;
+void parseAndApplyLayoutJson(const String& jsonStr);
+
 // Các nguyên mẫu hàm vẽ GUI
 void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset,
                     int yOffset, int scale = 2, uint16_t fgColor = TFT_WHITE);
+void drawCustomIconResized(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset,
+                           int yOffset, int targetW, int targetH, uint16_t fgColor = TFT_WHITE);
 void drawArcSegment(TFT_eSprite &sprite, int cx, int cy, int r, int startAngle, int endAngle, uint16_t color);
 void drawHUD();
 void drawMapHudOverlay();

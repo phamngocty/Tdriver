@@ -104,6 +104,8 @@ class NavigationService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var lastMapUpdateLocation: android.location.Location? = null
     private var lastMapUpdateTime: Long = 0
+    private var lastEspSpeedWarningTime: Long = 0L
+    private var lastVoiceSpeedWarningTime: Long = 0L
     
     private var lastMapNavDataSentTime = 0L
     private var lastSentEta = ""
@@ -271,8 +273,8 @@ class NavigationService : Service() {
             bleManager.writeNavigationData(bleData)
         }
         
-        // 2. Send Icon Data - Only send when NOT in Map or Popup Mode to save BLE bandwidth
-        if (!isMapModeActive && !isPopupActive) {
+        // 2. Send Icon Data - Send in Map Mode as well because MAP HUD needs it
+        if (!isPopupActive) {
             if (icon1bpp != null) {
                 // Priority: Bitmap/Hash Icon
                 if (iconHash != lastSentIconHash) {
@@ -702,11 +704,43 @@ class NavigationService : Service() {
             NavigationRepository.gpsLocation.collectLatest { location: Location? ->
                 if (location == null) return@collectLatest
                 
-                if (PrefsHelper.getBoolean(this@NavigationService, "speed_warning", false)) {
+                // Tự động nhận diện tốc độ giới hạn thông minh (Overpass / HERE / TomTom + Spatial Grid Caching)
+                if (PrefsHelper.getBoolean(this@NavigationService, "auto_speed_limit", true)) {
+                    SpeedLimitEngine.fetchSpeedLimit(this@NavigationService, location) { result ->
+                        if (result != null && result.speedLimit > 0) {
+                            PrefsHelper.putInt(this@NavigationService, "speed_threshold", result.speedLimit)
+                        } else {
+                            val manualLimit = PrefsHelper.getInt(this@NavigationService, "manual_speed_threshold", 60)
+                            PrefsHelper.putInt(this@NavigationService, "speed_threshold", manualLimit)
+                        }
+                    }
+                }
+
+                val currentSpeedKmh = (location.speed * 3.6).toInt()
+                if (PrefsHelper.getBoolean(this@NavigationService, "speed_warning", true)) {
                     val threshold = PrefsHelper.getInt(this@NavigationService, "speed_threshold", 60)
-                    if (location.speed * 3.6 > threshold) {
+                    val intervalSec = PrefsHelper.getInt(this@NavigationService, "speed_warning_interval", 15)
+                    val intervalMs = intervalSec * 1000L
+
+                    if (currentSpeedKmh > threshold) {
+                        val now = System.currentTimeMillis()
+
                         if (PrefsHelper.getBoolean(this@NavigationService, "voice_speed_warning", true)) {
-                            ttsManager.speak("Bạn đang chạy quá tốc độ cho phép")
+                            if (now - lastVoiceSpeedWarningTime > intervalMs) {
+                                lastVoiceSpeedWarningTime = now
+                                ttsManager.speak("Cảnh báo: Bạn đang chạy $currentSpeedKmh kilômét trên giờ, vượt quá giới hạn $threshold kilômét trên giờ")
+                            }
+                        }
+
+                        if (PrefsHelper.getBoolean(this@NavigationService, "esp_speed_warning", true)) {
+                            if (now - lastEspSpeedWarningTime > intervalMs) {
+                                lastEspSpeedWarningTime = now
+                                bleManager.writeNotification(
+                                    app = "CẢNH BÁO",
+                                    title = "QUÁ TỐC ĐỘ: $currentSpeedKmh / $threshold KM/H",
+                                    msg = "Hiện tại: $currentSpeedKmh km/h | Giới hạn: $threshold km/h"
+                                )
+                            }
                         }
                     }
                 }

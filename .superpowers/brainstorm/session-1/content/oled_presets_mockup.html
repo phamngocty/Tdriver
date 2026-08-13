@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>OLED Presets Mockup (ESP32 GC9A01)</title>
+<style>
+  :root {
+    --bg-dark: #090D16;
+    --cyan: #00e5ff;
+    --green: #10B981;
+    --amber: #F59E0B;
+    --red: #EF4444;
+    --white: #FFFFFF;
+    --gray: #94A3B8;
+  }
+  body {
+    background: var(--bg-dark);
+    color: var(--white);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px;
+    margin: 0;
+  }
+  h1 { color: var(--cyan); margin-bottom: 5px; text-shadow: 0 0 10px rgba(0,229,255,0.3); }
+  .desc { color: var(--gray); margin-bottom: 40px; text-align: center; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 50px;
+    max-width: 1000px;
+  }
+
+  .preset-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .preset-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--white);
+    text-align: center;
+  }
+  .preset-subtitle {
+    font-size: 12px;
+    color: var(--gray);
+  }
+
+  /* Kích thước thực tế của màn hình GC9A01 là 240x240 */
+  .round-screen {
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+    border: 8px solid #1A2235;
+    box-shadow: 0 0 30px rgba(0, 229, 255, 0.15), inset 0 0 20px rgba(255,255,255,0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Widgets chung */
+  .w-time { font-size: 48px; font-weight: 800; font-family: monospace; letter-spacing: -2px; }
+  .w-time-small { font-size: 28px; font-weight: 700; font-family: monospace; }
+  .w-date { font-size: 14px; color: var(--cyan); text-transform: uppercase; font-weight: 600; letter-spacing: 1px;}
+  .w-speed { display: flex; flex-direction: column; align-items: center; }
+  .w-speed-val { font-size: 56px; font-weight: 900; line-height: 1; font-style: italic; }
+  .w-speed-unit { font-size: 12px; color: var(--gray); font-weight: bold; }
+  .w-brand { font-size: 16px; font-weight: 900; color: #334155; letter-spacing: 4px; text-transform: uppercase; }
+  
+  .w-bat { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: bold; }
+  .bat-icon { width: 24px; height: 12px; border: 2px solid var(--gray); border-radius: 3px; position: relative; }
+  .bat-icon::after { content: ''; position: absolute; right: -4px; top: 2px; width: 2px; height: 4px; background: var(--gray); border-radius: 0 2px 2px 0; }
+  .bat-fill { height: 100%; background: var(--green); border-radius: 1px; }
+  
+  /* Icon Nav */
+  .w-nav-turn { width: 60px; height: 60px; }
+  .w-nav-dist { font-size: 18px; font-weight: bold; margin-top: 4px; }
+  
+  /* Utilities for absolute positioning */
+  .abs { position: absolute; }
+  .center-x { left: 50%; transform: translateX(-50%); }
+  .center-y { top: 50%; transform: translateY(-50%); }
+
+</style>
+</head>
+<body>
+
+  <h1>Visual Brainstorming: OLED Presets</h1>
+  <div class="desc">Phác thảo thực tế giao diện hiển thị trên màn hình tròn ESP32 GC9A01 (240x240)</div>
+
+  <div class="grid">
+    
+    <!-- S6: Classic -->
+    <div class="preset-card">
+      <div class="preset-title">Mẫu S6 (Classic)<br><span class="preset-subtitle">Đồng hồ & Pin</span></div>
+      <div class="round-screen">
+        <div class="abs center-x" style="top: 30px;">
+          <div class="w-date">THỨ 6, 14 THG 8</div>
+        </div>
+        <div class="abs center-x w-time" style="top: 70px;">
+          10:24
+        </div>
+        <div class="abs center-x" style="top: 140px; display: flex; gap: 20px;">
+          <div class="w-bat"><div class="bat-icon"><div class="bat-fill" style="width: 80%"></div></div></div>
+          <div class="w-bat"><div class="bat-icon"><div class="bat-fill" style="width: 40%; background: var(--amber)"></div></div></div>
+        </div>
+        <div class="abs center-x w-brand" style="bottom: 30px;">TYMAP</div>
+      </div>
+    </div>
+
+    <!-- S7: Sport -->
+    <div class="preset-card">
+      <div class="preset-title">Mẫu S7 (Sport)<br><span class="preset-subtitle">Đồng hồ & Pin</span></div>
+      <div class="round-screen">
+        <div class="abs center-x w-time-small" style="top: 25px; color: var(--cyan);">10:24</div>
+        <div class="abs center-x w-speed" style="top: 70px;">
+          <div class="w-speed-val">45</div>
+          <div class="w-speed-unit">KM/H</div>
+        </div>
+        <div class="abs center-x" style="top: 155px; width: 180px; height: 4px; background: #334; border-radius: 2px;">
+          <div style="width: 70%; height: 100%; background: var(--green); border-radius: 2px;"></div>
+        </div>
+        <div class="abs center-x" style="bottom: 40px; font-size: 14px; font-weight: bold;">PIN XE: 70%</div>
+      </div>
+    </div>
+
+    <!-- N3: Mini Popup -->
+    <div class="preset-card">
+      <div class="preset-title">Mẫu N3 (Mini Popup)<br><span class="preset-subtitle">Thông báo</span></div>
+      <div class="round-screen" style="background: url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"240\" height=\"240\"><circle cx=\"120\" cy=\"120\" r=\"115\" fill=\"none\" stroke=\"%23334\" stroke-width=\"2\" stroke-dasharray=\"10 10\"/></svg>');">
+        <!-- Mock background map -->
+        <div class="abs center-x center-y" style="width: 140px; height: 140px; background: rgba(30,41,59,0.95); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid var(--cyan); box-shadow: 0 10px 20px rgba(0,0,0,0.8);">
+          <div style="font-size: 40px; margin-bottom: 10px;">💬</div>
+          <div style="font-size: 14px; font-weight: bold; text-align: center; padding: 0 10px;">Zalo: Vợ Yêu</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- N4: Scroll Card -->
+    <div class="preset-card">
+      <div class="preset-title">Mẫu N4 (Scroll Card)<br><span class="preset-subtitle">Thông báo</span></div>
+      <div class="round-screen">
+        <div class="abs center-x w-time-small" style="top: 15px; font-size: 20px; color: var(--gray)">10:24</div>
+        
+        <div class="abs center-x" style="top: 55px; width: 200px; background: #1E293B; border-radius: 16px; padding: 15px; box-sizing: border-box; border-left: 4px solid var(--cyan);">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <div style="font-size: 18px;">🔵</div>
+            <div style="font-size: 14px; font-weight: bold;">Messenger</div>
+          </div>
+          <div style="font-size: 13px; color: var(--gray); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+            Anh nhớ mua 2 bó rau muống và 1kg thịt heo nhé. Đừng quên mua hành lá!
+          </div>
+        </div>
+        
+        <div class="abs center-x" style="bottom: 15px;">
+          <div style="width: 30px; height: 4px; background: #334; border-radius: 2px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MH3: Big Turn Arrow -->
+    <div class="preset-card">
+      <div class="preset-title">Mẫu MH3 (Big Turn)<br><span class="preset-subtitle">Thẻ nổi Bản đồ</span></div>
+      <div class="round-screen">
+        <div class="abs center-x" style="top: 20px; display: flex; flex-direction: column; align-items: center;">
+          <!-- SVG Turn Right -->
+          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+          <div style="font-size: 28px; font-weight: 900;">250m</div>
+          <div style="font-size: 14px; color: var(--gray); font-weight: bold; margin-top: 5px;">Đ. Láng</div>
+        </div>
+        <div class="abs" style="bottom: 25px; left: 30px; display: flex; flex-direction: column; align-items: center;">
+          <div style="font-size: 24px; font-weight: bold; color: var(--gray)">10:24</div>
+        </div>
+        <div class="abs" style="bottom: 25px; right: 30px; display: flex; flex-direction: column; align-items: center;">
+          <div style="font-size: 24px; font-weight: bold; font-style: italic;">45</div>
+          <div style="font-size: 10px; color: var(--gray)">KM/H</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MH4: Mini HUD -->
+    <div class="preset-card">
+      <div class="preset-title">Mẫu MH4 (Mini HUD)<br><span class="preset-subtitle">Thẻ nổi Bản đồ</span></div>
+      <div class="round-screen">
+        <!-- Mock Map Background -->
+        <div class="abs center-x center-y" style="width: 240px; height: 240px; opacity: 0.2; background: radial-gradient(circle, transparent 30%, #000 70%), repeating-linear-gradient(45deg, #111 0, #111 2px, #000 2px, #000 8px);"></div>
+        
+        <!-- Mini Turn -->
+        <div class="abs" style="top: 80px; left: 20px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 12px; border: 1px solid #334; display: flex; align-items: center; gap: 8px;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          <div style="font-size: 16px; font-weight: bold;">50m</div>
+        </div>
+
+        <!-- Mini Speed -->
+        <div class="abs" style="top: 80px; right: 20px; background: rgba(0,0,0,0.8); padding: 10px 15px; border-radius: 12px; border: 1px solid #334; display: flex; flex-direction: column; align-items: center;">
+          <div style="font-size: 22px; font-weight: 900; font-style: italic;">45</div>
+        </div>
+
+        <!-- Mini Battery -->
+        <div class="abs center-x" style="bottom: 15px; display: flex; gap: 10px; background: rgba(0,0,0,0.8); padding: 5px 12px; border-radius: 20px; border: 1px solid #334;">
+          <div style="font-size: 11px; font-weight: bold; color: var(--gray)">PIN XE</div>
+          <div style="font-size: 11px; font-weight: bold; color: var(--green)">85%</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

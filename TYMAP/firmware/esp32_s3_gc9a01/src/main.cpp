@@ -785,7 +785,14 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
         else if (uuid == CHA_SETTINGS_UUID)
         {
             String s = val.c_str();
-            int startIdx = 0;
+            if (s.startsWith("{"))
+            {
+                parseAndApplyLayoutJson(s);
+                screenNeedsRedraw = true;
+            }
+            else
+            {
+                int startIdx = 0;
             while (startIdx < s.length())
             {
                 int endIdx = s.indexOf('\n', startIdx);
@@ -837,6 +844,7 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                         screenNeedsRedraw = true;
                     }
                 }
+            }
             }
         }
         else if (uuid == CHA_TIME_UUID)

@@ -123,5 +123,12 @@
             android:name=".service.OfflineDownloadService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+        <activity
+            android:name=".ui.ThemeBuilderActivity"
+            android:exported="false"
+            android:label="Tùy biến Theme Studio"
+            android:theme="@style/Theme.TYMAP"
+            android:configChanges="uiMode" />
+
     </application>
 </manifest>

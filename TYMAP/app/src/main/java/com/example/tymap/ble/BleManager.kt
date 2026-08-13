@@ -351,6 +351,13 @@ class MyBleManager(context: Context) : BleManager(context) {
         writeCharacteristic(char, json.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
     }
 
+    fun writeNotification(app: String, title: String, msg: String) {
+        val char = notificationChar ?: return
+        val json = "{\"app\":\"$app\",\"title\":\"$title\",\"msg\":\"$msg\"}"
+        NavigationRepository.addLog("BLE OUT: Notification -> $json")
+        writeCharacteristic(char, json.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+    }
+
     suspend fun writeMapTile(header: ByteArray, jpegData: ByteArray) {
         val char = mapTileChar ?: return
         val data = ByteArray(header.size + jpegData.size)

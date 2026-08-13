@@ -87,11 +87,11 @@ class GpsManager(private val context: Context) {
             try {
                 locationManager.removeUpdates(locationListener)
                 
-                // Sử dụng 1000ms (1 giây) và minDistance = 0f (không có ngưỡng di chuyển để cập nhật liên tục)
+                // Sử dụng 500ms và minDistance = 0f để nhận vị trí dày hơn nếu phần cứng hỗ trợ
                 if (locationManager.allProviders.contains(LocationManager.GPS_PROVIDER)) {
                     locationManager.requestLocationUpdates(
                         LocationManager.GPS_PROVIDER,
-                        1000L, 
+                        500L, 
                         0f,
                         locationListener,
                         handlerThread!!.looper

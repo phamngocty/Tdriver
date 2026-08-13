@@ -148,6 +148,8 @@ class SettingsFragment : Fragment() {
             windowInsets
         }
         setupBleConnectionUI()
+
+
         setupPermissionsDashboard()
         setupApiHealthDashboard()
         setupUI()
@@ -293,6 +295,9 @@ class SettingsFragment : Fragment() {
 
     private fun updateConnectionStatusUI(state: NavigationRepository.BleConnectionState) {
         if (_binding == null) return
+        if (state == NavigationRepository.BleConnectionState.Disconnected) {
+            updateOledSettingsVisibility(false)
+        }
         when (state) {
             NavigationRepository.BleConnectionState.Disconnected -> {
                 binding.statusText.text = "Đã ngắt kết nối BLE"
@@ -427,11 +432,15 @@ class SettingsFragment : Fragment() {
         val stadiaKey = PrefsHelper.getSecureString(context, "api_key_stadia", "")
         val owmKey = PrefsHelper.getSecureString(context, "api_key_owm", "")
         val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "")
+        val hereKey = PrefsHelper.getSecureString(context, "api_key_here", "")
+        val tomtomKey = PrefsHelper.getSecureString(context, "api_key_tomtom", "")
 
         apiServicesList.clear()
         apiServicesList.addAll(listOf(
             ApiService("goong", "Goong.io API (Việt Nam)", "Cảnh báo biển báo, camera phạt nguội & dẫn đường Việt Nam.", "https://account.goong.io/", true, apiKey = goongKey, status = if (goongKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("overpass", "Overpass API (OSM Traffic)", "Cảnh báo camera & tốc độ miễn phí từ OpenStreetMap.", "https://overpass-api.de/", false, status = ServiceStatus.FREE),
+            ApiService("here", "HERE Location Services", "Cung cấp giới hạn tốc độ & bản đồ nâng cao từ HERE.", "https://developer.here.com/", true, apiKey = hereKey, status = if (hereKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("tomtom", "TomTom API Services", "Cung cấp tốc độ giới hạn & bản đồ TomTom chuyên sâu.", "https://developer.tomtom.com/", true, apiKey = tomtomKey, status = if (tomtomKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("osrm", "OSRM Backend Engine", "Dẫn đường cực nhanh (Tự host / Demo miễn phí).", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
             ApiService("valhalla", "Valhalla Routing Engine", "Dẫn đường đa phương tiện / tránh đường cao tốc.", "https://valhalla.opentripplanner.org/", false, status = ServiceStatus.FREE),
             ApiService("ors", "OpenRouteService (ORS)", "Dẫn đường chuyên sâu, yêu cầu API key.", "https://openrouteservice.org/dev/#/signup", true, apiKey = orsKey, status = if (orsKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
@@ -475,6 +484,8 @@ class SettingsFragment : Fragment() {
             "gh" -> "api_key_gh"
             "stadia" -> "api_key_stadia"
             "openweathermap" -> "api_key_owm"
+            "here" -> "api_key_here"
+            "tomtom" -> "api_key_tomtom"
             else -> null
         }
         keyName?.let { 
@@ -492,6 +503,8 @@ class SettingsFragment : Fragment() {
             val success = when(service.id) {
                 "goong" -> testGoongKey(service.apiKey)
                 "overpass" -> testOverpass()
+                "here" -> testHereKey(service.apiKey)
+                "tomtom" -> testTomTomKey(service.apiKey)
                 "osrm" -> testOsrm()
                 "ors" -> testOrsKey(service.apiKey)
                 "gh" -> testGhKey(service.apiKey)
@@ -543,6 +556,36 @@ class SettingsFragment : Fragment() {
             } catch (e: Exception) {}
         }
         return false
+    }
+
+    private fun testHereKey(key: String): Boolean {
+        if (key.isBlank()) return false
+        val url = "https://revgeocode.search.hereapi.com/v1/revgeocode?at=21.0285,105.8542&apiKey=$key"
+        return try {
+            val client = OkHttpClient.Builder().connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS).build()
+            val request = Request.Builder().url(url).build()
+            val resp = client.newCall(request).execute()
+            val ok = resp.isSuccessful
+            resp.close()
+            ok
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun testTomTomKey(key: String): Boolean {
+        if (key.isBlank()) return false
+        val url = "https://api.tomtom.com/search/2/reverseGeocode/21.0285,105.8542.json?key=$key"
+        return try {
+            val client = OkHttpClient.Builder().connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS).build()
+            val request = Request.Builder().url(url).build()
+            val resp = client.newCall(request).execute()
+            val ok = resp.isSuccessful
+            resp.close()
+            ok
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun testOverpass(): Boolean {
@@ -623,11 +666,21 @@ class SettingsFragment : Fragment() {
     // ----------------------------------------------------
     // 4. EXISTING SETTINGS SETUP
     // ----------------------------------------------------
+
+    private fun updateOledSettingsVisibility(isOledConnected: Boolean = false) {
+        if (_binding == null) return
+        val manualShow = PrefsHelper.getBoolean(requireContext(), "manual_show_oled", false)
+        val shouldShow = isOledConnected || manualShow
+        binding.layoutOledSettings.visibility = if (shouldShow) View.VISIBLE else View.GONE
+    }
+
     private fun observeDeviceType() {
         viewLifecycleOwner.lifecycleScope.launch {
             NavigationRepository.deviceStatus.collect { status ->
                 val display = status["display"] ?: ""
                 val isOled = display.contains("OLED") || display.contains("SSD1306")
+                
+                updateOledSettingsVisibility(isOled)
                 
                 if (isOled && _binding != null) {
                     val currentMode = PrefsHelper.getInt(requireContext(), "map_capture_mode", 0)
@@ -655,6 +708,14 @@ class SettingsFragment : Fragment() {
 
     private fun setupUI() {
         val context = requireContext()
+        
+        binding.switchManualShowOled.isChecked = PrefsHelper.getBoolean(context, "manual_show_oled", false)
+        binding.switchManualShowOled.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "manual_show_oled", isChecked)
+            updateOledSettingsVisibility()
+        }
+        updateOledSettingsVisibility()
+
 
         // 0. THEME
         val themes = arrayOf("Hệ thống", "Sáng", "Tối")
@@ -675,14 +736,14 @@ class SettingsFragment : Fragment() {
             PrefsHelper.putInt(context, "units", it)
         }
 
-        val statusStyles = arrayOf("Mẫu S4: Cyber Dual Gauges (Mặc định)", "Mẫu S5: Classic Analog Watch", "Mẫu S3: Dual Energy Pill")
+        val statusStyles = arrayOf("Mẫu S4: Cyber Dual Gauges (Mặc định)", "Mẫu S5: Classic Analog Watch", "Mẫu S3: Dual Energy Pill", "Mẫu S6: Classic", "Mẫu S7: Sport")
         setupSpinner(binding.spinnerStatusStyle, statusStyles, PrefsHelper.getInt(context, "status_style", 0)) { styleIdx ->
             PrefsHelper.putInt(context, "status_style", styleIdx)
             NavigationService.bleManager?.writeSettings("statusStyle=$styleIdx")
             Toast.makeText(context, "Đã gửi cấu hình Mẫu STATUS!", Toast.LENGTH_SHORT).show()
         }
 
-        val notifStyles = arrayOf("Mẫu N1: Floating Card 3D (Đếm lùi 5s)", "Mẫu N2: Fullscreen Focus (THUẦN NOTIF - Mặc định)")
+        val notifStyles = arrayOf("Mẫu N1: Floating Card 3D", "Mẫu N2: Fullscreen Focus (Mặc định)", "Mẫu N3: Mini Popup", "Mẫu N4: Thẻ cuộn")
         setupSpinner(binding.spinnerNotifStyle, notifStyles, PrefsHelper.getInt(context, "notif_style", 1)) { styleIdx ->
             PrefsHelper.putInt(context, "notif_style", styleIdx)
             NavigationService.bleManager?.writeSettings("notifStyle=$styleIdx")
@@ -701,7 +762,7 @@ class SettingsFragment : Fragment() {
             Toast.makeText(context, "Đã cài đặt Thời gian đóng HUD: ${hudTimeoutOptions[selectedIdx]}", Toast.LENGTH_SHORT).show()
         }
 
-        val mapHudStyles = arrayOf("Mẫu MH1: Compact Floating Pill (85% Bản đồ - Mặc định)", "Mẫu MH3: Minimalist Badge (92% Bản đồ - Tối giản)")
+        val mapHudStyles = arrayOf("Mẫu MH1: Compact Floating Pill (Mặc định)", "Mẫu MH2: Thanh Dưới", "Mẫu MH3: Big Turn", "Mẫu MH4: Mini HUD", "Mẫu MH5: Bản đồ thuần")
         setupSpinner(binding.spinnerMapHudStyle, mapHudStyles, PrefsHelper.getInt(context, "map_hud_style", 0)) { styleIdx ->
             PrefsHelper.putInt(context, "map_hud_style", styleIdx)
             NavigationService.bleManager?.writeSettings("mapHudStyle=$styleIdx")

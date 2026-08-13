@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#0F172A"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Handle Bar for BottomSheet -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:background="#334155" />
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Cài Đặt Tốc Độ &amp; Cảnh Báo"
+        android:textColor="#00E5FF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="16dp"
+        android:text="Tùy chỉnh ngưỡng cảnh báo tốc độ GPS và phát cảnh báo lên ứng dụng &amp; màn hình ESP32-S3"
+        android:textColor="#94A3B8"
+        android:textSize="12sp" />
+
+    <!-- Speed Limit Selection Header -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"
+        android:text="Mức tốc độ giới hạn (km/h):"
+        android:textColor="#F8FAFC"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <!-- Quick Presets Horizon Scroll / Grid -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnSpeed30"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:minWidth="54dp"
+                android:text="30"
+                android:textColor="#F8FAFC"
+                app:strokeColor="#334155" />
+
+            <Button
+                android:id="@+id/btnSpeed40"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:minWidth="54dp"
+                android:text="40"
+                android:textColor="#F8FAFC"
+                app:strokeColor="#334155" />
+
+            <Button
+                android:id="@+id/btnSpeed50"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:minWidth="54dp"
+                android:text="50"
+                android:textColor="#F8FAFC"
+                app:strokeColor="#334155" />
+
+            <Button
+                android:id="@+id/btnSpeed60"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:minWidth="54dp"
+                android:text="60"
+                android:textColor="#F8FAFC"
+                app:strokeColor="#334155" />
+
+            <Button
+                android:id="@+id/btnSpeed70"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:minWidth="54dp"
+                android:text="70"
+                android:textColor="#F8FAFC"
+                app:strokeColor="#334155" />
+
+            <Button
+                android:id="@+id/btnSpeed80"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:minWidth="54dp"
+                android:text="80"
+                android:textColor="#F8FAFC"
+                app:strokeColor="#334155" />
+
+            <Button
+                android:id="@+id/btnSpeed90"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:minWidth="54dp"
+                android:text="90"
+                android:textColor="#F8FAFC"
+                app:strokeColor="#334155" />
+
+            <Button
+                android:id="@+id/btnSpeed100"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="54dp"
+                android:text="100"
+                android:textColor="#F8FAFC"
+                app:strokeColor="#334155" />
+
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Custom Speed Input -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Hoặc nhập tốc độ tùy chỉnh:"
+            android:textColor="#94A3B8"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/etCustomSpeed"
+            android:layout_width="90dp"
+            android:layout_height="wrap_content"
+            android:background="#1E293B"
+            android:gravity="center"
+            android:hint="60"
+            android:inputType="number"
+            android:padding="10dp"
+            android:textColor="#F8FAFC"
+            android:textColorHint="#64748B"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="KM/H"
+            android:textColor="#94A3B8"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="#1E293B" />
+
+    <!-- Warning Frequency / Interval -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="Tần suất lặp lại cảnh báo:"
+        android:textColor="#F8FAFC"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnInterval5s"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="5s"
+            android:textColor="#F8FAFC"
+            app:strokeColor="#334155" />
+
+        <Button
+            android:id="@+id/btnInterval10s"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="10s"
+            android:textColor="#F8FAFC"
+            app:strokeColor="#334155" />
+
+        <Button
+            android:id="@+id/btnInterval15s"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="15s"
+            android:textColor="#F8FAFC"
+            app:strokeColor="#334155" />
+
+        <Button
+            android:id="@+id/btnInterval30s"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:text="30s"
+            android:textColor="#F8FAFC"
+            app:strokeColor="#334155" />
+
+        <Button
+            android:id="@+id/btnInterval60s"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="60s"
+            android:textColor="#F8FAFC"
+            app:strokeColor="#334155" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="#1E293B" />
+
+    <!-- Switches -->
+    <!-- 0. Auto API Speed Limit Switch -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:id="@+id/tvAutoSpeedTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tự động lấy giới hạn tốc độ từ API (OSM/HERE/TomTom)"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvAutoSpeedTitle"
+            android:layout_toStartOf="@id/swAutoSpeedLimit"
+            android:layout_alignParentStart="true"
+            android:text="Tự đổi biển báo theo đoạn đường. Khi vào hẻm/đường chưa có API sẽ giữ mức thủ công."
+            android:textColor="#94A3B8"
+            android:textSize="11sp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/swAutoSpeedLimit"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:checked="true" />
+    </RelativeLayout>
+
+    <!-- 1. Enable Speed Warning -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:id="@+id/tvWarnTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cảnh báo khi chạy quá tốc độ"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvWarnTitle"
+            android:layout_toStartOf="@id/swSpeedWarning"
+            android:layout_alignParentStart="true"
+            android:text="Bật icon cảnh báo màu đỏ khi chạy vượt quá ngưỡng"
+            android:textColor="#94A3B8"
+            android:textSize="11sp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/swSpeedWarning"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:checked="true" />
+    </RelativeLayout>
+
+    <!-- 2. Voice Alert -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:id="@+id/tvVoiceTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Âm thanh / Giọng nói cảnh báo"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvVoiceTitle"
+            android:layout_toStartOf="@id/swVoiceWarning"
+            android:layout_alignParentStart="true"
+            android:text="Phát giọng nói 'Bạn đang chạy quá tốc độ cho phép'"
+            android:textColor="#94A3B8"
+            android:textSize="11sp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/swVoiceWarning"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:checked="true" />
+    </RelativeLayout>
+
+    <!-- 3. ESP32 Alert -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tvEspTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cảnh báo lên màn hình đồng hồ ESP32"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvEspTitle"
+            android:layout_toStartOf="@id/swEspWarning"
+            android:layout_alignParentStart="true"
+            android:text="Hiển thị thẻ đè cảnh báo màu đỏ trên màn hình ESP32"
+            android:textColor="#94A3B8"
+            android:textSize="11sp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/swEspWarning"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:checked="true" />
+    </RelativeLayout>
+
+    <!-- Save Button -->
+    <Button
+        android:id="@+id/btnSaveSpeedLimit"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="8dp"
+        android:backgroundTint="#00E5FF"
+        android:text="LƯU CÀI ĐẶT"
+        android:textColor="#0F172A"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        app:cornerRadius="12dp" />
+
+</LinearLayout>
