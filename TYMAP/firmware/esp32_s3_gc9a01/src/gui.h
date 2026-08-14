@@ -21,13 +21,14 @@
 #define color565(r, g, b) canvasSprite.color565(r, g, b)
 
 // Khai báo chế độ hiển thị hệ thống
-enum Mode { HUD_MODE, MAP_MODE, MAP_HUD_MODE, STATUS_MODE, INFO_MODE, NOTIF_MODE };
+enum Mode { HUD_MODE, MAP_MODE, MAP_HUD_MODE, STATUS_MODE, INFO_MODE, NOTIF_MODE, SETTINGS_MODE };
 
 extern bool showMapHudCard;
 extern uint8_t statusStyle; // 0=S4 Cyber Dual Gauges, 1=S5 Classic Analog, 2=S3 Dual Energy Pill
 extern uint8_t notifStyle;  // 0=N1 Floating Card, 1=N2 Fullscreen Focus
 extern bool isMenuOpen;
 extern int menuSelectedIndex;
+extern uint8_t settingCategoryIndex;
 extern unsigned long menuStartTime;
 extern int cacheSize;
 
@@ -109,6 +110,7 @@ void drawSTATUS();
 void drawMenuOverlay();
 void drawINFO();
 void drawNOTIF();
+void drawSETTINGS();
 void drawMapOverlay();
 void drawTrafficWarningOverlay();
 void drawLogoWithLoadingBar(unsigned long currentTime, unsigned long startTime,

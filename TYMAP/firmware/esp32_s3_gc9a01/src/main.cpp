@@ -9,6 +9,7 @@
 #include <OneButton.h>
 #include <ArduinoJson.h>
 #include <FontMaker.h>
+#include <Update.h>
 #include "gui.h"
 
 #define MODE_BTN 0
@@ -31,6 +32,7 @@ const char *CHA_DEVICE_STATUS_UUID = "a1b2c3d4-e5f6-4789-b012-3456789abcde";
 const char *CHA_NOTIFICATION_UUID = "c1d2e3f4-a5b6-4789-c012-3456789abcde";
 const char *CHA_PHONE_BATTERY_UUID = "e5f6a7b8-c9d0-4123-e456-789012cdef01"; // NEW: Pin điện thoại
 const char *CHA_WARNING_UUID = "e4f5a6b7-c8d9-4012-e345-678901bcdef0";       // NEW: Cảnh báo giao thông (Tốc độ & Camera)
+const char *CHA_OTA_UUID = "f0a1b2c3-d4e5-4f60-a012-bcdef0123456";           // NEW: BLE OTA Firmware Update
 
 // Tile Streaming UUIDs
 const char *CHA_MAP_TILE_UUID = "d1e2f3a4-b5c6-4789-d012-3456789abcde";
@@ -172,10 +174,15 @@ NimBLECharacteristic *pNotificationChar = nullptr;
 NimBLECharacteristic *pPhoneBatteryChar = nullptr; // NEW: Pin điện thoại
 NimBLECharacteristic *pWarningChar = nullptr;      // NEW: Cảnh báo giao thông
 
-// Tile Streaming Pointers
 NimBLECharacteristic *pMapTileChar = nullptr;
 NimBLECharacteristic *pMapCtrlChar = nullptr;
 NimBLECharacteristic *pMapStatusChar = nullptr;
+NimBLECharacteristic *pOtaChar = nullptr;
+
+// Trạng thái OTA Update Firmware qua BLE
+bool isOtaMode = false;
+uint32_t otaExpectedSize = 0;
+uint32_t otaWritten = 0;
 
 // Trạng thái Cảnh báo Giao thông (Speed Limit & Camera Phạt Nguội)
 bool isTrafficWarningActive = false;
@@ -1267,6 +1274,51 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                 statusUpdatePending = true;
             }
         }
+        else if (uuid == CHA_OTA_UUID)
+        {
+            if (!isOtaMode && val.length() >= 4)
+            {
+                // Lệnh 0x30: Khởi động nạp OTA (4 byte Kích thước file LE)
+                memcpy(&otaExpectedSize, val.data(), 4);
+                if (otaExpectedSize > 0 && Update.begin(otaExpectedSize, U_FLASH))
+                {
+                    isOtaMode = true;
+                    otaWritten = 0;
+                    Serial.printf("BLE OTA: Started! Total size = %d bytes\n", otaExpectedSize);
+                }
+                else
+                {
+                    Serial.printf("BLE OTA ERROR: Update.begin failed for size = %d bytes\n", otaExpectedSize);
+                }
+            }
+            else if (isOtaMode)
+            {
+                if (val.length() == 1 && (uint8_t)val[0] == 0x31)
+                {
+                    // Lệnh 0x31: Hoàn tất nạp OTA & Reboot
+                    if (Update.end(true))
+                    {
+                        Serial.println("BLE OTA: Firmware update success! Rebooting ESP32...");
+                        delay(500);
+                        ESP.restart();
+                    }
+                    else
+                    {
+                        Serial.println("BLE OTA ERROR: Update.end failed!");
+                        isOtaMode = false;
+                    }
+                }
+                else
+                {
+                    // Gói tin binary chunk
+                    size_t bytesWritten = Update.write((uint8_t *)val.data(), val.length());
+                    otaWritten += bytesWritten;
+                    if (otaExpectedSize > 0 && otaWritten % 50000 < val.length()) {
+                        Serial.printf("BLE OTA Progress: %d / %d bytes (%d%%)\n", otaWritten, otaExpectedSize, (int)((uint64_t)otaWritten * 100 / otaExpectedSize));
+                    }
+                }
+            }
+        }
     }
 };
 
@@ -1448,6 +1500,9 @@ void setup()
 
     pMapStatusChar = pService->createCharacteristic(CHA_MAP_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
+    pOtaChar = pService->createCharacteristic(CHA_OTA_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pOtaChar->setCallbacks(sCallbacks);
+
     pService->start();
     NimBLEDevice::getAdvertising()->start();
 
@@ -1484,6 +1539,22 @@ void setup()
             return;
         }
 
+        if (currentMode == SETTINGS_MODE) {
+            // Thay đổi giá trị (style) của mục đang chọn (0: statusStyle, 1: mapHudStyle, 2: notifStyle)
+            if (settingCategoryIndex == 0) {
+                statusStyle = (statusStyle + 1) % 5;
+                preferences.putUChar("statusStyle", statusStyle);
+            } else if (settingCategoryIndex == 1) {
+                mapHudStyle = (mapHudStyle + 1) % 5;
+                preferences.putUChar("mapHudStyle", mapHudStyle);
+            } else if (settingCategoryIndex == 2) {
+                notifStyle = (notifStyle + 1) % 2;
+                preferences.putUChar("notifStyle", notifStyle);
+            }
+            screenNeedsRedraw = true;
+            return;
+        }
+
         if (!isMenuOpen)
         {
             isMenuOpen = true;
@@ -1494,6 +1565,7 @@ void setup()
                 case STATUS_MODE: menuSelectedIndex = 2; break;
                 case INFO_MODE: menuSelectedIndex = 3; break;
                 case NOTIF_MODE: menuSelectedIndex = 4; break;
+                case SETTINGS_MODE: menuSelectedIndex = 5; break;
                 default: menuSelectedIndex = 2; break;
             }
             menuStartTime = millis();
@@ -1501,8 +1573,8 @@ void setup()
         }
         else
         {
-            // Chuyển highlight menu (HUD, MAP, STATUS, INFO, NOTIF)
-            menuSelectedIndex = (menuSelectedIndex + 1) % 5;
+            // Chuyển highlight menu (HUD, MAP, STATUS, INFO, NOTIF, SETTINGS)
+            menuSelectedIndex = (menuSelectedIndex + 1) % 6;
             menuStartTime = millis();
             screenNeedsRedraw = true;
         } });
@@ -1517,6 +1589,7 @@ void setup()
                 case 2: newMode = STATUS_MODE; break;
                 case 3: newMode = INFO_MODE; break;
                 case 4: newMode = NOTIF_MODE; break;
+                case 5: newMode = SETTINGS_MODE; break;
             }
             selectedMode = newMode;
             currentMode = selectedMode;
@@ -1532,10 +1605,24 @@ void setup()
             tft.fillScreen(TFT_BLACK);
             sendDeviceStatus();
             screenNeedsRedraw = true;
+        } else if (currentMode == SETTINGS_MODE) {
+            // Giữ nút ở màn hình CÀI ĐẶT: Lưu và quay lại màn hình TRẠNG THÁI (STATUS)
+            selectedMode = STATUS_MODE;
+            currentMode = STATUS_MODE;
+            tft.fillScreen(TFT_BLACK);
+            sendDeviceStatus();
+            screenNeedsRedraw = true;
         } });
 
     btnZoom.attachClick([]()
                         {
+        if (currentMode == SETTINGS_MODE) {
+            // Chuyển sang mục Cài Đặt tiếp theo (Mặt đồng hồ -> HUD Bản đồ -> Thông báo)
+            settingCategoryIndex = (settingCategoryIndex + 1) % 3;
+            screenNeedsRedraw = true;
+            return;
+        }
+
         if (currentMode == MAP_MODE && pDeviceCtrlChar) {
             // Zoom In: Gửi bit 0 = 1
             uint8_t val = 1;
@@ -1545,6 +1632,12 @@ void setup()
 
     btnZoom.attachLongPressStart([]()
                                 {
+        if (currentMode == SETTINGS_MODE) {
+            settingCategoryIndex = (settingCategoryIndex + 1) % 3;
+            screenNeedsRedraw = true;
+            return;
+        }
+
         if (currentMode == MAP_HUD_MODE || currentMode == MAP_MODE) {
             showMapHudCard = !showMapHudCard;
             screenNeedsRedraw = true;
@@ -1724,6 +1817,9 @@ void loop()
                 break;
             case NOTIF_MODE:
                 drawNOTIF();
+                break;
+            case SETTINGS_MODE:
+                drawSETTINGS();
                 break;
             }
             screenNeedsRedraw = false;

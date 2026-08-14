@@ -2,9 +2,9 @@
 #include "logo.h"
 
 bool showMapHudCard = true;
-uint8_t statusStyle = 0; // 0=S4 Cyber Dual Gauges (Mặc định), 1=S5 Classic Analog, 2=S3 Dual Pill
-uint8_t notifStyle  = 1; // 0=N1 Floating Card 3D, 1=N2 Fullscreen Focus (THUẦN NOTIF - Mặc định)
-
+uint8_t statusStyle = 0;          // 0=S4 Cyber Dual Gauges (Mặc định), 1=S5 Classic Analog, 2=S3 Dual Pill
+uint8_t notifStyle = 1;           // 0=N1 Floating Card 3D, 1=N2 Fullscreen Focus (THUẦN NOTIF - Mặc định)
+uint8_t settingCategoryIndex = 0; // 0=Mặt đồng hồ (statusStyle), 1=HUD Bản đồ (mapHudStyle), 2=Thông báo (notifStyle)
 
 // Vẽ icon 1bpp monochrome custom LÊN SPRITE (TỰ ĐỘNG KHÔNG VẼ NỀN ĐEN TRANSPARENT)
 void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset, int yOffset, int scale, uint16_t fgColor)
@@ -39,8 +39,10 @@ void drawCustomIconResized(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffs
         {
             int srcX = x * 48 / targetW;
             int srcY = y * 48 / targetH;
-            if (srcX >= 48) srcX = 47;
-            if (srcY >= 48) srcY = 47;
+            if (srcX >= 48)
+                srcX = 47;
+            if (srcY >= 48)
+                srcY = 47;
 
             int byteIdx = (srcY * 48 + srcX) / 8;
             int bitPos = 7 - (srcX % 8);
@@ -74,50 +76,55 @@ void drawHUD()
 
     // 2. Icon hướng rẽ trung tâm (cy=84)
     // Ưu tiên: 1bpp bitmap (Google Maps TBT); fallback: mũi tên vector theo navDirIdx
-    if (hasCustomIcon) {
+    if (hasCustomIcon)
+    {
         drawCustomIcon(canvasSprite, customIconBitmap, 72, 36, 2);
-    } else {
+    }
+    else
+    {
         int ax = 120, ay = 84; // tâm
-        switch (navDirIdx) {
-            case 4: // slight-left / keep-left
-                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
-                canvasSprite.drawLine(ax, ay, ax - 16, ay - 30, TFT_WHITE);
-                canvasSprite.fillTriangle(ax - 16, ay - 30, ax - 8, ay - 16, ax - 24, ay - 20, TFT_WHITE);
-                break;
-            case 5: // left
-                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
-                canvasSprite.drawLine(ax, ay, ax - 30, ay, TFT_WHITE);
-                canvasSprite.fillTriangle(ax - 30, ay, ax - 16, ay - 8, ax - 16, ay + 8, TFT_WHITE);
-                break;
-            case 6: // sharp-left
-                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
-                canvasSprite.drawLine(ax, ay, ax - 26, ay - 26, TFT_WHITE);
-                canvasSprite.fillTriangle(ax - 26, ay - 26, ax - 12, ay - 18, ax - 18, ay - 12, TFT_WHITE);
-                break;
-            case 1: // slight-right
-                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
-                canvasSprite.drawLine(ax, ay, ax + 16, ay - 30, TFT_WHITE);
-                canvasSprite.fillTriangle(ax + 16, ay - 30, ax + 8, ay - 16, ax + 24, ay - 20, TFT_WHITE);
-                break;
-            case 2: // right
-                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
-                canvasSprite.drawLine(ax, ay, ax + 30, ay, TFT_WHITE);
-                canvasSprite.fillTriangle(ax + 30, ay, ax + 16, ay - 8, ax + 16, ay + 8, TFT_WHITE);
-                break;
-            case 3: // sharp-right
-                canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
-                canvasSprite.drawLine(ax, ay, ax + 26, ay - 26, TFT_WHITE);
-                canvasSprite.fillTriangle(ax + 26, ay - 26, ax + 12, ay - 18, ax + 18, ay - 12, TFT_WHITE);
-                break;
-            case 7: case 8: // uturn
-                canvasSprite.drawArc(ax, ay - 10, 30, 26, 0, 180, TFT_WHITE, TFT_BLACK);
-                canvasSprite.drawLine(ax + 30, ay - 10, ax + 30, ay + 28, TFT_WHITE);
-                canvasSprite.fillTriangle(ax + 30, ay + 36, ax + 22, ay + 20, ax + 38, ay + 20, TFT_WHITE);
-                break;
-            default: // 0 straight / arrive / roundabout / unknown
-                canvasSprite.drawLine(ax, ay + 30, ax, ay - 30, TFT_WHITE);
-                canvasSprite.fillTriangle(ax, ay - 38, ax - 10, ay - 22, ax + 10, ay - 22, TFT_WHITE);
-                break;
+        switch (navDirIdx)
+        {
+        case 4: // slight-left / keep-left
+            canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+            canvasSprite.drawLine(ax, ay, ax - 16, ay - 30, TFT_WHITE);
+            canvasSprite.fillTriangle(ax - 16, ay - 30, ax - 8, ay - 16, ax - 24, ay - 20, TFT_WHITE);
+            break;
+        case 5: // left
+            canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+            canvasSprite.drawLine(ax, ay, ax - 30, ay, TFT_WHITE);
+            canvasSprite.fillTriangle(ax - 30, ay, ax - 16, ay - 8, ax - 16, ay + 8, TFT_WHITE);
+            break;
+        case 6: // sharp-left
+            canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+            canvasSprite.drawLine(ax, ay, ax - 26, ay - 26, TFT_WHITE);
+            canvasSprite.fillTriangle(ax - 26, ay - 26, ax - 12, ay - 18, ax - 18, ay - 12, TFT_WHITE);
+            break;
+        case 1: // slight-right
+            canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+            canvasSprite.drawLine(ax, ay, ax + 16, ay - 30, TFT_WHITE);
+            canvasSprite.fillTriangle(ax + 16, ay - 30, ax + 8, ay - 16, ax + 24, ay - 20, TFT_WHITE);
+            break;
+        case 2: // right
+            canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+            canvasSprite.drawLine(ax, ay, ax + 30, ay, TFT_WHITE);
+            canvasSprite.fillTriangle(ax + 30, ay, ax + 16, ay - 8, ax + 16, ay + 8, TFT_WHITE);
+            break;
+        case 3: // sharp-right
+            canvasSprite.drawLine(ax, ay + 30, ax, ay, TFT_WHITE);
+            canvasSprite.drawLine(ax, ay, ax + 26, ay - 26, TFT_WHITE);
+            canvasSprite.fillTriangle(ax + 26, ay - 26, ax + 12, ay - 18, ax + 18, ay - 12, TFT_WHITE);
+            break;
+        case 7:
+        case 8: // uturn
+            canvasSprite.drawArc(ax, ay - 10, 30, 26, 0, 180, TFT_WHITE, TFT_BLACK);
+            canvasSprite.drawLine(ax + 30, ay - 10, ax + 30, ay + 28, TFT_WHITE);
+            canvasSprite.fillTriangle(ax + 30, ay + 36, ax + 22, ay + 20, ax + 38, ay + 20, TFT_WHITE);
+            break;
+        default: // 0 straight / arrive / roundabout / unknown
+            canvasSprite.drawLine(ax, ay + 30, ax, ay - 30, TFT_WHITE);
+            canvasSprite.fillTriangle(ax, ay - 38, ax - 10, ay - 22, ax + 10, ay - 22, TFT_WHITE);
+            break;
         }
     }
 
@@ -135,12 +142,15 @@ void drawHUD()
         int range = streetLen - visibleWidth + 40;
         int scrollMs = millis() % (range * 30 + 1000);
         int scrollX = 0;
-        if (scrollMs > 1000) scrollX = (scrollMs - 1000) / 30;
+        if (scrollMs > 1000)
+            scrollX = (scrollMs - 1000) / 30;
 
         myFont.print(120 - visibleWidth / 2 - scrollX, 135, nextStreet, TFT_WHITE, TFT_BLACK);
 
-        clipMinX = 0; clipMaxX = 240;
-        clipMinY = 0; clipMaxY = 240;
+        clipMinX = 0;
+        clipMaxX = 240;
+        clipMinY = 0;
+        clipMaxY = 240;
     }
     else
     {
@@ -158,7 +168,8 @@ void drawHUD()
     myFont.set_font(FONT_HUD_INFO);
     uint16_t spdLen = myFont.getLength(speedBuf);
     uint16_t badgeW = spdLen + 16;
-    if (badgeW < 64) badgeW = 64;
+    if (badgeW < 64)
+        badgeW = 64;
     canvasSprite.fillRoundRect(120 - badgeW / 2, 205, badgeW, 22, 10, color565(30, 41, 59));
     canvasSprite.drawRoundRect(120 - badgeW / 2, 205, badgeW, 22, 10, TFT_GREEN);
     myFont.print(120 - spdLen / 2, 209, speedBuf, TFT_GREEN, color565(30, 41, 59));
@@ -176,7 +187,8 @@ uint8_t mapHudStyle = 0; // 0 = MH1 Compact Floating Pill (85%), 1 = MH3 Minimal
 // ==========================================
 void drawMapHudOverlay()
 {
-    if (!showMapHudCard) return;
+    if (!showMapHudCard)
+        return;
 
     if (mapHudStyle == 4)
     {
@@ -193,24 +205,32 @@ void drawMapHudOverlay()
         // 1. Icon Mũi tên Rẽ bên trái (cx=28, cy=214, r=12)
         int ax = 28, ay = 214;
         uint16_t accent = TFT_GREEN;
-        if (hasCustomIcon) {
+        if (hasCustomIcon)
+        {
             drawCustomIconResized(canvasSprite, customIconBitmap, 16, 202, 24, 24, accent);
-        } else {
-            switch (navDirIdx) {
-                case 4: case 5: case 6: // Turn Left
-                    canvasSprite.drawLine(ax + 4, ay + 5, ax + 4, ay - 2, accent);
-                    canvasSprite.drawLine(ax + 4, ay - 2, ax - 5, ay - 2, accent);
-                    canvasSprite.fillTriangle(ax - 5, ay - 2, ax - 1, ay - 5, ax - 1, ay + 1, accent);
-                    break;
-                case 1: case 2: case 3: // Turn Right
-                    canvasSprite.drawLine(ax - 4, ay + 5, ax - 4, ay - 2, accent);
-                    canvasSprite.drawLine(ax - 4, ay - 2, ax + 5, ay - 2, accent);
-                    canvasSprite.fillTriangle(ax + 5, ay - 2, ax + 1, ay - 5, ax + 1, ay + 1, accent);
-                    break;
-                default: // Straight / Arrow Up
-                    canvasSprite.drawLine(ax, ay + 5, ax, ay - 5, accent);
-                    canvasSprite.fillTriangle(ax, ay - 6, ax - 3, ay - 1, ax + 3, ay - 1, accent);
-                    break;
+        }
+        else
+        {
+            switch (navDirIdx)
+            {
+            case 4:
+            case 5:
+            case 6: // Turn Left
+                canvasSprite.drawLine(ax + 4, ay + 5, ax + 4, ay - 2, accent);
+                canvasSprite.drawLine(ax + 4, ay - 2, ax - 5, ay - 2, accent);
+                canvasSprite.fillTriangle(ax - 5, ay - 2, ax - 1, ay - 5, ax - 1, ay + 1, accent);
+                break;
+            case 1:
+            case 2:
+            case 3: // Turn Right
+                canvasSprite.drawLine(ax - 4, ay + 5, ax - 4, ay - 2, accent);
+                canvasSprite.drawLine(ax - 4, ay - 2, ax + 5, ay - 2, accent);
+                canvasSprite.fillTriangle(ax + 5, ay - 2, ax + 1, ay - 5, ax + 1, ay + 1, accent);
+                break;
+            default: // Straight / Arrow Up
+                canvasSprite.drawLine(ax, ay + 5, ax, ay - 5, accent);
+                canvasSprite.fillTriangle(ax, ay - 6, ax - 3, ay - 1, ax + 3, ay - 1, accent);
+                break;
             }
         }
 
@@ -228,14 +248,17 @@ void drawMapHudOverlay()
             int range = streetLen - visibleWidth + 30;
             int scrollMs = millis() % (range * 35 + 1200);
             int scrollX = 0;
-            if (scrollMs > 1200) {
+            if (scrollMs > 1200)
+            {
                 scrollX = (scrollMs - 1200) / 35;
             }
 
             myFont.print(50 - scrollX, 207, nextStreet, TFT_WHITE, cardBgColor);
 
-            clipMinX = 0; clipMaxX = 240;
-            clipMinY = 0; clipMaxY = 240;
+            clipMinX = 0;
+            clipMaxX = 240;
+            clipMinY = 0;
+            clipMaxY = 240;
         }
         else
         {
@@ -252,25 +275,33 @@ void drawMapHudOverlay()
         canvasSprite.fillCircle(42, 42, 18, cardBgColor);
         canvasSprite.drawCircle(42, 42, 18, accent);
 
-        if (hasCustomIcon) {
+        if (hasCustomIcon)
+        {
             drawCustomIconResized(canvasSprite, customIconBitmap, 29, 29, 26, 26, accent);
-        } else {
+        }
+        else
+        {
             int ax = 42, ay = 42;
-            switch (navDirIdx) {
-                case 4: case 5: case 6: // Turn Left
-                    canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, accent);
-                    canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, accent);
-                    canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, accent);
-                    break;
-                case 1: case 2: case 3: // Turn Right
-                    canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, accent);
-                    canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, accent);
-                    canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, accent);
-                    break;
-                default: // Straight / Arrow Up
-                    canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, accent);
-                    canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, accent);
-                    break;
+            switch (navDirIdx)
+            {
+            case 4:
+            case 5:
+            case 6: // Turn Left
+                canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, accent);
+                canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, accent);
+                canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, accent);
+                break;
+            case 1:
+            case 2:
+            case 3: // Turn Right
+                canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, accent);
+                canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, accent);
+                canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, accent);
+                break;
+            default: // Straight / Arrow Up
+                canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, accent);
+                canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, accent);
+                break;
             }
         }
 
@@ -298,14 +329,17 @@ void drawMapHudOverlay()
             int range = streetLen - visibleWidth + 30;
             int scrollMs = millis() % (range * 35 + 1200);
             int scrollX = 0;
-            if (scrollMs > 1200) {
+            if (scrollMs > 1200)
+            {
                 scrollX = (scrollMs - 1200) / 35;
             }
 
             myFont.print(40 - scrollX, 206, nextStreet, TFT_WHITE, cardBgColor);
 
-            clipMinX = 0; clipMaxX = 240;
-            clipMinY = 0; clipMaxY = 240;
+            clipMinX = 0;
+            clipMaxX = 240;
+            clipMinY = 0;
+            clipMaxY = 240;
         }
         else
         {
@@ -316,30 +350,38 @@ void drawMapHudOverlay()
     {
         // ================= MẪU MH4: MINI HUD =================
         uint16_t cardBgColor = color565(15, 23, 42);
-        
+
         // 1. Vẽ Icon điều hướng (cx=40, cy=105, r=20)
         int ax = 40, ay = 105;
         uint16_t accent = TFT_GREEN;
         canvasSprite.fillCircle(ax, ay, 20, cardBgColor);
         canvasSprite.drawCircle(ax, ay, 20, accent);
-        if (hasCustomIcon) {
+        if (hasCustomIcon)
+        {
             drawCustomIconResized(canvasSprite, customIconBitmap, 26, 91, 28, 28, accent);
-        } else {
-            switch (navDirIdx) {
-                case 4: case 5: case 6: // Turn Left
-                    canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, accent);
-                    canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, accent);
-                    canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, accent);
-                    break;
-                case 1: case 2: case 3: // Turn Right
-                    canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, accent);
-                    canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, accent);
-                    canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, accent);
-                    break;
-                default: // Straight / Arrow Up
-                    canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, accent);
-                    canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, accent);
-                    break;
+        }
+        else
+        {
+            switch (navDirIdx)
+            {
+            case 4:
+            case 5:
+            case 6: // Turn Left
+                canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, accent);
+                canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, accent);
+                canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, accent);
+                break;
+            case 1:
+            case 2:
+            case 3: // Turn Right
+                canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, accent);
+                canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, accent);
+                canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, accent);
+                break;
+            default: // Straight / Arrow Up
+                canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, accent);
+                canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, accent);
+                break;
             }
         }
 
@@ -348,14 +390,14 @@ void drawMapHudOverlay()
         snprintf(spdBuf, sizeof(spdBuf), "%d", gpsSpeed);
         myFont.set_font(FONT_CLOCK);
         myFont.print(90, 80, spdBuf, TFT_WHITE, TFT_BLACK);
-        
+
         myFont.set_font(vietnamtimes12);
         myFont.print(165, 110, "KM/H", color565(148, 163, 184), TFT_BLACK);
 
         // 3. Vẽ Pin xe ở dưới (x=60, y=160, w=120, h=24)
         canvasSprite.fillRoundRect(60, 160, 120, 24, 12, cardBgColor);
         canvasSprite.drawRoundRect(60, 160, 120, 24, 12, TFT_CYAN);
-        
+
         char batBuf[16];
         snprintf(batBuf, sizeof(batBuf), "PIN: %.1fV", batteryVoltage);
         myFont.set_font(vietnamtimes12);
@@ -371,25 +413,33 @@ void drawMapHudOverlay()
 
         // Icon Mũi Tên Rẽ Xanh Lá Neon (cx=48, cy=202, r=15)
         canvasSprite.fillCircle(48, 202, 15, TFT_GREEN);
-        if (hasCustomIcon) {
+        if (hasCustomIcon)
+        {
             drawCustomIconResized(canvasSprite, customIconBitmap, 36, 190, 24, 24, TFT_BLACK);
-        } else {
+        }
+        else
+        {
             int ax = 48, ay = 202;
-            switch (navDirIdx) {
-                case 4: case 5: case 6: // Turn Left
-                    canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, TFT_BLACK);
-                    canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, TFT_BLACK);
-                    canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, TFT_BLACK);
-                    break;
-                case 1: case 2: case 3: // Turn Right
-                    canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, TFT_BLACK);
-                    canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, TFT_BLACK);
-                    canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, TFT_BLACK);
-                    break;
-                default: // Straight / Arrow Up
-                    canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, TFT_BLACK);
-                    canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, TFT_BLACK);
-                    break;
+            switch (navDirIdx)
+            {
+            case 4:
+            case 5:
+            case 6: // Turn Left
+                canvasSprite.drawLine(ax + 6, ay + 7, ax + 6, ay - 2, TFT_BLACK);
+                canvasSprite.drawLine(ax + 6, ay - 2, ax - 7, ay - 2, TFT_BLACK);
+                canvasSprite.fillTriangle(ax - 7, ay - 2, ax - 1, ay - 6, ax - 1, ay + 2, TFT_BLACK);
+                break;
+            case 1:
+            case 2:
+            case 3: // Turn Right
+                canvasSprite.drawLine(ax - 6, ay + 7, ax - 6, ay - 2, TFT_BLACK);
+                canvasSprite.drawLine(ax - 6, ay - 2, ax + 7, ay - 2, TFT_BLACK);
+                canvasSprite.fillTriangle(ax + 7, ay - 2, ax + 1, ay - 6, ax + 1, ay + 2, TFT_BLACK);
+                break;
+            default: // Straight / Arrow Up
+                canvasSprite.drawLine(ax, ay + 7, ax, ay - 7, TFT_BLACK);
+                canvasSprite.fillTriangle(ax, ay - 8, ax - 4, ay - 1, ax + 4, ay - 1, TFT_BLACK);
+                break;
             }
         }
 
@@ -411,14 +461,17 @@ void drawMapHudOverlay()
             int range = streetLen - visibleWidth + 30;
             int scrollMs = millis() % (range * 35 + 1200);
             int scrollX = 0;
-            if (scrollMs > 1200) {
+            if (scrollMs > 1200)
+            {
                 scrollX = (scrollMs - 1200) / 35;
             }
 
             myFont.print(70 - scrollX, 203, nextStreet, TFT_WHITE, cardBgColor);
 
-            clipMinX = 0; clipMaxX = 240;
-            clipMinY = 0; clipMaxY = 240;
+            clipMinX = 0;
+            clipMaxX = 240;
+            clipMinY = 0;
+            clipMaxY = 240;
         }
         else
         {
@@ -469,11 +522,12 @@ void drawMapOverlay()
 void drawTrafficWarningOverlay()
 {
     // Nếu không có cảnh báo nào đang hoạt động thì không vẽ Popup
-    if (!isTrafficWarningActive) return;
+    if (!isTrafficWarningActive)
+        return;
 
     int cx = 120; // Tâm màn hình GC9A01 (240x240)
     int cy = 120;
-    int r = 48;   // Bán kính hình tròn biển báo giao thông
+    int r = 48; // Bán kính hình tròn biển báo giao thông
 
     // 1. Vẽ vòng tròn ngoài màu đỏ nổi bật (Viền dày 4px chuẩn biển báo giao thông)
     canvasSprite.fillCircle(cx, cy, r + 4, TFT_RED);
@@ -622,7 +676,8 @@ void drawSTATUS()
     {
         // ---------------- S5: CLASSIC ANALOG WATCH ----------------
         // 1. 12 Nấc vạch giờ quanh viền
-        for (int i = 0; i < 12; i++) {
+        for (int i = 0; i < 12; i++)
+        {
             float rad = (i * 30.0f - 90.0f) * 0.0174532925f;
             int x1 = 120 + (int)(96.0f * cos(rad));
             int y1 = 120 + (int)(96.0f * sin(rad));
@@ -630,13 +685,15 @@ void drawSTATUS()
             int y2 = 120 + (int)(108.0f * sin(rad));
             uint16_t tCol = (i % 3 == 0) ? TFT_GREEN : color565(71, 85, 105);
             canvasSprite.drawLine(x1, y1, x2, y2, tCol);
-            if (i % 3 == 0) canvasSprite.drawLine(x1 + 1, y1, x2 + 1, y2, tCol);
+            if (i % 3 == 0)
+                canvasSprite.drawLine(x1 + 1, y1, x2 + 1, y2, tCol);
         }
 
         // 2. Ô Ngày tháng Tiếng Việt ở góc trên (y = 55)
-        const char* dayOfWeekVi[] = { "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy" };
+        const char *dayOfWeekVi[] = {"Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"};
         int dow = rtc.getDayofWeek();
-        if (dow < 0 || dow > 6) dow = 0;
+        if (dow < 0 || dow > 6)
+            dow = 0;
         String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m");
         myFont.set_font(vietnamtimes12);
         uint16_t dateLen = myFont.getLength(dateStr);
@@ -662,7 +719,7 @@ void drawSTATUS()
 
         // 4. Badge Pin ở đáy (y = 165)
         char batBuf[32];
-        snprintf(batBuf, sizeof(batBuf), "⚡ %.1fV  ·  %d%%", batteryVoltage, phoneBatteryLevel >= 0 ? phoneBatteryLevel : 100);
+        snprintf(batBuf, sizeof(batBuf), "%.1fV  ·  %d%%", batteryVoltage, phoneBatteryLevel >= 0 ? phoneBatteryLevel : 100);
         myFont.set_font(FONT_STATUS_INFO);
         uint16_t batLen = myFont.getLength(batBuf);
         myFont.print(120 - batLen / 2, 165, batBuf, TFT_GREEN, TFT_BLACK);
@@ -684,9 +741,10 @@ void drawSTATUS()
         }
 
         // 2. Thứ & Ngày tháng Tiếng Việt (y = 65)
-        const char* dayOfWeekVi[] = { "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy" };
+        const char *dayOfWeekVi[] = {"Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"};
         int dow = rtc.getDayofWeek();
-        if (dow < 0 || dow > 6) dow = 0;
+        if (dow < 0 || dow > 6)
+            dow = 0;
         String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m/%Y");
         myFont.set_font(vietnamtimes12);
         uint16_t dateLen = myFont.getLength(dateStr);
@@ -729,9 +787,10 @@ void drawSTATUS()
     {
         // ---------------- S6: CLASSIC ANALOG/DIGITAL ----------------
         // 1. Date at top (y=30)
-        const char* dayOfWeekVi[] = { "CN", "T2", "T3", "T4", "T5", "T6", "T7" };
+        const char *dayOfWeekVi[] = {"CN", "T2", "T3", "T4", "T5", "T6", "T7"};
         int dow = rtc.getDayofWeek();
-        if (dow < 0 || dow > 6) dow = 0;
+        if (dow < 0 || dow > 6)
+            dow = 0;
         String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m");
         myFont.set_font(vietnamtimes12);
         uint16_t dateLen = myFont.getLength(dateStr);
@@ -746,14 +805,14 @@ void drawSTATUS()
         // 3. Dual Battery Bars (y=140)
         // Bike Battery
         canvasSprite.drawRect(50, 140, 50, 12, color565(71, 85, 105));
-        canvasSprite.fillRect(52, 142, (int)((batteryVoltage/15.0f)*46), 8, TFT_GREEN);
+        canvasSprite.fillRect(52, 142, (int)((batteryVoltage / 15.0f) * 46), 8, TFT_GREEN);
         myFont.set_font(vietnamtimes12);
         myFont.print(50, 155, "XE", TFT_GREEN, TFT_BLACK);
 
         // Phone Battery
         canvasSprite.drawRect(140, 140, 50, 12, color565(71, 85, 105));
         int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
-        canvasSprite.fillRect(142, 142, (int)((pBat/100.0f)*46), 8, TFT_CYAN);
+        canvasSprite.fillRect(142, 142, (int)((pBat / 100.0f) * 46), 8, TFT_CYAN);
         myFont.print(140, 155, "ĐT", TFT_CYAN, TFT_BLACK);
 
         // 4. Brand at bottom (y=200)
@@ -781,7 +840,8 @@ void drawSTATUS()
         // 3. Battery Bar at bottom (y=155)
         canvasSprite.fillRoundRect(30, 155, 180, 8, 4, color565(30, 41, 59));
         int vSpan = (int)((batteryVoltage / 15.0f) * 180.0f);
-        if (vSpan > 180) vSpan = 180;
+        if (vSpan > 180)
+            vSpan = 180;
         uint16_t vColor = (batteryVoltage > 12.0f) ? TFT_GREEN : ((batteryVoltage > 11.0f) ? TFT_YELLOW : TFT_RED);
         canvasSprite.fillRoundRect(30, 155, vSpan, 8, 4, vColor);
 
@@ -796,7 +856,8 @@ void drawSTATUS()
         // ---------------- S4a: CYBER DUAL ARC GAUGES (MATCH EXACT WEB SKETCH) ----------------
         // 1. Cung vạch Ắc-quy xe (Trái: 130°..230°, R=110px, Xanh Lá Neon)
         int vSpan = (int)((batteryVoltage / 15.0f) * 100.0f);
-        if (vSpan > 100) vSpan = 100;
+        if (vSpan > 100)
+            vSpan = 100;
         uint16_t vColor = (batteryVoltage > 12.0f) ? TFT_GREEN : ((batteryVoltage > 11.0f) ? TFT_YELLOW : TFT_RED);
 
         drawArcSegment(canvasSprite, 120, 120, 110, 130, 230, color565(30, 41, 59));
@@ -811,7 +872,8 @@ void drawSTATUS()
         // 2. Cung vạch Pin Phone (Phải: -50°..50°, R=110px, Cyan)
         int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
         int pSpan = (int)((pBat / 100.0f) * 100.0f);
-        if (pSpan > 100) pSpan = 100;
+        if (pSpan > 100)
+            pSpan = 100;
 
         drawArcSegment(canvasSprite, 120, 120, 110, -50, 50, color565(30, 41, 59));
         drawArcSegment(canvasSprite, 120, 120, 110, -50, -50 + pSpan, TFT_CYAN);
@@ -830,9 +892,10 @@ void drawSTATUS()
         myFont.print(120 - timeLen / 2, 65, timeStr, TFT_CYAN, TFT_BLACK);
 
         // 4. Thứ & Ngày tháng Tiếng Việt ở trung tâm (y = 118)
-        const char* dayOfWeekVi[] = { "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy" };
+        const char *dayOfWeekVi[] = {"Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"};
         int dow = rtc.getDayofWeek();
-        if (dow < 0 || dow > 6) dow = 0;
+        if (dow < 0 || dow > 6)
+            dow = 0;
         String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m/%Y");
         myFont.set_font(vietnamtimes12);
         uint16_t dateLen = myFont.getLength(dateStr);
@@ -840,9 +903,12 @@ void drawSTATUS()
 
         // 5. Thời tiết Vàng rực rỡ + Mặt trời Vector ở trung tâm (y = 145)
         char wxBuf[32];
-        if (weatherTemp > -50.0f && weatherTemp < 60.0f) {
+        if (weatherTemp > -50.0f && weatherTemp < 60.0f)
+        {
             snprintf(wxBuf, sizeof(wxBuf), "%.0f°C  Nắng", weatherTemp);
-        } else {
+        }
+        else
+        {
             snprintf(wxBuf, sizeof(wxBuf), "31°C  Nắng");
         }
         myFont.set_font(vietnamtimes12);
@@ -896,23 +962,25 @@ void drawMenuOverlay()
     canvasSprite.fillSprite(TFT_BLACK);
 
     // Dynamic Color Accent per menu item:
-    // 0: HUD (Cyan), 1: MAP (Green), 2: STATUS (Yellow), 3: INFO (Purple), 4: NOTIF (Red)
-    uint16_t accentColors[] = { TFT_CYAN, TFT_GREEN, TFT_YELLOW, 0xA81F, 0xF810 };
-    uint16_t currentAccent = accentColors[menuSelectedIndex % 5];
+    // 0: HUD (Cyan), 1: MAP (Green), 2: STATUS (Yellow), 3: INFO (Purple), 4: NOTIF (Red), 5: SETTINGS (Orange)
+    uint16_t accentColors[] = {TFT_CYAN, TFT_GREEN, TFT_YELLOW, 0xA81F, 0xF810, TFT_ORANGE};
+    uint16_t currentAccent = accentColors[menuSelectedIndex % 6];
 
-    // 1. Render 5 Outer Sector Arc Segments at radius R = 110px
-    // Angles: HUD (-120°..-60°), MAP (-50°..10°), STATUS (20°..80°), INFO (90°..150°), NOTIF (160°..220°)
-    int startAngles[] = {-120, -50, 20, 90, 160};
-    int endAngles[]   = {-60,   10, 80, 150, 220};
+    // 1. Render 6 Outer Sector Arc Segments at radius R = 110px
+    // Angles evenly distributed around 360° (6 sectors of 46° each + 14° gap):
+    // 0: HUD (-113°..-67°), 1: MAP (-53°..-7°), 2: STATUS (7°..53°), 3: INFO (67°..113°), 4: NOTIF (127°..173°), 5: SETTINGS (-173°..-127°)
+    int startAngles[] = {-113, -53, 7, 67, 127, -173};
+    int endAngles[] = {-67, -7, 53, 113, 173, -127};
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 6; i++)
     {
         bool isSelected = (i == menuSelectedIndex);
         uint16_t arcColor = isSelected ? accentColors[i] : color565(30, 41, 59);
 
         // Draw Arc Segment
         drawArcSegment(canvasSprite, 120, 120, 110, startAngles[i], endAngles[i], arcColor);
-        if (isSelected) {
+        if (isSelected)
+        {
             drawArcSegment(canvasSprite, 120, 120, 109, startAngles[i], endAngles[i], arcColor);
             drawArcSegment(canvasSprite, 120, 120, 111, startAngles[i], endAngles[i], TFT_WHITE);
         }
@@ -925,26 +993,41 @@ void drawMenuOverlay()
 
         uint16_t iconColor = isSelected ? accentColors[i] : color565(100, 116, 139);
 
-        if (i == 0) { // HUD
+        if (i == 0)
+        { // HUD
             canvasSprite.drawLine(ix, iy + 6, ix, iy - 6, iconColor);
             canvasSprite.fillTriangle(ix, iy - 7, ix - 4, iy - 1, ix + 4, iy - 1, iconColor);
-        } else if (i == 1) { // MAP
+        }
+        else if (i == 1)
+        { // MAP
             canvasSprite.drawRect(ix - 5, iy - 5, 3, 10, iconColor);
             canvasSprite.drawRect(ix - 2, iy - 4, 3, 10, iconColor);
             canvasSprite.drawRect(ix + 1, iy - 5, 3, 10, iconColor);
-        } else if (i == 2) { // STATUS
+        }
+        else if (i == 2)
+        { // STATUS
             canvasSprite.drawCircle(ix, iy, 6, iconColor);
             canvasSprite.drawLine(ix, iy, ix, iy - 3, iconColor);
             canvasSprite.drawLine(ix, iy, ix + 3, iy, iconColor);
-        } else if (i == 3) { // INFO
+        }
+        else if (i == 3)
+        { // INFO
             canvasSprite.fillCircle(ix, iy - 4, 1, iconColor);
             canvasSprite.drawLine(ix, iy - 1, ix, iy + 4, iconColor);
             canvasSprite.drawLine(ix - 2, iy - 1, ix + 2, iy - 1, iconColor);
             canvasSprite.drawLine(ix - 2, iy + 4, ix + 2, iy + 4, iconColor);
-        } else if (i == 4) { // NOTIF
+        }
+        else if (i == 4)
+        { // NOTIF
             canvasSprite.drawRect(ix - 5, iy - 4, 10, 8, iconColor);
             canvasSprite.drawLine(ix - 5, iy - 4, ix, iy, iconColor);
             canvasSprite.drawLine(ix + 5, iy - 4, ix, iy, iconColor);
+        }
+        else if (i == 5)
+        { // SETTINGS
+            canvasSprite.drawCircle(ix, iy, 5, iconColor);
+            canvasSprite.drawLine(ix - 6, iy, ix + 6, iy, iconColor);
+            canvasSprite.drawLine(ix, iy - 6, ix, iy + 6, iconColor);
         }
     }
 
@@ -959,42 +1042,202 @@ void drawMenuOverlay()
     int cx = 120, cy = 100;
     uint16_t hubIconColor = currentAccent;
 
-    if (menuSelectedIndex == 0) { // HUD Arrow
+    if (menuSelectedIndex == 0)
+    { // HUD Arrow
         canvasSprite.drawLine(cx, cy + 10, cx, cy - 10, hubIconColor);
         canvasSprite.fillTriangle(cx, cy - 12, cx - 7, cy - 2, cx + 7, cy - 2, hubIconColor);
-    } else if (menuSelectedIndex == 1) { // MAP
+    }
+    else if (menuSelectedIndex == 1)
+    { // MAP
         canvasSprite.drawRect(cx - 9, cy - 9, 6, 18, hubIconColor);
         canvasSprite.drawRect(cx - 3, cy - 7, 6, 18, hubIconColor);
         canvasSprite.drawRect(cx + 3, cy - 9, 6, 18, hubIconColor);
-    } else if (menuSelectedIndex == 2) { // STATUS Clock
+    }
+    else if (menuSelectedIndex == 2)
+    { // STATUS Clock
         canvasSprite.drawCircle(cx, cy, 10, hubIconColor);
         canvasSprite.drawLine(cx, cy, cx, cy - 6, hubIconColor);
         canvasSprite.drawLine(cx, cy, cx + 5, cy, hubIconColor);
-    } else if (menuSelectedIndex == 3) { // INFO
+    }
+    else if (menuSelectedIndex == 3)
+    { // INFO
         canvasSprite.fillCircle(cx, cy - 6, 2, hubIconColor);
         canvasSprite.drawLine(cx, cy - 2, cx, cy + 6, hubIconColor);
         canvasSprite.drawLine(cx - 3, cy - 2, cx + 3, cy - 2, hubIconColor);
         canvasSprite.drawLine(cx - 3, cy + 6, cx + 3, cy + 6, hubIconColor);
-    } else if (menuSelectedIndex == 4) { // NOTIF
+    }
+    else if (menuSelectedIndex == 4)
+    { // NOTIF
         canvasSprite.drawRect(cx - 8, cy - 6, 16, 12, hubIconColor);
         canvasSprite.drawLine(cx - 8, cy - 6, cx, cy, hubIconColor);
         canvasSprite.drawLine(cx + 8, cy - 6, cx, cy, hubIconColor);
     }
+    else if (menuSelectedIndex == 5)
+    { // SETTINGS Gear
+        canvasSprite.drawCircle(cx, cy, 8, hubIconColor);
+        canvasSprite.drawCircle(cx, cy, 4, hubIconColor);
+        canvasSprite.drawLine(cx - 10, cy, cx + 10, cy, hubIconColor);
+        canvasSprite.drawLine(cx, cy - 10, cx, cy + 10, hubIconColor);
+    }
 
     // In tên Tiếng Việt chế độ đang chọn ở tâm vòng tròn (y = 124)
     String selectedName = "";
-        switch (menuSelectedIndex) {
-        case 0: selectedName = "DẪN ĐƯỜNG"; break;
-        case 1: selectedName = "BẢN ĐỒ"; break;
-        case 2: selectedName = "TRẠNG THÁI"; break;
-        case 3: selectedName = "THÔNG TIN"; break;
-        case 4: selectedName = "THÔNG BÁO"; break;
-        default: selectedName = "TYMAP"; break;
+    switch (menuSelectedIndex)
+    {
+    case 0:
+        selectedName = "DẪN ĐƯỜNG";
+        break;
+    case 1:
+        selectedName = "BẢN ĐỒ";
+        break;
+    case 2:
+        selectedName = "TRẠNG THÁI";
+        break;
+    case 3:
+        selectedName = "THÔNG TIN";
+        break;
+    case 4:
+        selectedName = "THÔNG BÁO";
+        break;
+    case 5:
+        selectedName = "CÀI ĐẶT";
+        break;
+    default:
+        selectedName = "TYMAP";
+        break;
     }
 
     myFont.set_font(FONT_MENU_OPTION);
     uint16_t nameLen = myFont.getLength(selectedName);
     myFont.print(120 - nameLen / 2, 122, selectedName, TFT_WHITE, hubBg);
+
+    canvasSprite.pushSprite(0, 0);
+}
+
+// ==========================================
+// 6. GIAO DIỆN CÀI ĐẶT HỆ THỐNG (SETTINGS)
+// ==========================================
+void drawSETTINGS()
+{
+    canvasSprite.fillSprite(TFT_BLACK);
+
+    // 1. Tiêu đề màn hình Cài Đặt
+    String titleStr = "CÀI ĐẶT HỆ THỐNG";
+    myFont.set_font(FONT_MENU_TITLE);
+    uint16_t titleLen = myFont.getLength(titleStr);
+    myFont.print(120 - titleLen / 2, 16, titleStr, TFT_ORANGE, TFT_BLACK);
+
+    // 2. Thẻ 1: MẶT ĐỒNG HỒ (STATUS) (y = 40..80)
+    bool isSelected0 = (settingCategoryIndex == 0);
+    uint16_t bg0 = isSelected0 ? color565(30, 41, 59) : color565(15, 23, 42);
+    uint16_t border0 = isSelected0 ? TFT_YELLOW : color565(51, 65, 85);
+    canvasSprite.fillRoundRect(18, 40, 204, 42, 8, bg0);
+    canvasSprite.drawRoundRect(18, 40, 204, 42, 8, border0);
+    if (isSelected0)
+        canvasSprite.drawRoundRect(19, 41, 202, 40, 7, border0);
+
+    myFont.set_font(vietnamtimes12);
+    myFont.print(26, 45, "1. MẶT ĐỒNG HỒ", isSelected0 ? TFT_YELLOW : TFT_SILVER, bg0);
+
+    String statusName = "";
+    switch (statusStyle)
+    {
+    case 0:
+        statusName = "S4: Cyber Dual";
+        break;
+    case 1:
+        statusName = "S5: Classic Analog";
+        break;
+    case 2:
+        statusName = "S3: Dual Pill";
+        break;
+    case 3:
+        statusName = "S6: Classic Digital";
+        break;
+    case 4:
+        statusName = "S7: Sport Dynamic";
+        break;
+    default:
+        statusName = "S4: Cyber Dual";
+        break;
+    }
+    myFont.print(26, 62, statusName, TFT_WHITE, bg0);
+
+    // 3. Thẻ 2: HUD BẢN ĐỒ (MAP_HUD) (y = 88..128)
+    bool isSelected1 = (settingCategoryIndex == 1);
+    uint16_t bg1 = isSelected1 ? color565(30, 41, 59) : color565(15, 23, 42);
+    uint16_t border1 = isSelected1 ? TFT_GREEN : color565(51, 65, 85);
+    canvasSprite.fillRoundRect(18, 88, 204, 42, 8, bg1);
+    canvasSprite.drawRoundRect(18, 88, 204, 42, 8, border1);
+    if (isSelected1)
+        canvasSprite.drawRoundRect(19, 89, 202, 40, 7, border1);
+
+    myFont.set_font(vietnamtimes12);
+    myFont.print(26, 93, "2. HUD BẢN ĐỒ", isSelected1 ? TFT_GREEN : TFT_SILVER, bg1);
+
+    String mapHudName = "";
+    switch (mapHudStyle)
+    {
+    case 0:
+        mapHudName = "MH1: Compact Pill";
+        break;
+    case 1:
+        mapHudName = "MH2: Bottom Bar";
+        break;
+    case 2:
+        mapHudName = "MH3: Minimalist";
+        break;
+    case 3:
+        mapHudName = "MH4: Top Header";
+        break;
+    case 4:
+        mapHudName = "MH5: Pure Map";
+        break;
+    default:
+        mapHudName = "MH1: Compact Pill";
+        break;
+    }
+    myFont.print(26, 110, mapHudName, TFT_WHITE, bg1);
+
+    // 4. Thẻ 3: THÔNG BÁO (NOTIF) (y = 136..176)
+    bool isSelected2 = (settingCategoryIndex == 2);
+    uint16_t bg2 = isSelected2 ? color565(30, 41, 59) : color565(15, 23, 42);
+    uint16_t border2 = isSelected2 ? TFT_CYAN : color565(51, 65, 85);
+    canvasSprite.fillRoundRect(18, 136, 204, 42, 8, bg2);
+    canvasSprite.drawRoundRect(18, 136, 204, 42, 8, border2);
+    if (isSelected2)
+        canvasSprite.drawRoundRect(19, 137, 202, 40, 7, border2);
+
+    myFont.set_font(vietnamtimes12);
+    myFont.print(26, 141, "3. THÔNG BÁO", isSelected2 ? TFT_CYAN : TFT_SILVER, bg2);
+
+    String notifName = "";
+    switch (notifStyle)
+    {
+    case 0:
+        notifName = "N1: Floating Card";
+        break;
+    case 1:
+        notifName = "N2: Fullscreen Focus";
+        break;
+    default:
+        notifName = "N2: Fullscreen Focus";
+        break;
+    }
+    myFont.print(26, 158, notifName, TFT_WHITE, bg2);
+
+    // 5. Hướng dẫn thao tác phím ở đáy màn hình
+    myFont.set_font(vietnamtimes12);
+    String guide1 = "MODE: ĐỔI  ·  ZOOM: CHUYỂN";
+    uint16_t g1Len = myFont.getLength(guide1);
+    myFont.print(120 - g1Len / 2, 186, guide1, TFT_WHITE, TFT_BLACK);
+
+    String guide2 = "GIỮ MODE: LƯU & THOÁT";
+    uint16_t g2Len = myFont.getLength(guide2);
+    myFont.print(120 - g2Len / 2, 204, guide2, TFT_DARKGREY, TFT_BLACK);
+
+    // 6. Vẽ Overlay Cảnh báo Giao thông (nếu có)
+    drawTrafficWarningOverlay();
 
     canvasSprite.pushSprite(0, 0);
 }
@@ -1146,16 +1389,21 @@ void printWrappedText(int startY, const String &text, uint16_t color, uint16_t b
     }
 }
 
-uint16_t getAppAccentColor(const String& appName)
+uint16_t getAppAccentColor(const String &appName)
 {
     String lower = appName;
     lower.toLowerCase();
-    if (lower.indexOf("zalo") >= 0) return 0x1C9F;      // Bright Zalo Blue
-    if (lower.indexOf("messenger") >= 0 || lower.indexOf("facebook") >= 0) return 0xD81F; // Magenta/Purple
-    if (lower.indexOf("sms") >= 0 || lower.indexOf("tin nhắn") >= 0 || lower.indexOf("message") >= 0) return 0x07E0; // Emerald Green
-    if (lower.indexOf("phone") >= 0 || lower.indexOf("call") >= 0 || lower.indexOf("cuộc gọi") >= 0) return 0xF800; // Red
-    if (lower.indexOf("maps") >= 0 || lower.indexOf("bản đồ") >= 0) return 0x07FF; // Sky Blue
-    return 0x07FF; // Default Cyan
+    if (lower.indexOf("zalo") >= 0)
+        return 0x1C9F; // Bright Zalo Blue
+    if (lower.indexOf("messenger") >= 0 || lower.indexOf("facebook") >= 0)
+        return 0xD81F; // Magenta/Purple
+    if (lower.indexOf("sms") >= 0 || lower.indexOf("tin nhắn") >= 0 || lower.indexOf("message") >= 0)
+        return 0x07E0; // Emerald Green
+    if (lower.indexOf("phone") >= 0 || lower.indexOf("call") >= 0 || lower.indexOf("cuộc gọi") >= 0)
+        return 0xF800; // Red
+    if (lower.indexOf("maps") >= 0 || lower.indexOf("bản đồ") >= 0)
+        return 0x07FF; // Sky Blue
+    return 0x07FF;     // Default Cyan
 }
 
 // ==========================================
@@ -1183,10 +1431,12 @@ void drawNOTIF()
     else
     {
         String appName = notifList[notifViewIndex].app;
-        if (appName.length() == 0) appName = "Thông báo";
+        if (appName.length() == 0)
+            appName = "Thông báo";
         uint16_t accent = getAppAccentColor(appName);
         String senderTitle = notifList[notifViewIndex].title;
-        if (senderTitle.length() == 0) senderTitle = appName;
+        if (senderTitle.length() == 0)
+            senderTitle = appName;
 
         // ---------------- MẪU N2-ALPHA: BIG HEADER APP PILL (THUẦN NOTIF DUY NHẤT) ----------------
         // 1. Khung Pill Tên App ở đỉnh (cx=120, y=18, w=170, h=36)
@@ -1227,28 +1477,41 @@ void drawNOTIF()
     canvasSprite.pushSprite(0, 0);
 }
 
-
 // ==========================================
 // CUSTOM THEME LAYOUT CONFIG PARSER (THEME STUDIO BUILDER)
 // ==========================================
 bool hasCustomLayoutConfig = false;
 
-void parseAndApplyLayoutJson(const String& jsonStr) {
-    if (jsonStr.length() == 0) return;
-    
-    if (jsonStr.indexOf("s4") != -1) statusStyle = 0;
-    else if (jsonStr.indexOf("s5") != -1) statusStyle = 1;
-    else if (jsonStr.indexOf("s3") != -1) statusStyle = 2;
-    else if (jsonStr.indexOf("s6") != -1) statusStyle = 3;
-    else if (jsonStr.indexOf("s7") != -1) statusStyle = 4;
-    else if (jsonStr.indexOf("n1") != -1) notifStyle = 0;
-    else if (jsonStr.indexOf("n2") != -1) notifStyle = 1;
-    else if (jsonStr.indexOf("mh1") != -1) mapHudStyle = 0;
-    else if (jsonStr.indexOf("mh2") != -1) mapHudStyle = 1;
-    else if (jsonStr.indexOf("mh3") != -1) mapHudStyle = 2;
-    else if (jsonStr.indexOf("mh4") != -1) mapHudStyle = 3;
-    else if (jsonStr.indexOf("mh5") != -1) mapHudStyle = 4;
-    
+void parseAndApplyLayoutJson(const String &jsonStr)
+{
+    if (jsonStr.length() == 0)
+        return;
+
+    if (jsonStr.indexOf("s4") != -1)
+        statusStyle = 0;
+    else if (jsonStr.indexOf("s5") != -1)
+        statusStyle = 1;
+    else if (jsonStr.indexOf("s3") != -1)
+        statusStyle = 2;
+    else if (jsonStr.indexOf("s6") != -1)
+        statusStyle = 3;
+    else if (jsonStr.indexOf("s7") != -1)
+        statusStyle = 4;
+    else if (jsonStr.indexOf("n1") != -1)
+        notifStyle = 0;
+    else if (jsonStr.indexOf("n2") != -1)
+        notifStyle = 1;
+    else if (jsonStr.indexOf("mh1") != -1)
+        mapHudStyle = 0;
+    else if (jsonStr.indexOf("mh2") != -1)
+        mapHudStyle = 1;
+    else if (jsonStr.indexOf("mh3") != -1)
+        mapHudStyle = 2;
+    else if (jsonStr.indexOf("mh4") != -1)
+        mapHudStyle = 3;
+    else if (jsonStr.indexOf("mh5") != -1)
+        mapHudStyle = 4;
+
     hasCustomLayoutConfig = true;
     Serial.printf("GUI: Applied custom layout JSON config via BLE (statusStyle=%d, notifStyle=%d, mapHudStyle=%d)\n", (int)statusStyle, (int)notifStyle, (int)mapHudStyle);
 }

@@ -37,6 +37,7 @@ class MyBleManager(context: Context) : BleManager(context) {
     private var mapTileChar: BluetoothGattCharacteristic? = null
     private var mapCtrlChar: BluetoothGattCharacteristic? = null
     private var mapStatusChar: BluetoothGattCharacteristic? = null
+    private var otaChar: BluetoothGattCharacteristic? = null
 
     init {
         connectionObserver = object : ConnectionObserver {
@@ -88,6 +89,7 @@ class MyBleManager(context: Context) : BleManager(context) {
             mapTileChar = service.getCharacteristic(BleConstants.CHA_MAP_TILE)
             mapCtrlChar = service.getCharacteristic(BleConstants.CHA_MAP_CTRL)
             mapStatusChar = service.getCharacteristic(BleConstants.CHA_MAP_STATUS)
+            otaChar = service.getCharacteristic(BleConstants.CHA_OTA)
 
             val missing = mutableListOf<String>()
             if (navChar == null) missing.add("NAV")
@@ -400,17 +402,19 @@ class MyBleManager(context: Context) : BleManager(context) {
     }
 
     suspend fun writeEsp32FirmwareOta(binData: ByteArray, onProgress: (Int) -> Unit): Boolean {
-        val char = mapImageChar ?: return false
+        val char = otaChar ?: return false
         val totalSize = binData.size
         NavigationRepository.addLog("BLE OTA: Khởi động nạp Firmware ESP32 ($totalSize bytes)")
         
-        // 1. Send OTA Start Command (Command 0x30 + 4 bytes total size)
+        // 1. Send OTA Start Command (4 bytes total size LE) to CHA_OTA
         val startHeader = ByteArray(4)
         ByteBuffer.wrap(startHeader).order(ByteOrder.LITTLE_ENDIAN).putInt(totalSize)
-        writeMapCtrl(0x30.toByte(), startHeader)
+        writeCharacteristic(char, startHeader, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+            .split()
+            .suspend()
         kotlinx.coroutines.delay(500)
 
-        // 2. Stream Binary Chunks via BLE
+        // 2. Stream Binary Chunks via BLE to CHA_OTA
         val chunkSize = 512
         var offset = 0
         while (offset < totalSize) {
@@ -428,9 +432,11 @@ class MyBleManager(context: Context) : BleManager(context) {
             kotlinx.coroutines.delay(20)
         }
 
-        // 3. Send OTA Finish & Reboot Command (Command 0x31)
+        // 3. Send OTA Finish & Reboot Command (1 byte 0x31) to CHA_OTA
         kotlinx.coroutines.delay(300)
-        writeMapCtrl(0x31.toByte(), ByteArray(0))
+        writeCharacteristic(char, byteArrayOf(0x31.toByte()), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
+            .split()
+            .suspend()
         NavigationRepository.addLog("BLE OTA: Đã hoàn tất nạp Firmware ESP32. Đợi ESP32 Reboot...")
         return true
     }

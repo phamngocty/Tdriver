@@ -26,4 +26,7 @@ object BleConstants {
     val CHA_MAP_TILE: UUID = UUID.fromString("d1e2f3a4-b5c6-4789-d012-3456789abcde")
     val CHA_MAP_CTRL: UUID = UUID.fromString("e2f3a4b5-c6d7-4890-e123-456789abcdef")
     val CHA_MAP_STATUS: UUID = UUID.fromString("f3a4b5c6-d7e8-4901-f234-567890abcdef")
+
+    // BLE OTA Firmware Characteristics
+    val CHA_OTA: UUID = UUID.fromString("f0a1b2c3-d4e5-4f60-a012-bcdef0123456")
 }

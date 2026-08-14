@@ -44,6 +44,9 @@ import com.example.tymap.databinding.FragmentSettingsBinding
 import com.example.tymap.repository.NavigationRepository
 import com.example.tymap.service.NavigationService
 import com.example.tymap.utils.PrefsHelper
+import com.example.tymap.utils.UpdateManager
+import com.example.tymap.utils.UpdateCheckResult
+import com.example.tymap.utils.UpdateInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -152,6 +155,7 @@ class SettingsFragment : Fragment() {
 
         setupPermissionsDashboard()
         setupApiHealthDashboard()
+        setupOtaUpdateUI()
         setupUI()
         setupFilterChips()
         observeDeviceType()
@@ -1145,6 +1149,145 @@ class SettingsFragment : Fragment() {
                     binding.cardRouting.visibility = View.VISIBLE
                     binding.cardOled.visibility = View.VISIBLE
                     binding.cardSystem.visibility = View.VISIBLE
+                }
+            }
+        }
+    }
+
+    private fun setupOtaUpdateUI() {
+        val context = context ?: return
+        val savedUrl = PrefsHelper.getString(context, "github_update_url", "")
+        if (savedUrl.isNotEmpty()) {
+            binding.etGithubUpdateUrl.setText(savedUrl)
+        } else {
+            binding.etGithubUpdateUrl.setText("https://raw.githubusercontent.com/phamn/TYMAP/main/version.json")
+        }
+
+        binding.etGithubUpdateUrl.addTextChangedListener {
+            val url = it?.toString()?.trim() ?: ""
+            val ctx = context ?: return@addTextChangedListener
+            PrefsHelper.putString(ctx, "github_update_url", url)
+        }
+
+        var currentUpdateInfo: UpdateInfo? = null
+
+        binding.btnCheckUpdate.setOnClickListener {
+            val ctx = context ?: return@setOnClickListener
+            binding.tvUpdateStatus.text = "Đang kiểm tra máy chủ GitHub..."
+            binding.progressUpdate.visibility = View.VISIBLE
+            binding.btnCheckUpdate.isEnabled = false
+
+            lifecycleScope.launch {
+                val result = UpdateManager.checkUpdate(ctx)
+                if (_binding == null) return@launch
+                binding.progressUpdate.visibility = View.GONE
+                binding.btnCheckUpdate.isEnabled = true
+
+                when (result) {
+                    is UpdateCheckResult.Success -> {
+                        val info = result.info
+                        currentUpdateInfo = info
+                        val sb = StringBuilder()
+
+                        if (info.hasAppUpdate) {
+                            sb.append("📱 Có bản cập nhật App Android mới: v${info.appVersionName} (Code: ${info.appVersionCode})\n${info.appChangelog}\n\n")
+                            binding.btnApplyAppUpdate.visibility = View.VISIBLE
+                        } else {
+                            binding.btnApplyAppUpdate.visibility = View.GONE
+                        }
+
+                        if (info.hasFirmwareUpdate) {
+                            sb.append("⌚ Có bản nâng cấp Firmware ESP32 mới: v${info.firmwareVersionName} (Code: ${info.firmwareVersionCode})\n${info.firmwareChangelog}\n\n")
+                            binding.btnApplyFwUpdate.visibility = View.VISIBLE
+                        } else {
+                            binding.btnApplyFwUpdate.visibility = View.GONE
+                        }
+
+                        if (!info.hasAppUpdate && !info.hasFirmwareUpdate) {
+                            sb.append("✅ Ứng dụng & Firmware ESP32 đang ở phiên bản mới nhất!")
+                        }
+
+                        binding.tvUpdateStatus.text = sb.toString()
+                    }
+                    is UpdateCheckResult.Error -> {
+                        binding.tvUpdateStatus.text = "❌ ${result.message}"
+                        binding.btnApplyAppUpdate.visibility = View.GONE
+                        binding.btnApplyFwUpdate.visibility = View.GONE
+                    }
+                }
+            }
+        }
+
+        binding.btnApplyAppUpdate.setOnClickListener {
+            val ctx = context ?: return@setOnClickListener
+            val info = currentUpdateInfo ?: return@setOnClickListener
+            binding.btnApplyAppUpdate.isEnabled = false
+            binding.progressUpdate.visibility = View.VISIBLE
+            binding.tvUpdateStatus.text = "Đang tải file APK v${info.appVersionName}..."
+
+            lifecycleScope.launch {
+                val success = UpdateManager.downloadAndInstallApk(ctx, info.appApkUrl) { progress ->
+                    if (_binding != null) {
+                        binding.progressUpdate.progress = progress
+                        binding.tvUpdateStatus.text = "Đang tải file APK: $progress%"
+                    }
+                }
+                if (_binding == null) return@launch
+                binding.progressUpdate.visibility = View.GONE
+                binding.btnApplyAppUpdate.isEnabled = true
+
+                if (success) {
+                    binding.tvUpdateStatus.text = "✅ Đã khởi chạy cài đặt APK v${info.appVersionName}."
+                } else {
+                    binding.tvUpdateStatus.text = "❌ Thất bại khi tải file APK!"
+                }
+            }
+        }
+
+        binding.btnApplyFwUpdate.setOnClickListener {
+            val ctx = context ?: return@setOnClickListener
+            val info = currentUpdateInfo ?: return@setOnClickListener
+            val bleManager = NavigationService.bleManager
+            if (bleManager == null || NavigationRepository.bleConnectionState.value != NavigationRepository.BleConnectionState.Ready) {
+                Toast.makeText(ctx, "Vui lòng kết nối BLE tới ESP32 trước khi nạp OTA!", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            binding.btnApplyFwUpdate.isEnabled = false
+            binding.progressUpdate.visibility = View.VISIBLE
+            binding.tvUpdateStatus.text = "Đang tải firmware.bin v${info.firmwareVersionName} từ GitHub..."
+
+            lifecycleScope.launch {
+                val binData = UpdateManager.downloadFirmwareBin(info.firmwareBinUrl)
+                if (binData == null || binData.isEmpty()) {
+                    if (_binding != null) {
+                        binding.progressUpdate.visibility = View.GONE
+                        binding.btnApplyFwUpdate.isEnabled = true
+                        binding.tvUpdateStatus.text = "❌ Lỗi tải file firmware.bin!"
+                    }
+                    return@launch
+                }
+
+                if (_binding != null) {
+                    binding.tvUpdateStatus.text = "Đang nạp không dây qua BLE sang ESP32 (0%)..."
+                }
+                val ok = bleManager.writeEsp32FirmwareOta(binData) { progress ->
+                    if (_binding != null) {
+                        binding.progressUpdate.progress = progress
+                        binding.tvUpdateStatus.text = "Đang nạp Firmware sang ESP32 qua BLE: $progress%"
+                    }
+                }
+
+                if (_binding == null) return@launch
+                binding.progressUpdate.visibility = View.GONE
+                binding.btnApplyFwUpdate.isEnabled = true
+
+                if (ok) {
+                    PrefsHelper.putInt(ctx, "esp32_fw_version_code", info.firmwareVersionCode)
+                    binding.tvUpdateStatus.text = "✅ Đã hoàn tất nạp Firmware v${info.firmwareVersionName}! ESP32 đang khởi động lại..."
+                    binding.btnApplyFwUpdate.visibility = View.GONE
+                } else {
+                    binding.tvUpdateStatus.text = "❌ Thất bại khi truyền Firmware BLE sang ESP32!"
                 }
             }
         }
