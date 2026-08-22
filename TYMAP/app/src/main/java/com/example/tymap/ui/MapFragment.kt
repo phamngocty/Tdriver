@@ -116,6 +116,10 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private var filteredLon = 0.0
     private var lastLocationTime = 0L
 
+    // Route Simulation
+    private var simulationJob: Job? = null
+    private var isSimulating: Boolean = false
+
     private val screenCaptureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
             val serviceIntent = Intent(requireContext(), com.example.tymap.service.NavigationService::class.java).apply {
@@ -518,9 +522,26 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     private fun clearDestination() {
-        destinationMarker?.let { binding.mapView.overlays.remove(it) }
-        destinationMarker = null
+        destinationMarker?.let {
+            binding.mapView.overlays.remove(it)
+            destinationMarker = null
+        }
+        val toRemove = binding.mapView.overlays.filterIsInstance<Polyline>()
+        binding.mapView.overlays.removeAll(toRemove)
+        routePolylines.clear()
+        NavigationRepository.updateRoutes(emptyList())
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
+        binding.bottomSheet.layoutRoutePreview.visibility = View.GONE
+        binding.bottomSheet.layoutPlaceInfo.visibility = View.GONE
+        binding.bottomSheet.layoutNavigation.visibility = View.GONE
+        binding.layoutRouteSteps.visibility = View.GONE
+        
+        // Reset floating UI components translationY back down to initial position (0f)
+        binding.zoomControls.translationY = 0f
+        binding.btnRecenter.translationY = 0f
+        binding.cardGpsSpeedometer.translationY = 0f
+        binding.cardSpeedLimitSign.translationY = 0f
+        
         binding.mapView.invalidate()
     }
 
@@ -564,6 +585,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.rvRouteSteps.layoutManager = LinearLayoutManager(requireContext())
         binding.rvRouteSteps.adapter = routeStepsAdapter
 
+        binding.bottomSheet.btnClosePreview.setOnClickListener {
+            clearDestination()
+        }
+
+        binding.bottomSheet.btnOptions.setOnClickListener {
+            startActivity(android.content.Intent(requireContext(), com.example.tymap.ui.ThemeBuilderActivity::class.java))
+        }
+
         binding.bottomSheet.btnStartFromPreview.setOnClickListener {
             val destPos = destinationMarker?.position
             if (destPos != null) {
@@ -574,6 +603,35 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     val lastPt = activeRoute.polyline.last()
                     startNavigation(lastPt.first, lastPt.second)
                 }
+            }
+        }
+
+        binding.bottomSheet.btnSimulateRoute.setOnClickListener {
+            val destPos = destinationMarker?.position
+            val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
+                ?: NavigationRepository.routes.value.firstOrNull()
+            if (destPos != null) {
+                startSimulation(destPos.latitude, destPos.longitude)
+            } else if (activeRoute != null && activeRoute.polyline.isNotEmpty()) {
+                val lastPt = activeRoute.polyline.last()
+                startSimulation(lastPt.first, lastPt.second)
+            } else {
+                Toast.makeText(requireContext(), "Vui lòng chọn điểm đến trước khi chạy thử", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.bottomSheet.btnShowStepsPreview.setOnClickListener {
+            val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
+                ?: NavigationRepository.routes.value.firstOrNull()
+            if (activeRoute != null && activeRoute.steps.isNotEmpty()) {
+                binding.layoutRouteSteps.visibility = View.VISIBLE
+                routeStepsAdapter.submitList(activeRoute.steps)
+                val durationMin = Math.round(activeRoute.duration / 60.0)
+                val distKm = String.format(java.util.Locale.US, "%.1f km", activeRoute.distance / 1000.0)
+                binding.tvStepsDuration.text = "$durationMin phút"
+                binding.tvStepsSummary.text = "$distKm • ${activeRoute.engineName}"
+            } else {
+                Toast.makeText(requireContext(), "Chưa có danh sách bước rẽ", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -599,6 +657,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
 
         binding.bottomSheet.btnEndNav.setOnClickListener {
+            stopSimulation()
             NavigationRepository.setNavigationRunning(false)
             NavigationRepository.updateRoutes(emptyList()) // Xóa polyline
             binding.layoutRouteSteps.visibility = View.GONE
@@ -627,6 +686,17 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.etSearch.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) performSearch(binding.etSearch.text.toString())
             else binding.suggestionsCard.visibility = View.GONE
+        }
+
+        binding.etSearch.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE ||
+                (event != null && event.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN)) {
+                performEnterSearch(binding.etSearch.text.toString())
+                true
+            } else {
+                false
+            }
         }
 
         binding.etSearch.addTextChangedListener(object : android.text.TextWatcher {
@@ -669,105 +739,55 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 }
             }
 
-            // Run Photon, Pelias, Nominatim search engines simultaneously in parallel
+            // Autocomplete search using Photon (NAS Port 2322 primary -> Photon Public fallback)
             val photonDeferred = async {
                 val list = mutableListOf<JSONObject>()
+                val nasIp = PrefsHelper.getString(requireContext(), "nas_ip", "192.168.1.114").ifEmpty { "192.168.1.114" }
                 val customSearchUrl = PrefsHelper.getString(requireContext(), "custom_search_url", "").trim()
-                val baseUrl = if (customSearchUrl.isNotEmpty()) customSearchUrl.removeSuffix("/") else "https://photon.komoot.io/api"
-                val photonUrl = (if (baseUrl.contains("?")) "$baseUrl&q=$query&limit=5" else "$baseUrl?q=$query&limit=5") +
-                        (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: "")
-                try {
-                    httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
-                        .newCall(Request.Builder().url(photonUrl).build()).execute().use { response ->
-                            if (response.isSuccessful) {
-                                val json = JSONObject(response.body.string())
-                                val features = json.getJSONArray("features")
-                                for (i in 0 until features.length()) {
-                                    val feat = features.getJSONObject(i)
-                                    val prop = feat.getJSONObject("properties")
-                                    val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
-                                    val displayName = listOfNotNull(prop.optString("name"), prop.optString("city"), prop.optString("country"))
-                                        .filter { it.isNotBlank() }.joinToString(", ")
-                                    val lat = geom.getDouble(1)
-                                    val lon = geom.getDouble(0)
-                                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
-                                    if (displayName.isNotEmpty()) {
-                                        list.add(JSONObject().apply {
-                                            put("display_name", displayName)
-                                            put("provider", "Photon Autocomplete")
-                                            put("lat", lat); put("lon", lon)
-                                            put("dist_meters", dist)
-                                        })
+                
+                val urls = mutableListOf<String>()
+                if (customSearchUrl.isNotEmpty()) {
+                    urls.add(if (customSearchUrl.contains("?")) "$customSearchUrl&q=$query&limit=5" else "$customSearchUrl?q=$query&limit=5")
+                }
+                urls.add("http://$nasIp:2322/api?q=$query&limit=5" + (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: ""))
+                urls.add("https://photon.komoot.io/api?q=$query&limit=5" + (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: ""))
+
+                for (photonUrl in urls) {
+                    try {
+                        httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                            .newCall(Request.Builder().url(photonUrl).build()).execute().use { response ->
+                                if (response.isSuccessful) {
+                                    val json = JSONObject(response.body.string())
+                                    val features = json.optJSONArray("features")
+                                    if (features != null && features.length() > 0) {
+                                        for (i in 0 until features.length()) {
+                                            val feat = features.getJSONObject(i)
+                                            val prop = feat.getJSONObject("properties")
+                                            val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
+                                            val displayName = listOfNotNull(prop.optString("name"), prop.optString("city"), prop.optString("country"))
+                                                .filter { it.isNotBlank() }.joinToString(", ")
+                                            val lat = geom.getDouble(1)
+                                            val lon = geom.getDouble(0)
+                                            val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+                                            if (displayName.isNotEmpty()) {
+                                                list.add(JSONObject().apply {
+                                                    put("display_name", displayName)
+                                                    put("provider", "Photon Autocomplete")
+                                                    put("lat", lat); put("lon", lon)
+                                                    put("dist_meters", dist)
+                                                })
+                                            }
+                                        }
+                                        if (list.isNotEmpty()) return@async list
                                     }
                                 }
                             }
-                        }
-                } catch (e: Exception) {}
+                    } catch (e: Exception) {}
+                }
                 list
             }
 
-            val peliasDeferred = async {
-                val list = mutableListOf<JSONObject>()
-                val peliasUrl = "https://api.geocode.earth/v1/autocomplete?text=$query&size=5"
-                try {
-                    httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
-                        .newCall(Request.Builder().url(peliasUrl).build()).execute().use { response ->
-                            if (response.isSuccessful) {
-                                val json = JSONObject(response.body.string())
-                                val features = json.getJSONArray("features")
-                                for (i in 0 until features.length()) {
-                                    val feat = features.getJSONObject(i)
-                                    val prop = feat.getJSONObject("properties")
-                                    val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
-                                    val displayName = prop.optString("label", prop.optString("name", ""))
-                                    val lat = geom.getDouble(1)
-                                    val lon = geom.getDouble(0)
-                                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
-                                    if (displayName.isNotEmpty()) {
-                                        list.add(JSONObject().apply {
-                                            put("display_name", displayName)
-                                            put("provider", "Pelias Geocoder")
-                                            put("lat", lat); put("lon", lon)
-                                            put("dist_meters", dist)
-                                        })
-                                    }
-                                }
-                            }
-                        }
-                } catch (e: Exception) {}
-                list
-            }
-
-            val nominatimDeferred = async {
-                val list = mutableListOf<JSONObject>()
-                val nominatimUrl = "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5"
-                try {
-                    httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
-                        .newCall(Request.Builder().url(nominatimUrl).header("User-Agent", "TYMAP").build()).execute().use { response ->
-                            if (response.isSuccessful) {
-                                val array = JSONArray(response.body.string())
-                                for (i in 0 until array.length()) {
-                                    val item = array.getJSONObject(i)
-                                    val lat = item.getDouble("lat")
-                                    val lon = item.getDouble("lon")
-                                    val displayName = item.optString("display_name", "")
-                                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
-                                    if (displayName.isNotEmpty()) {
-                                        list.add(JSONObject().apply {
-                                            put("display_name", displayName)
-                                            put("provider", "Nominatim OSM")
-                                            put("lat", lat); put("lon", lon)
-                                            put("dist_meters", dist)
-                                        })
-                                    }
-                                }
-                            }
-                        }
-                } catch (e: Exception) {}
-                list
-            }
-
-            val allFetched = photonDeferred.await() + peliasDeferred.await() + nominatimDeferred.await()
+            val allFetched = photonDeferred.await()
             rawResults.addAll(allFetched)
 
             // Sort search results by distance to current GPS location (nearest location first)
@@ -777,6 +797,105 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 suggestionAdapter.submitList(sortedResults)
                 binding.suggestionsCard.visibility = if (sortedResults.isNotEmpty()) View.VISIBLE else View.GONE
                 binding.searchProgress.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun performEnterSearch(query: String) {
+        if (query.length < 2) return
+        binding.searchProgress.visibility = View.VISIBLE
+        val currentLoc = NavigationRepository.gpsLocation.value
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val results = mutableListOf<JSONObject>()
+            val nasIp = PrefsHelper.getString(requireContext(), "nas_ip", "192.168.1.114").ifEmpty { "192.168.1.114" }
+
+            // 1. Thử Nominatim (NAS Port 8080 -> Nominatim Public)
+            val nominatimUrls = listOf(
+                "http://$nasIp:8080/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&format=json&limit=5",
+                "https://nominatim.openstreetmap.org/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&format=json&limit=5"
+            )
+
+            for (url in nominatimUrls) {
+                try {
+                    httpClient.newBuilder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build()
+                        .newCall(Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val array = JSONArray(response.body.string())
+                                for (i in 0 until array.length()) {
+                                    val item = array.getJSONObject(i)
+                                    val lat = item.getDouble("lat")
+                                    val lon = item.getDouble("lon")
+                                    val displayName = item.optString("display_name", "")
+                                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+                                    if (displayName.isNotEmpty()) {
+                                        results.add(JSONObject().apply {
+                                            put("display_name", displayName)
+                                            put("provider", "Nominatim OSM")
+                                            put("lat", lat); put("lon", lon)
+                                            put("dist_meters", dist)
+                                        })
+                                    }
+                                }
+                                if (results.isNotEmpty()) break
+                            }
+                        }
+                } catch (e: Exception) {}
+            }
+
+            // 2. Thử 2: Nếu Nominatim trả về rỗng -> Fallback sang Photon
+            if (results.isEmpty()) {
+                val photonUrls = listOf(
+                    "http://$nasIp:2322/api?q=${java.net.URLEncoder.encode(query, "UTF-8")}&limit=5",
+                    "https://photon.komoot.io/api?q=${java.net.URLEncoder.encode(query, "UTF-8")}&limit=5"
+                )
+
+                for (url in photonUrls) {
+                    try {
+                        httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                            .newCall(Request.Builder().url(url).build()).execute().use { response ->
+                                if (response.isSuccessful) {
+                                    val json = JSONObject(response.body.string())
+                                    val features = json.optJSONArray("features")
+                                    if (features != null) {
+                                        for (i in 0 until features.length()) {
+                                            val feat = features.getJSONObject(i)
+                                            val prop = feat.getJSONObject("properties")
+                                            val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
+                                            val displayName = listOfNotNull(prop.optString("name"), prop.optString("city"), prop.optString("country"))
+                                                .filter { it.isNotBlank() }.joinToString(", ")
+                                            val lat = geom.getDouble(1)
+                                            val lon = geom.getDouble(0)
+                                            val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+                                            if (displayName.isNotEmpty()) {
+                                                results.add(JSONObject().apply {
+                                                    put("display_name", displayName)
+                                                    put("provider", "Photon Fallback")
+                                                    put("lat", lat); put("lon", lon)
+                                                    put("dist_meters", dist)
+                                                })
+                                            }
+                                        }
+                                        if (results.isNotEmpty()) break
+                                    }
+                                }
+                            }
+                    } catch (e: Exception) {}
+                }
+            }
+
+            val sortedResults = results.sortedBy { it.optDouble("dist_meters", Double.MAX_VALUE) }
+
+            withContext(Dispatchers.Main) {
+                binding.searchProgress.visibility = View.GONE
+                if (sortedResults.isNotEmpty()) {
+                    val first = sortedResults.first()
+                    onPlaceSelected(first.getDouble("lat"), first.getDouble("lon"), first.getString("display_name"))
+                    binding.suggestionsCard.visibility = View.GONE
+                    binding.etSearch.clearFocus()
+                } else {
+                    android.widget.Toast.makeText(context, "Không tìm thấy địa điểm", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -1178,22 +1297,149 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val startLoc = NavigationRepository.gpsLocation.value ?: return
         val context = requireContext()
         lifecycleScope.launch(Dispatchers.IO) {
-            val routes = routingEngine.fetchOsrmAndValhalla(context, startLoc.latitude, startLoc.longitude, lat, lon)
+            // Progressive Fast Loading: Khi GraphHopper trả về kết quả trong 15-30ms, vẽ UI ngay lập tức!
+            val fetchedRoutes = routingEngine.fetchOsrmAndValhalla(context, startLoc.latitude, startLoc.longitude, lat, lon) { progressiveRoutes ->
+                if (progressiveRoutes.isNotEmpty()) {
+                    renderRoutesToUi(progressiveRoutes, lat, lon, context)
+                }
+            }
             withContext(Dispatchers.Main) {
-                if (!routes.isNullOrEmpty()) {
-                    NavigationRepository.updateRoutes(routes)
-                    routeAlternativeAdapter.submitList(routes)
-                    val boundingBox = org.osmdroid.util.BoundingBox.fromGeoPoints(routes[0].polyline.map { GeoPoint(it.first, it.second) })
-                    binding.mapView.zoomToBoundingBox(boundingBox, true, 150)
-                    binding.bottomSheet.layoutPlaceInfo.visibility = View.GONE
-                    binding.bottomSheet.layoutRoutePreview.visibility = View.VISIBLE
-                    binding.bottomSheet.btnStartFromPreview.setOnClickListener { startNavigation(lat, lon) }
-                    bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
-                } else {
+                if (!fetchedRoutes.isNullOrEmpty()) {
+                    renderRoutesToUi(fetchedRoutes, lat, lon, context)
+                } else if (NavigationRepository.routes.value.isEmpty()) {
                     Toast.makeText(requireContext(), "Không tìm thấy tuyến đường", Toast.LENGTH_SHORT).show()
                 }
             }
         }
+    }
+
+    private fun renderRoutesToUi(routes: List<com.example.tymap.repository.RouteInfo>, lat: Double, lon: Double, context: Context) {
+        if (routes.isEmpty()) return
+        
+        NavigationRepository.updateRoutes(routes)
+        routeAlternativeAdapter.submitList(routes)
+
+        val selectedRoute = routes.firstOrNull { it.isSelected } ?: routes.first()
+        val durationMin = Math.round(selectedRoute.duration / 60.0)
+        val distKm = String.format(java.util.Locale.US, "%.1f", selectedRoute.distance / 1000.0)
+        
+        binding.bottomSheet.tvMainDurationDistance.text = "$durationMin phút ($distKm km)"
+        binding.bottomSheet.tvTabScooterText.text = "$durationMin phút"
+        binding.bottomSheet.tvTabCarText.text = "${Math.round(durationMin * 1.1)} phút"
+        binding.bottomSheet.tvRouteDescription.text = "Tuyến đường tối ưu (${selectedRoute.engineName})"
+
+        // Xử lý chuyển đổi chế độ xem Xe máy / Ô tô trực tiếp từ Tab bar Google Maps
+        val currentVehicle = PrefsHelper.getInt(context, "vehicle_type", 1)
+        updateVehicleTabSelection(currentVehicle)
+
+        binding.bottomSheet.tabScooter.setOnClickListener {
+            PrefsHelper.putInt(context, "vehicle_type", 1) // Xe máy
+            updateVehicleTabSelection(1)
+            showRoutePreview(lat, lon)
+        }
+
+        binding.bottomSheet.tabRoutes.setOnClickListener {
+            val isVisible = binding.bottomSheet.rvAlternatives.visibility == View.VISIBLE
+            binding.bottomSheet.rvAlternatives.visibility = if (isVisible) View.GONE else View.VISIBLE
+            val cyan = ContextCompat.getColor(requireContext(), R.color.colorAccentCyan)
+            val gray = Color.parseColor("#94A3B8")
+            binding.bottomSheet.tabRoutes.setBackgroundResource(if (!isVisible) R.drawable.bg_tab_selected else R.drawable.bg_tab_unselected)
+            binding.bottomSheet.tvTabRoutesText.setTextColor(if (!isVisible) cyan else gray)
+            binding.bottomSheet.ivTabRoutesIcon.imageTintList = android.content.res.ColorStateList.valueOf(if (!isVisible) cyan else gray)
+        }
+
+        if (selectedRoute.polyline.isNotEmpty()) {
+            val boundingBox = org.osmdroid.util.BoundingBox.fromGeoPoints(selectedRoute.polyline.map { GeoPoint(it.first, it.second) })
+            binding.mapView.zoomToBoundingBox(boundingBox, true, 150)
+        }
+        binding.bottomSheet.layoutPlaceInfo.visibility = View.GONE
+        binding.bottomSheet.layoutRoutePreview.visibility = View.VISIBLE
+        binding.bottomSheet.btnStartFromPreview.setOnClickListener { startNavigation(lat, lon) }
+        binding.bottomSheet.btnClosePreview.setOnClickListener {
+            clearDestination()
+        }
+        bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
+    }
+
+    /**
+     * Giả lập chạy thử tuyến đường (Route Simulation):
+     * Tự động phát tọa độ GPS ảo di chuyển dọc polyline để test Turn-by-Turn và BLE HUD trên ESP32
+     */
+    private fun startSimulation(destLat: Double, destLon: Double) {
+        val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
+            ?: NavigationRepository.routes.value.firstOrNull()
+        if (activeRoute == null || activeRoute.polyline.size < 2) {
+            Toast.makeText(requireContext(), "Chưa có dữ liệu tuyến đường để chạy thử", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Bắt đầu chế độ dẫn đường
+        startNavigation(destLat, destLon)
+        isSimulating = true
+        Toast.makeText(requireContext(), "🚗 Bắt đầu giả lập chạy thử tuyến đường!", Toast.LENGTH_SHORT).show()
+
+        simulationJob?.cancel()
+        simulationJob = lifecycleScope.launch(Dispatchers.Default) {
+            val polyline = activeRoute.polyline
+            var currentIdx = 0
+
+            while (isActive && isSimulating && currentIdx < polyline.size) {
+                val pt = polyline[currentIdx]
+                val nextPt = if (currentIdx < polyline.size - 1) polyline[currentIdx + 1] else pt
+                
+                // Tính góc hướng di chuyển (Bearing)
+                val dLon = Math.toRadians(nextPt.second - pt.second)
+                val lat1 = Math.toRadians(pt.first)
+                val lat2 = Math.toRadians(nextPt.first)
+                val y = Math.sin(dLon) * Math.cos(lat2)
+                val x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon)
+                val bearingDeg = ((Math.toDegrees(Math.atan2(y, x)) + 360.0) % 360.0).toFloat()
+
+                val mockLocation = android.location.Location("SimulationGps").apply {
+                    latitude = pt.first
+                    longitude = pt.second
+                    bearing = bearingDeg
+                    speed = 12.5f // ~45 km/h
+                    accuracy = 2.0f
+                    time = System.currentTimeMillis()
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                        elapsedRealtimeNanos = android.os.SystemClock.elapsedRealtimeNanos()
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    NavigationRepository.updateGpsLocation(mockLocation)
+                }
+
+                currentIdx++
+                kotlinx.coroutines.delay(400) // 400ms mỗi bước nhảy GPS
+            }
+
+            withContext(Dispatchers.Main) {
+                isSimulating = false
+                Toast.makeText(requireContext(), "🎉 Đã hoàn thành chạy thử tuyến đường!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun stopSimulation() {
+        if (isSimulating) {
+            isSimulating = false
+            simulationJob?.cancel()
+            simulationJob = null
+        }
+    }
+
+    private fun updateVehicleTabSelection(vehicleType: Int) {
+        val isScooter = vehicleType == 1
+        binding.bottomSheet.tabScooter.setBackgroundResource(if (isScooter) R.drawable.bg_tab_selected else R.drawable.bg_tab_unselected)
+        binding.bottomSheet.tvTabScooterText.setTextColor(if (isScooter) ContextCompat.getColor(requireContext(), R.color.colorAccentCyan) else Color.parseColor("#94A3B8"))
+        binding.bottomSheet.ivTabScooterIcon.imageTintList = android.content.res.ColorStateList.valueOf(if (isScooter) ContextCompat.getColor(requireContext(), R.color.colorAccentCyan) else Color.parseColor("#94A3B8"))
+
+        val isCar = vehicleType == 0
+        binding.bottomSheet.tabCar.setBackgroundResource(if (isCar) R.drawable.bg_tab_selected else R.drawable.bg_tab_unselected)
+        binding.bottomSheet.tvTabCarText.setTextColor(if (isCar) ContextCompat.getColor(requireContext(), R.color.colorAccentCyan) else Color.parseColor("#94A3B8"))
+        binding.bottomSheet.ivTabCarIcon.imageTintList = android.content.res.ColorStateList.valueOf(if (isCar) ContextCompat.getColor(requireContext(), R.color.colorAccentCyan) else Color.parseColor("#94A3B8"))
     }
 
     private fun getEngineName(index: Int) = when(index) { 1 -> "OpenRouteService"; 2 -> "GraphHopper"; 3 -> "Valhalla"; 4 -> "Tùy chỉnh (Self-Hosted OSRM)"; else -> "OSRM" }
@@ -1202,6 +1448,17 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val currentRoutes = NavigationRepository.routes.value
         val updatedRoutes = currentRoutes.mapIndexed { i, route -> route.copy(isSelected = i == index) }
         NavigationRepository.updateRoutes(updatedRoutes)
+
+        val selectedRoute = updatedRoutes.getOrNull(index) ?: return
+        val durationMin = Math.round(selectedRoute.duration / 60.0)
+        val distKm = String.format(java.util.Locale.US, "%.1f", selectedRoute.distance / 1000.0)
+
+        binding.bottomSheet.tvMainDurationDistance.text = "$durationMin phút ($distKm km)"
+        binding.bottomSheet.tvRouteDescription.text = if (selectedRoute.engineName.contains("NAS") || selectedRoute.engineName.contains("GraphHopper")) {
+            "Tuyến đường tốt nhất từ Server NAS nhà (192.168.1.114:8989)"
+        } else {
+            "Tuyến đường dự phòng từ ${selectedRoute.engineName}"
+        }
     }
 
     private fun triggerDrawRoutes(routes: List<com.example.tymap.repository.RouteInfo>) {

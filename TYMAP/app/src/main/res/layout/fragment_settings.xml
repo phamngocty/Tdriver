@@ -1139,6 +1139,57 @@
                             android:layout_height="wrap_content" />
                     </LinearLayout>
 
+                    <!-- Custom Weighting Options (GraphHopper NAS) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="6dp"
+                        android:layout_marginStart="50dp">
+
+                        <!-- Né trạm thu phí -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Né trạm thu phí (BOT)"
+                                android:textSize="12sp"
+                                android:textColor="#F1F5F9"/>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchAvoidTolls"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <!-- Né phà / đò -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Né phà / đò"
+                                android:textSize="12sp"
+                                android:textColor="#F1F5F9"/>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchAvoidFerries"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                    </LinearLayout>
+
                     <!-- Off-route distance -->
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
                         <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_navigation_arrow" app:tint="#22C55E"/>

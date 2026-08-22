@@ -20,64 +20,108 @@ class RoutingEngine(private val client: OkHttpClient) {
     suspend fun fetchOsrmAndValhalla(
         context: Context,
         startLat: Double, startLng: Double,
-        destLat: Double, destLng: Double
+        destLat: Double, destLng: Double,
+        onProgressiveUpdate: ((List<RouteInfo>) -> Unit)? = null
     ): List<RouteInfo> {
-        return fetchRouteWithFallback(context, startLat, startLng, destLat, destLng) ?: emptyList()
+        return fetchRouteWithFallback(context, startLat, startLng, destLat, destLng, onProgressiveUpdate = onProgressiveUpdate) ?: emptyList()
     }
 
     /**
-     * Parallel multi-engine route calculation across ALL engines:
-     * OSRM (Self-Hosted/Demo), Valhalla, GraphHopper, and ORS.
-     * Merges all results and sorts by shortest distance (meters) first.
+     * Progressive multi-engine route calculation:
+     * 1. FAST-TRACK (ƯU TIÊN 1): Gọi GraphHopper (NAS Server/Cloud) trước tiên để hiển thị NGAY LẬP TỨC (15-30ms).
+     * 2. Phát callback onProgressiveUpdate ngay khi có tuyến đường đầu tiên (không cần chờ các dịch vụ khác).
+     * 3. Chạy song song các engine còn lại (OSRM, Valhalla, ORS) và nạp cảnh báo ngầm không làm đơ giao diện.
      */
     suspend fun fetchRouteWithFallback(
         context: Context,
         startLat: Double, startLng: Double,
         destLat: Double, destLng: Double,
-        priorityList: List<String> = emptyList()
+        priorityList: List<String> = emptyList(),
+        onProgressiveUpdate: ((List<RouteInfo>) -> Unit)? = null
     ): List<RouteInfo>? = coroutineScope {
-        val vehicleType = PrefsHelper.getInt(context, "vehicle_type", 0)
-        val engines = mutableListOf(
+        val vehicleType = PrefsHelper.getInt(context, "vehicle_type", 1)
+        val accumulatedRoutes = mutableListOf<RouteInfo>()
+        val emitted = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        // 1. FAST-TRACK: Ưu tiên tuyệt đối GraphHopper
+        val ghKey = PrefsHelper.getSecureString(context, "api_key_gh", "")
+        try {
+            val fastGhRoutes = fetchGraphHopperRoute(context, startLat, startLng, destLat, destLng, ghKey, vehicleType)
+            if (!fastGhRoutes.isNullOrEmpty()) {
+                synchronized(accumulatedRoutes) {
+                    accumulatedRoutes.addAll(fastGhRoutes)
+                }
+                emitted.set(true)
+                // Hiển thị ngay lập tức lên bản đồ cho người dùng!
+                withContext(Dispatchers.Main) {
+                    onProgressiveUpdate?.invoke(fastGhRoutes.mapIndexed { i, r -> r.copy(isSelected = (i == 0)) })
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RoutingEngine", "Fast-track GraphHopper failed: ${e.message}")
+        }
+
+        // 2. Chạy song song các engine còn lại để bổ sung tuyến đường thay thế (Alternatives)
+        val otherEngines = mutableListOf(
             "OSRM Backend",
             "Valhalla Routing",
-            "GraphHopper Routing",
             "OpenRouteService (ORS)"
         )
         val customUrl = PrefsHelper.getString(context, "custom_routing_url", "").trim()
         if (customUrl.isNotEmpty()) {
-            engines.add(0, "Tùy chỉnh (Self-Hosted OSRM)")
+            otherEngines.add(0, "Tùy chỉnh (Self-Hosted OSRM)")
         }
 
-        val deferreds = engines.map { engine ->
+        val deferreds = otherEngines.map { engine ->
             async(Dispatchers.IO) {
                 val key = when {
                     engine.contains("OpenRouteService") || engine.contains("ORS") -> PrefsHelper.getSecureString(context, "api_key_ors", "")
-                    engine.contains("GraphHopper") -> PrefsHelper.getSecureString(context, "api_key_gh", "")
                     else -> null
                 }
                 try {
-                    fetchRoute(context, startLat, startLng, destLat, destLng, engine, key, vehicleType)
+                    val routes = fetchRoute(context, startLat, startLng, destLat, destLng, engine, key, vehicleType)
+                    if (!routes.isNullOrEmpty()) {
+                        synchronized(accumulatedRoutes) {
+                            accumulatedRoutes.addAll(routes)
+                        }
+                        val sorted = synchronized(accumulatedRoutes) {
+                            accumulatedRoutes.sortedWith(
+                                compareByDescending<RouteInfo> { it.engineName.contains("NAS") || it.engineName.contains("GraphHopper") }
+                                    .thenBy { it.distance }
+                            ).mapIndexed { index, route -> route.copy(isSelected = (index == 0)) }
+                        }
+                        withContext(Dispatchers.Main) {
+                            onProgressiveUpdate?.invoke(sorted)
+                        }
+                    }
+                    routes
                 } catch (e: Exception) {
                     null
                 }
             }
         }
 
-        val allResults = deferreds.awaitAll().filterNotNull().flatten()
-        if (allResults.isEmpty()) return@coroutineScope null
+        // Chờ các engine phụ hoàn tất
+        deferreds.awaitAll()
 
-        // Sort all routes from all engines by shortest distance first
-        val sortedRoutes = allResults.sortedBy { it.distance }
-
-        // Set shortest route as selected (index 0)
-        val finalRoutes = sortedRoutes.mapIndexed { index, route ->
-            route.copy(isSelected = (index == 0))
+        val finalRoutes = synchronized(accumulatedRoutes) {
+            if (accumulatedRoutes.isEmpty()) return@coroutineScope null
+            accumulatedRoutes.sortedWith(
+                compareByDescending<RouteInfo> { it.engineName.contains("NAS") || it.engineName.contains("GraphHopper") }
+                    .thenBy { it.distance }
+            ).mapIndexed { index, route -> route.copy(isSelected = (index == 0)) }
         }
 
-        // Tích hợp Goong.io (Primary): Tải toàn bộ biển báo & camera dọc tuyến đường 1 LẦN duy nhất khi bắt đầu lộ trình
+        // 3. Tải cảnh báo giao thông ngầm (Hoàn toàn không chặn luồng hiển thị bản đồ)
         val selectedRoute = finalRoutes.firstOrNull { it.isSelected } ?: finalRoutes.firstOrNull()
         if (selectedRoute != null && selectedRoute.polyline.isNotEmpty()) {
-            TrafficWarningManager.fetchRouteWarningsFromGoong(context, selectedRoute.polyline)
+            launch(Dispatchers.IO) {
+                try {
+                    TrafficWarningManager.fetchRouteWarningsFromGoong(context, selectedRoute.polyline)
+                } catch (e: Exception) {
+                    android.util.Log.e("RoutingEngine", "Warning fetch background error: ${e.message}")
+                }
+            }
         }
 
         finalRoutes
@@ -95,7 +139,7 @@ class RoutingEngine(private val client: OkHttpClient) {
         return when {
             engine == "Tùy chỉnh (Self-Hosted OSRM)" -> fetchCustomOsrmRoute(context, startLat, startLng, destLat, destLng, avoidHighways)
             engine.contains("OpenRouteService") || engine == "ORS" -> fetchOrsRoute(startLat, startLng, destLat, destLng, apiKey, avoidHighways)
-            engine.contains("GraphHopper") -> fetchGraphHopperRoute(startLat, startLng, destLat, destLng, apiKey, vehicleType)
+            engine.contains("GraphHopper") -> fetchGraphHopperRoute(context, startLat, startLng, destLat, destLng, apiKey, vehicleType)
             engine.contains("Valhalla") -> fetchValhallaRoute(startLat, startLng, destLat, destLng, avoidHighways)
             else -> fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways)
         }
@@ -181,15 +225,26 @@ class RoutingEngine(private val client: OkHttpClient) {
     }
 
     private suspend fun fetchGraphHopperRoute(
+        context: Context,
         startLat: Double, startLng: Double,
         destLat: Double, destLng: Double,
         apiKey: String?,
         vehicleType: Int
     ): List<RouteInfo>? {
-        val key = apiKey?.trim() ?: return null
-        if (key.isEmpty()) return null
+        val key = apiKey?.trim() ?: ""
         
-        val profile = "car"
+        // Cấu hình Profile Xe máy (scooter) hoặc Ô tô (car) theo vehicleType
+        val profile = if (vehicleType == 1) "scooter" else "car"
+
+        // Đọc cài đặt Custom Weighting từ PrefsHelper
+        val avoidTolls = PrefsHelper.getBoolean(context, "avoid_tolls", false)
+        val avoidFerries = PrefsHelper.getBoolean(context, "avoid_ferries", false)
+        
+        // Nếu không có API Key, tự động chuyển sang Server NAS tự dựng (192.168.1.114:8989)
+        if (key.isEmpty()) {
+            return fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries)
+        }
+
         val url = "https://graphhopper.com/api/1/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&key=$key&steps=true&points_encoded=true&algorithm=alternative_route"
         val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
 
@@ -197,14 +252,135 @@ class RoutingEngine(private val client: OkHttpClient) {
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string() ?: return null
                 if (!response.isSuccessful) {
-                    android.util.Log.e("RoutingEngine", "GraphHopper Error: ${response.code}")
-                    return null
+                    android.util.Log.e("RoutingEngine", "GraphHopper Cloud Error: ${response.code}, falling back to NAS Server")
+                    return fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries)
                 }
                 parseGraphHopperResponse(body)
             }
         } catch (e: Exception) {
+            android.util.Log.e("RoutingEngine", "GraphHopper Cloud Exception: ${e.message}, falling back to NAS Server")
+            fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries)
+        }
+    }
+
+    /**
+     * Tự kết nối đến Server GraphHopper riêng trên NAS (192.168.1.114:8989)
+     * Trích xuất Tọa độ [Latitude, Longitude] & Hướng dẫn Turn-by-Turn tiếng Việt
+     * Hỗ trợ Custom Weighting: Né trạm thu phí (avoid_tolls), Né phà/đò (avoid_ferries)
+     */
+    suspend fun fetchNasGraphHopperRoute(
+        startLat: Double, startLng: Double,
+        destLat: Double, destLng: Double,
+        profile: String = "scooter",
+        avoidTolls: Boolean = false,
+        avoidFerries: Boolean = false,
+        nasIp: String = "192.168.1.114"
+    ): List<RouteInfo>? {
+        var url = "http://$nasIp:8989/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&points_encoded=false&instructions=true"
+
+        // Nếu bật Custom Weighting Né Trạm thu phí / Né Phà đò -> Thêm custom_model JSON và ch.disable=true
+        if (avoidTolls || avoidFerries) {
+            val priorityRules = JSONArray()
+            if (avoidTolls) {
+                val tollRule = JSONObject().apply {
+                    put("if", "toll != NO")
+                    put("multiply_by", "0.0")
+                }
+                priorityRules.put(tollRule)
+            }
+            if (avoidFerries) {
+                val ferryRule = JSONObject().apply {
+                    put("if", "road_environment == FERRY")
+                    put("multiply_by", "0.0")
+                }
+                priorityRules.put(ferryRule)
+            }
+            val customModelJson = JSONObject().apply {
+                put("priority", priorityRules)
+            }.toString()
+
+            val encodedCustomModel = java.net.URLEncoder.encode(customModelJson, "UTF-8")
+            url += "&custom_model=$encodedCustomModel&ch.disable=true"
+        }
+
+        val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: return null
+                if (!response.isSuccessful) {
+                    android.util.Log.e("RoutingEngine", "NAS GraphHopper Error: ${response.code}")
+                    return null
+                }
+                parseNasGraphHopperResponse(body)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RoutingEngine", "NAS GraphHopper Connection Failed: ${e.message}")
             null
         }
+    }
+
+    private suspend fun parseNasGraphHopperResponse(body: String): List<RouteInfo> = withContext(Dispatchers.Default) {
+        val json = JSONObject(body)
+        val pathsJson = json.optJSONArray("paths") ?: return@withContext emptyList<RouteInfo>()
+        val result = mutableListOf<RouteInfo>()
+
+        for (i in 0 until pathsJson.length()) {
+            val path = pathsJson.getJSONObject(i)
+            val distance = path.getDouble("distance")
+            val duration = path.getLong("time") / 1000.0
+
+            // 1. Chuyển đổi geometry.coordinates [Longitude, Latitude] -> LatLng(Latitude, Longitude)
+            val points = mutableListOf<Pair<Double, Double>>()
+            if (path.has("points")) {
+                val pointsObj = path.get("points")
+                if (pointsObj is JSONObject && pointsObj.has("coordinates")) {
+                    val coordsArray = pointsObj.getJSONArray("coordinates")
+                    for (j in 0 until coordsArray.length()) {
+                        val coord = coordsArray.getJSONArray(j)
+                        val lng = coord.getDouble(0)
+                        val lat = coord.getDouble(1)
+                        points.add(lat to lng) // LatLng(Lat, Long)
+                    }
+                } else if (pointsObj is String) {
+                    points.addAll(PolylineDecoder.decode(pointsObj, 5).map { it.latitude to it.longitude })
+                }
+            }
+
+            // 2. Đọc danh sách chỉ dẫn Turn-by-Turn (Legs/Steps instructions)
+            val steps = mutableListOf<com.example.tymap.repository.StepInfo>()
+            val instructions = path.optJSONArray("instructions")
+            if (instructions != null) {
+                for (j in 0 until instructions.length()) {
+                    val instr = instructions.getJSONObject(j)
+                    val interval = instr.optJSONArray("interval")
+                    val stepLocation = if (interval != null && interval.length() > 0) {
+                        points.getOrElse(interval.getInt(0)) { 0.0 to 0.0 }
+                    } else {
+                        0.0 to 0.0
+                    }
+
+                    steps.add(com.example.tymap.repository.StepInfo(
+                        instruction = instr.optString("text", "Đi tiếp"),
+                        distance = instr.optDouble("distance", 0.0),
+                        duration = instr.optLong("time", 0L) / 1000.0,
+                        maneuverIcon = mapManeuverToIcon("GraphHopper", instr.optInt("sign", 0)),
+                        roadName = instr.optString("street_name", ""),
+                        location = stepLocation
+                    ))
+                }
+            }
+
+            result.add(RouteInfo(
+                polyline = points,
+                distance = distance,
+                duration = duration,
+                steps = steps,
+                isSelected = (i == 0),
+                engineName = "NAS GraphHopper"
+            ))
+        }
+        result
     }
 
     private suspend fun fetchValhallaRoute(

@@ -77,50 +77,27 @@ object TrafficWarningManager {
     private const val WARNING_COOLDOWN_MS = 15000L
 
     /**
-     * BƯỚC 1 (PRIMARY): Tải dữ liệu cảnh báo từ Goong.io API khi bắt đầu lộ trình mới.
+     * BƯỚC 1 (PRIMARY): Tải dữ liệu cảnh báo từ Overpass API (NAS Server hoặc Public) khi bắt đầu lộ trình mới.
      * Hàm này chỉ gọi ĐÚNG 1 LẦN duy nhất khi khởi tạo lộ trình.
      */
     fun fetchRouteWarningsFromGoong(context: Context, routePolyline: List<Pair<Double, Double>>) {
         if (routePolyline.isEmpty()) return
 
-        val goongApiKey = PrefsHelper.getSecureString(context, "api_key_goong", "").trim()
-        
         scope.launch {
             try {
-                Log.d(TAG, "==> [Goong.io] Đang tải dữ liệu cảnh báo cho toàn bộ lộ trình...")
+                Log.d(TAG, "==> [Overpass API] Đang tải dữ liệu cảnh báo cho toàn bộ lộ trình...")
                 val newPoints = mutableListOf<TrafficWarningPoint>()
 
-                if (goongApiKey.isNotEmpty()) {
-                    // Nếu có Goong API Key, gọi Goong REST API lấy thông tin biển báo/camera
-                    // Mẫu request Goong Direction/Tile/Alerts
-                    val startPt = routePolyline.first()
-                    val endPt = routePolyline.last()
-                    val url = "https://rsapi.goong.io/DistanceMatrix?origins=${startPt.first},${startPt.second}&destinations=${endPt.first},${endPt.second}&vehicle=car&api_key=$goongApiKey"
-
-                    val request = Request.Builder().url(url).build()
-                    val response = httpClient.newCall(request).execute()
-                    if (response.isSuccessful) {
-                        val bodyStr = response.body?.string()
-                        if (!bodyStr.isNullOrEmpty()) {
-                            // Parse JSON Goong trả về (nếu có các điểm alert/speed)
-                            parseGoongResponseBody(bodyStr, newPoints)
-                        }
-                    }
-                }
-
-                // Nếu Goong không có dữ liệu hoặc không cấu hình Key, tự động nạp điểm từ Overpass dọc polyline
-                if (newPoints.isEmpty()) {
-                    Log.d(TAG, "Goong Key trống hoặc không có dữ liệu, chuyển sang Fallback Overpass cho lộ trình")
-                    fetchOverpassForPolyline(routePolyline, newPoints)
-                }
+                // Gọi Overpass cho Polyline (ưu tiên NAS Overpass port 8088, fallback sang Overpass public)
+                fetchOverpassForPolyline(context, routePolyline, newPoints)
 
                 // Cập nhật RAM Cache an toàn
                 warningCache.clear()
                 warningCache.addAll(newPoints)
-                Log.d(TAG, "==> [Goong.io/Fallback] Đã nạp thành công ${warningCache.size} điểm cảnh báo vào RAM Cache")
+                Log.d(TAG, "==> [Overpass] Đã nạp thành công ${warningCache.size} điểm cảnh báo vào RAM Cache")
 
             } catch (e: Exception) {
-                Log.e(TAG, "Lỗi tải cảnh báo Goong.io: ${e.message}", e)
+                Log.e(TAG, "Lỗi tải cảnh báo Overpass: ${e.message}", e)
             }
         }
     }
@@ -333,7 +310,7 @@ object TrafficWarningManager {
     /**
      * Phân tích Overpass cho danh sách điểm lộ trình Polyline
      */
-    private fun fetchOverpassForPolyline(polyline: List<Pair<Double, Double>>, outList: MutableList<TrafficWarningPoint>) {
+    private fun fetchOverpassForPolyline(context: Context, polyline: List<Pair<Double, Double>>, outList: MutableList<TrafficWarningPoint>) {
         if (polyline.isEmpty()) return
         // Lấy tâm trung bình của polyline để query bán kính bao phủ
         val midPt = polyline[polyline.size / 2]
@@ -349,23 +326,30 @@ object TrafficWarningManager {
             out body;
         """.trimIndent()
 
-        try {
-            val url = "https://overpass-api.de/api/interpreter?data=" + java.net.URLEncoder.encode(query, "UTF-8")
-            val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0 (Android Motorcycle Navigation)").build()
-            var response = try { httpClient.newCall(request).execute() } catch (e: Exception) { null }
-            if (response == null || !response.isSuccessful) {
-                val fallbackUrl = "https://overpass.kumi.systems/api/interpreter?data=" + java.net.URLEncoder.encode(query, "UTF-8")
-                val fallbackRequest = Request.Builder().url(fallbackUrl).header("User-Agent", "TYMAP/1.0 (Android Motorcycle Navigation)").build()
-                response = try { httpClient.newCall(fallbackRequest).execute() } catch (e: Exception) { null }
-            }
-            if (response != null && response.isSuccessful) {
-                val jsonStr = response.body?.string()
-                if (!jsonStr.isNullOrEmpty()) {
-                    outList.addAll(parseOverpassJson(jsonStr))
+        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+        val nasIp = PrefsHelper.getString(context, "nas_ip", "192.168.1.114").ifEmpty { "192.168.1.114" }
+
+        val urls = listOf(
+            "http://$nasIp:8088/api/interpreter?data=$encodedQuery",
+            "https://overpass-api.de/api/interpreter?data=$encodedQuery",
+            "https://overpass.kumi.systems/api/interpreter?data=$encodedQuery"
+        )
+
+        for (url in urls) {
+            try {
+                val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0 (Android Motorcycle Navigation)").build()
+                val response = httpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val jsonStr = response.body?.string()
+                    if (!jsonStr.isNullOrEmpty()) {
+                        outList.addAll(parseOverpassJson(jsonStr))
+                        Log.d(TAG, "Lấy thành công dữ liệu Overpass từ: $url")
+                        break
+                    }
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "Thất bại kết nối Overpass URL ($url): ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Lỗi fetchOverpassForPolyline: ${e.message}")
         }
     }
 }

@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # 1. Định tuyến xe máy / Scooter (GraphHopper)
+  graphhopper:
+    image: graphhopper/graphhopper:latest
+    container_name: tymap_graphhopper
+    restart: unless-stopped
+    ports:
+      - "8989:8989"
+    volumes:
+      - /home/nas152/tymap_data/osm_source/vietnam-latest.osm.pbf:/data/vietnam.pbf
+      - /home/nas152/tymap_data/graphhopper_cache:/data/gh-cache
+      - /home/nas152/graphhopper-data/config-loc.yml:/data/config.yml:ro
+    command: -i /data/vietnam.pbf -d /data/gh-cache -c /data/config.yml
+
+  # 2. Tìm kiếm và Ghim điểm (Nominatim Geocoding)
+  # Port đổi sang 8081 để tránh trùng với File Browser hệ thống NAS (8080)
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: tymap_nominatim
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      - PBF_PATH=/osm/vietnam-latest.osm.pbf
+      - REPLICATION_URL=https://download.geofabrik.de/asia/vietnam-updates/
+      - NOMINATIM_PASSWORD=tymap_secret_pass
+    volumes:
+      - /home/nas152/tymap_data/nominatim_db:/var/lib/postgresql/14/main
+      - /home/nas152/tymap_data/osm_source:/osm:ro
+    shm_size: 2gb
+
+  # 3. Cảnh báo tốc độ & Camera phạt nguội (Overpass API)
+  # Port đổi sang 8088 để tránh xung đột
+  overpass:
+    image: wiktorn/overpass-api:latest
+    container_name: tymap_overpass
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+    environment:
+      - OVERPASS_META=yes
+      - OVERPASS_MODE=clone
+      - OVERPASS_DIFF_URL=https://download.geofabrik.de/asia/vietnam-updates/
+    volumes:
+      - /home/nas152/tymap_data/overpass_db:/db
+      - /home/nas152/tymap_data/osm_source:/osm:ro

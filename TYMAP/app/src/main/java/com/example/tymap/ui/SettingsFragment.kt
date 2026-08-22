@@ -597,11 +597,12 @@ class SettingsFragment : Fragment() {
             .add("data", "[out:json][timeout:15];node[\"highway\"=\"speed_camera\"](around:1000,10.762622,106.660172);out body;")
             .build()
         val endpoints = listOf(
+            "http://192.168.1.114:8088/api/interpreter",
             "https://overpass-api.de/api/interpreter",
             "https://overpass.kumi.systems/api/interpreter",
             "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
         )
-        val client = OkHttpClient.Builder().connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS).readTimeout(10, java.util.concurrent.TimeUnit.SECONDS).build()
+        val client = OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).readTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build()
         for (url in endpoints) {
             try {
                 val request = Request.Builder()
@@ -630,10 +631,20 @@ class SettingsFragment : Fragment() {
     }
 
     private fun testGhKey(key: String): Boolean {
+        // Kiểm tra NAS GraphHopper trước (nếu không nhập API key hoặc test máy chủ riêng)
+        val nasUrl = "http://192.168.1.114:8989/health"
+        val client = OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build()
+        try {
+            val resp = client.newCall(Request.Builder().url(nasUrl).header("User-Agent", "TYMAP/1.0").build()).execute()
+            val nasOk = resp.isSuccessful
+            resp.close()
+            if (nasOk) return true
+        } catch (e: Exception) {}
+
         if (key.isEmpty()) return false
         val url = "https://graphhopper.com/api/1/route?point=10.762622,106.660172&point=10.772622,106.670172&profile=car&locale=vi&key=$key"
         val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
-        return try { OkHttpClient().newCall(request).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+        return try { client.newCall(request).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
     private fun testStadiaKey(key: String): Boolean {
@@ -653,8 +664,20 @@ class SettingsFragment : Fragment() {
     }
 
     private fun testPhoton(): Boolean {
-        val url = "https://photon.komoot.io/api/?q=Ho+Chi+Minh&limit=1"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+        val endpoints = listOf(
+            "http://192.168.1.114:2322/api/?q=Ho+Chi+Minh&limit=1",
+            "https://photon.komoot.io/api/?q=Ho+Chi+Minh&limit=1"
+        )
+        val client = OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build()
+        for (url in endpoints) {
+            try {
+                val resp = client.newCall(Request.Builder().url(url).build()).execute()
+                val ok = resp.isSuccessful
+                resp.close()
+                if (ok) return true
+            } catch (e: Exception) {}
+        }
+        return false
     }
 
     private fun testPelias(): Boolean {
@@ -859,8 +882,18 @@ class SettingsFragment : Fragment() {
         }
 
         val vehicles = arrayOf("Ô tô", "Xe máy")
-        setupSpinner(binding.spinnerVehicleType, vehicles, PrefsHelper.getInt(context, "vehicle_type", 0)) {
+        setupSpinner(binding.spinnerVehicleType, vehicles, PrefsHelper.getInt(context, "vehicle_type", 1)) {
             PrefsHelper.putInt(context, "vehicle_type", it)
+        }
+
+        binding.switchAvoidTolls.isChecked = PrefsHelper.getBoolean(context, "avoid_tolls", false)
+        binding.switchAvoidTolls.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "avoid_tolls", isChecked)
+        }
+
+        binding.switchAvoidFerries.isChecked = PrefsHelper.getBoolean(context, "avoid_ferries", false)
+        binding.switchAvoidFerries.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "avoid_ferries", isChecked)
         }
 
         val initialOffRoute = PrefsHelper.getFloat(context, "off_route_dist", 20f)

@@ -31,26 +31,35 @@ class RouteAlternativeAdapter(private val onRouteSelected: (Int) -> Unit) :
         val route = routes[position]
         val time = (route.duration / 60).toInt()
         val dist = String.format("%.1f km", route.distance / 1000)
-        holder.text1.text = "${route.engineName}: $time min ($dist)"
-        holder.text1.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        
+        val isNas = route.engineName.contains("NAS") || route.engineName.contains("GraphHopper")
+        val badge = if (isNas) " [Server Nhà]" else ""
+        holder.text1.text = "${route.engineName}$badge: $time phút ($dist)"
+        holder.text1.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
 
         val context = holder.itemView.context
         val density = context.resources.displayMetrics.density
-        val paddingH = (16 * density).toInt()
-        val paddingV = (12 * density).toInt()
+        val paddingH = (12 * density).toInt()
+        val paddingV = (10 * density).toInt()
         holder.itemView.setPadding(paddingH, paddingV, paddingH, paddingV)
 
         if (route.isSelected) {
             val selectedDrawable = GradientDrawable().apply {
-                setColor(Color.parseColor("#334B68"))
-                cornerRadius = 8 * density
+                setColor(Color.parseColor("#1E293B"))
+                setStroke((1.5 * density).toInt(), Color.parseColor("#38BDF8"))
+                cornerRadius = 12 * density
             }
             holder.itemView.background = selectedDrawable
-            holder.text1.setTextColor(Color.WHITE)
+            holder.text1.setTextColor(Color.parseColor("#38BDF8"))
             holder.text1.setTypeface(null, Typeface.BOLD)
         } else {
-            holder.itemView.background = null
-            holder.text1.setTextColor(Color.parseColor("#9CA3AF"))
+            val unselectedDrawable = GradientDrawable().apply {
+                setColor(Color.parseColor("#0F172A"))
+                setStroke((1 * density).toInt(), Color.parseColor("#33475569"))
+                cornerRadius = 12 * density
+            }
+            holder.itemView.background = unselectedDrawable
+            holder.text1.setTextColor(Color.parseColor("#94A3B8"))
             holder.text1.setTypeface(null, Typeface.NORMAL)
         }
 

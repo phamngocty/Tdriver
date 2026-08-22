@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [106.700806, 10.776889]
+      },
+      "properties": {
+        "maxspeed": 50,
+        "name": "Pho di bo Nguyen Hue",
+        "vehicle": "motorcycle"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [106.684128, 10.792415]
+      },
+      "properties": {
+        "maxspeed": 60,
+        "name": "Nam Ky Khoi Nghia",
+        "vehicle": "motorcycle"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [106.629700, 10.823120]
+      },
+      "properties": {
+        "maxspeed": 50,
+        "name": "Quoc Lo 1A An Suong",
+        "vehicle": "motorcycle"
+      }
+    }
+  ]
+}

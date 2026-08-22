@@ -1,0 +1,38 @@
+{
+  "priority": [
+    {
+      "if": "road_class == MOTORWAY || road_class == MOTORWAY_LINK",
+      "multiply_by": "0"
+    },
+    {
+      "if": "road_class == TRUNK || road_class == PRIMARY || road_class == SECONDARY",
+      "multiply_by": "1.0"
+    },
+    {
+      "if": "road_environment == FERRY",
+      "multiply_by": "0.9"
+    },
+    {
+      "if": "road_class == RESIDENTIAL || road_class == LIVING_STREET || road_class == SERVICE",
+      "multiply_by": "0.8"
+    },
+    {
+      "if": "road_class == TRACK || road_class == BRIDLEWAY",
+      "multiply_by": "0.2"
+    }
+  ],
+  "speed": [
+    {
+      "if": "road_environment == FERRY",
+      "limit_to": "15"
+    },
+    {
+      "if": "road_class == LIVING_STREET || road_class == RESIDENTIAL",
+      "limit_to": "30"
+    },
+    {
+      "if": "true",
+      "limit_to": "60"
+    }
+  ]
+}

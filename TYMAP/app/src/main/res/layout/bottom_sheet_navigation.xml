@@ -92,39 +92,340 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <!-- 2. Route Preview State -->
+            <!-- 2. Route Preview State (Google Maps Style) -->
             <LinearLayout
                 android:id="@+id/layoutRoutePreview"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="gone">
+                android:visibility="visible">
 
+                <!-- Header: Top bar with Title and Close button -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/tvDestinationTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Tuyến đường"
+                        android:textColor="@android:color/white"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end" />
+
+                    <ImageButton
+                        android:id="@+id/btnOptions"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:background="@drawable/bg_circle_button"
+                        android:src="@drawable/ic_settings"
+                        app:tint="#CBD5E1"
+                        android:padding="8dp" />
+
+                    <ImageButton
+                        android:id="@+id/btnClosePreview"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_circle_button"
+                        android:src="@android:drawable/ic_menu_close_clear_cancel"
+                        app:tint="#FFFFFF"
+                        android:padding="8dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:elevation="4dp" />
+                </LinearLayout>
+
+                <!-- Vehicle Selector Tabs (Car / Scooter / Public / Walk) -->
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:id="@+id/layoutVehicleTabs"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <!-- Tab 1: Scooter (Xe máy - Default Selected) -->
+                        <LinearLayout
+                            android:id="@+id/tabScooter"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:paddingHorizontal="14dp"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:background="@drawable/bg_tab_selected"
+                            android:clickable="true"
+                            android:focusable="true">
+                            <ImageView
+                                android:id="@+id/ivTabScooterIcon"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_scooter"
+                                app:tint="@color/colorAccentCyan" />
+                            <TextView
+                                android:id="@+id/tvTabScooterText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="5 phút"
+                                android:textColor="@color/colorAccentCyan"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Tab 2: Car (Ô tô) -->
+                        <LinearLayout
+                            android:id="@+id/tabCar"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="8dp"
+                            android:paddingHorizontal="14dp"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:background="@drawable/bg_tab_unselected"
+                            android:clickable="true"
+                            android:focusable="true">
+                            <ImageView
+                                android:id="@+id/ivTabCarIcon"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_car"
+                                app:tint="#94A3B8" />
+                            <TextView
+                                android:id="@+id/tvTabCarText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="-- phút"
+                                android:textColor="#94A3B8"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Tab 3: Routes (Các tuyến đường) -->
+                        <LinearLayout
+                            android:id="@+id/tabRoutes"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="8dp"
+                            android:paddingHorizontal="14dp"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:background="@drawable/bg_tab_unselected"
+                            android:clickable="true"
+                            android:focusable="true">
+                            <ImageView
+                                android:id="@+id/ivTabRoutesIcon"
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:src="@drawable/ic_directions"
+                                app:tint="#94A3B8" />
+                            <TextView
+                                android:id="@+id/tvTabRoutesText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="Các tuyến đường"
+                                android:textColor="#94A3B8"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Tab 3: Transit -->
+                        <LinearLayout
+                            android:id="@+id/tabTransit"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="8dp"
+                            android:paddingHorizontal="14dp"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:background="@drawable/bg_tab_unselected">
+                            <ImageView
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:src="@drawable/ic_clock"
+                                app:tint="#94A3B8" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="25 phút"
+                                android:textColor="#94A3B8"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <!-- Tab 4: Walk -->
+                        <LinearLayout
+                            android:id="@+id/tabWalk"
+                            android:layout_width="wrap_content"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="8dp"
+                            android:paddingHorizontal="14dp"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:background="@drawable/bg_tab_unselected">
+                            <ImageView
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
+                                android:src="@drawable/ic_my_location"
+                                app:tint="#94A3B8" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:text="35 phút"
+                                android:textColor="#94A3B8"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </HorizontalScrollView>
+
+                <!-- Route Main Time & Distance Header -->
                 <TextView
-                    android:id="@+id/tvRouteSummary"
+                    android:id="@+id/tvMainDurationDistance"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="--"
+                    android:text="5 phút (1,8 km)"
                     android:textColor="@android:color/white"
-                    android:textSize="18sp"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <!-- Traffic & Description -->
+                <TextView
+                    android:id="@+id/tvRouteDescription"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Tuyến đường nhanh nhất từ Server NAS dựa trên tình trạng giao thông hiện tại"
+                    android:textColor="#94A3B8"
+                    android:textSize="13sp" />
+
+                <!-- Eco & Parking Sub-info Badge Line -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="14dp"
+                        android:layout_height="14dp"
+                        android:src="@drawable/ic_status_dot"
+                        app:tint="#22C55E" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:text="Tiết kiệm 5% nhiên liệu"
+                        android:textColor="#22C55E"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="6dp"
+                        android:text="•"
+                        android:textColor="#64748B" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🅿️ Dễ đỗ xe"
+                        android:textColor="#94A3B8"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <!-- Alternatives Route List Header -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="CÁC TUYẾN ĐƯỜNG GỢI Ý (ƯU TIÊN NAS)"
+                    android:textColor="@color/colorAccentCyan"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rvAlternatives"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp" />
+                    android:layout_marginTop="6dp"
+                    android:maxHeight="160dp"
+                    android:visibility="visible" />
 
-                <Button
-                    android:id="@+id/btnStartFromPreview"
+                <!-- Action Button Row: [Bắt đầu] [Chạy thử] [Bước rẽ] -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:backgroundTint="@color/colorAccentCyan"
-                    android:text="@string/start"
-                    android:textColor="@android:color/white"
-                    app:icon="@drawable/ic_play"
-                    app:iconTint="@android:color/white" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <!-- Big Start Navigation Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnStartFromPreview"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1.1"
+                        android:layout_marginEnd="6dp"
+                        android:backgroundTint="@color/colorAccentCyan"
+                        android:text="Bắt đầu"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@android:color/white"
+                        app:cornerRadius="24dp"
+                        app:icon="@drawable/ic_play"
+                        app:iconTint="@android:color/white" />
+
+                    <!-- Simulation / Chạy thử tuyến đường Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSimulateRoute"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1.1"
+                        android:layout_marginEnd="6dp"
+                        android:backgroundTint="#0284C7"
+                        android:text="Chạy thử"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:textColor="@android:color/white"
+                        app:cornerRadius="24dp"
+                        app:icon="@drawable/ic_directions"
+                        app:iconTint="@android:color/white" />
+
+                    <!-- Show Steps / Chi tiết bước rẽ Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnShowStepsPreview"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1.0"
+                        android:backgroundTint="#1E293B"
+                        android:text="Bước rẽ"
+                        android:textSize="12sp"
+                        android:textColor="#E2E8F0"
+                        app:cornerRadius="24dp"
+                        app:icon="@drawable/ic_directions"
+                        app:iconTint="#94A3B8" />
+
+                </LinearLayout>
             </LinearLayout>
 
             <!-- 3. Navigation State (Active) -->
