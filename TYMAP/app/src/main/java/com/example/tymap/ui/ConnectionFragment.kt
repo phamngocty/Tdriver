@@ -142,6 +142,7 @@ class ConnectionFragment : Fragment() {
         val orsKey = PrefsHelper.getSecureString(context, "api_key_ors", "")
         val ghKey = PrefsHelper.getSecureString(context, "api_key_gh", "")
         val stadiaKey = PrefsHelper.getSecureString(context, "api_key_stadia", "")
+        val cartoKey = PrefsHelper.getSecureString(context, "api_key_carto", "")
 
         val apiServices = listOf(
             ApiService("osrm", "OSRM Backend", "Dẫn đường cực nhanh (Tự host / Demo miễn phí).", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
@@ -153,7 +154,7 @@ class ConnectionFragment : Fragment() {
             ApiService("open_meteo", "Open-Meteo Weather", "Dự báo thời tiết 10.000 req/ngày miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
             ApiService("esri", "Esri World Canvas", "Bản đồ nền mượt OLED, miễn phí vô hạn.", "https://www.esri.com/", false, status = ServiceStatus.FREE),
             ApiService("stadia", "Stadia Alidade Smooth Dark", "Bản đồ tối mượt Alidade Smooth Dark cho OLED.", "https://stadiamaps.com/", true, apiKey = stadiaKey, status = if (stadiaKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
-            ApiService("carto", "CartoDB Basemap", "Cung cấp bản đồ nền MapCN (Positron / Dark Matter / Voyager).", "https://carto.com/signup/", false, status = ServiceStatus.FREE)
+            ApiService("carto", "CartoDB Basemap (MapCN)", "Cung cấp bản đồ Positron / Dark Matter / Voyager. Nhập API Key miễn phí để tắt chữ mờ watermark.", "https://carto.com/signup/", true, apiKey = cartoKey, status = if (cartoKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED)
         )
         
         apiServiceAdapter = ApiServiceAdapter(
@@ -170,6 +171,7 @@ class ConnectionFragment : Fragment() {
                     "ors" -> "api_key_ors"
                     "gh" -> "api_key_gh"
                     "stadia" -> "api_key_stadia"
+                    "carto" -> "api_key_carto"
                     else -> null
                 }
                 keyName?.let { 
@@ -193,6 +195,7 @@ class ConnectionFragment : Fragment() {
             "ors" -> "api_key_ors"
             "gh" -> "api_key_gh"
             "stadia" -> "api_key_stadia"
+            "carto" -> "api_key_carto"
             else -> null
         }
         keyName?.let { PrefsHelper.putSecureString(context, it, service.apiKey) }
@@ -203,6 +206,7 @@ class ConnectionFragment : Fragment() {
                 "ors" -> testOrsKey(service.apiKey)
                 "gh" -> testGhKey(service.apiKey)
                 "stadia" -> testStadiaKey(service.apiKey)
+                "carto" -> service.apiKey.isNotEmpty()
                 "open_meteo" -> testOpenMeteo()
                 "photon" -> testPhoton()
                 "nominatim" -> true

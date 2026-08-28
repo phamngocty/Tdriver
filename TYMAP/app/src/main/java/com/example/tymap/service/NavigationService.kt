@@ -1144,7 +1144,37 @@ class NavigationService : Service() {
         }
     }
 
-    // Map Sources (Clean & Free, Zero Watermarks)
+    // Map Sources
+    private val mapCnDark = object : XYTileSource("CartoDB Dark Matter", 1, 20, 256, ".png",
+        arrayOf("https://a.basemaps.cartocdn.com/dark_all/", "https://b.basemaps.cartocdn.com/dark_all/", "https://c.basemaps.cartocdn.com/dark_all/"),
+        "© OpenStreetMap contributors, © CARTO") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val base = super.getTileURLString(pMapTileIndex)
+            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_carto", "") } catch (e: Exception) { "" }
+            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+        }
+    }
+
+    private val mapCnPositron = object : XYTileSource("CartoDB Positron", 1, 20, 256, ".png",
+        arrayOf("https://a.basemaps.cartocdn.com/light_all/", "https://b.basemaps.cartocdn.com/light_all/", "https://c.basemaps.cartocdn.com/light_all/"),
+        "© OpenStreetMap contributors, © CARTO") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val base = super.getTileURLString(pMapTileIndex)
+            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_carto", "") } catch (e: Exception) { "" }
+            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+        }
+    }
+
+    private val mapCnVoyager = object : XYTileSource("CartoDB Voyager", 1, 20, 256, ".png",
+        arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/", "https://b.basemaps.cartocdn.com/rastertiles/voyager/", "https://c.basemaps.cartocdn.com/rastertiles/voyager/"),
+        "© OpenStreetMap contributors, © CARTO") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val base = super.getTileURLString(pMapTileIndex)
+            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_carto", "") } catch (e: Exception) { "" }
+            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+        }
+    }
+
     private val googleMapsDark = object : XYTileSource("Google Maps Dark", 1, 20, 256, "",
         arrayOf("https://mt1.google.com/vt/lyrs=m"),
         "© Google") {
@@ -1201,12 +1231,15 @@ class NavigationService : Service() {
 
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
-        list.add(googleMapsDark)      // 0: Google Maps Dark (Mặc định)
-        list.add(googleMaps)          // 1: Google Maps Chuẩn
-        list.add(googleMapsSatellite) // 2: Google Maps Vệ Tinh
-        list.add(googleMapsHybrid)    // 3: Google Maps Vệ Tinh Lai
-        list.add(osmStandard)         // 4: OpenStreetMap Chuẩn
-        list.add(osmHot)              // 5: OpenStreetMap HOT
+        list.add(mapCnDark)           // 0: CartoDB Dark Matter
+        list.add(mapCnPositron)       // 1: CartoDB Positron
+        list.add(mapCnVoyager)        // 2: CartoDB Voyager
+        list.add(googleMapsDark)      // 3: Google Maps Dark
+        list.add(googleMaps)          // 4: Google Maps Chuẩn
+        list.add(googleMapsSatellite) // 5: Google Maps Vệ Tinh
+        list.add(googleMapsHybrid)    // 6: Google Maps Vệ Tinh Lai
+        list.add(osmStandard)         // 7: OpenStreetMap Chuẩn
+        list.add(osmHot)              // 8: OpenStreetMap HOT
 
         val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {
