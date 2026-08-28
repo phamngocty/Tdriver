@@ -1546,3 +1546,71 @@ void parseAndApplyLayoutJson(const String &jsonStr)
     hasCustomLayoutConfig = true;
     Serial.printf("GUI: Applied custom layout JSON config via BLE (statusStyle=%d, notifStyle=%d, mapHudStyle=%d)\n", (int)statusStyle, (int)notifStyle, (int)mapHudStyle);
 }
+
+// ==========================================
+// 8. GIAO DIỆN NẠP FIRMWARE BLE OTA (ESP32 GC9A01)
+// ==========================================
+void drawOtaProgressScreen()
+{
+    canvasSprite.fillSprite(TFT_BLACK);
+
+    // 1. Vòng tròn trang trí viền ngoài (Tech Cyan)
+    canvasSprite.drawCircle(120, 120, 118, color565(15, 30, 45));
+    canvasSprite.drawCircle(120, 120, 116, color565(30, 58, 85));
+
+    int pct = 0;
+    if (otaExpectedSize > 0)
+    {
+        pct = (int)(((uint64_t)otaWritten * 100) / otaExpectedSize);
+        if (pct > 100) pct = 100;
+    }
+
+    // 2. Vòng tròn tiến trình dạng Arc
+    int arcAngle = (pct * 360) / 100;
+    if (arcAngle > 0)
+    {
+        drawArcSegment(canvasSprite, 120, 120, 112, -90, -90 + arcAngle, color565(0, 229, 255));
+    }
+
+    // 3. Tiêu đề phía trên (Y = 32)
+    myFont.set_font(FONT_NOTIF_TITLE);
+    const char *titleText = "FIRMWARE OTA";
+    uint16_t tLen = myFont.getLength(titleText);
+    myFont.print(120 - tLen / 2, 32, titleText, color565(0, 229, 255), TFT_BLACK);
+
+    // 4. Số phần trăm khổng lồ ở trung tâm (Y = 75)
+    char pctBuf[16];
+    snprintf(pctBuf, sizeof(pctBuf), "%d%%", pct);
+    myFont.set_font(FONT_CLOCK);
+    uint16_t pctLen = myFont.getLength(pctBuf);
+    myFont.print(120 - pctLen / 2, 75, pctBuf, (pct >= 100) ? color565(34, 197, 94) : TFT_WHITE, TFT_BLACK);
+
+    // 5. Thanh ProgressBar dạng Pill nằm ngang (Y = 138)
+    int barW = 140;
+    int barH = 8;
+    int barX = 120 - barW / 2;
+    int barY = 138;
+    canvasSprite.fillRoundRect(barX, barY, barW, barH, 4, color565(30, 41, 59));
+    if (pct > 0)
+    {
+        int fillW = (barW * pct) / 100;
+        if (fillW < 6) fillW = 6;
+        canvasSprite.fillRoundRect(barX, barY, fillW, barH, 4, (pct >= 100) ? color565(34, 197, 94) : color565(0, 229, 255));
+    }
+    canvasSprite.drawRoundRect(barX, barY, barW, barH, 4, color565(51, 65, 85));
+
+    // 6. Thông số KB chi tiết & Trạng thái (Y = 158)
+    char bytesBuf[32];
+    snprintf(bytesBuf, sizeof(bytesBuf), "%d / %d KB", (int)(otaWritten / 1024), (int)(otaExpectedSize / 1024));
+    myFont.set_font(FONT_STATUS_INFO);
+    uint16_t bLen = myFont.getLength(bytesBuf);
+    myFont.print(120 - bLen / 2, 158, bytesBuf, color565(148, 163, 184), TFT_BLACK);
+
+    // 7. Nhắc nhở ở đáy (Y = 188)
+    const char *bottomMsg = (pct >= 100) ? "HOAN TAT! REBOOT..." : "DANG NAP QUA BLE...";
+    uint16_t msgColor = (pct >= 100) ? color565(34, 197, 94) : color565(251, 146, 60);
+    uint16_t mLen = myFont.getLength(bottomMsg);
+    myFont.print(120 - mLen / 2, 188, bottomMsg, msgColor, TFT_BLACK);
+
+    canvasSprite.pushSprite(0, 0);
+}

@@ -94,6 +94,11 @@ extern uint8_t trafficWarningType;
 extern uint8_t trafficWarningValue;
 extern unsigned long trafficWarningStartTime;
 
+// Trạng thái Cập nhật Firmware BLE OTA
+extern bool isOtaMode;
+extern uint32_t otaExpectedSize;
+extern uint32_t otaWritten;
+
 // Custom Theme Layout Config from Theme Studio Builder
 extern bool hasCustomLayoutConfig;
 void parseAndApplyLayoutJson(const String& jsonStr);
@@ -113,6 +118,7 @@ void drawNOTIF();
 void drawSETTINGS();
 void drawMapOverlay();
 void drawTrafficWarningOverlay();
+void drawOtaProgressScreen();
 void drawLogoWithLoadingBar(unsigned long currentTime, unsigned long startTime,
                             unsigned long introDuration);
 void drawWeatherIcon(TFT_eSprite &sprite, const String &icon, int cx, int cy);

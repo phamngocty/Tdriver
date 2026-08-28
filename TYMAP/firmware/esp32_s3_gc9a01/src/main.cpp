@@ -1278,12 +1278,13 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
         {
             if (!isOtaMode && val.length() >= 4)
             {
-                // Lệnh 0x30: Khởi động nạp OTA (4 byte Kích thước file LE)
+                // Lệnh Khởi động nạp OTA (4 byte Kích thước file LE)
                 memcpy(&otaExpectedSize, val.data(), 4);
                 if (otaExpectedSize > 0 && Update.begin(otaExpectedSize, U_FLASH))
                 {
                     isOtaMode = true;
                     otaWritten = 0;
+                    screenNeedsRedraw = true;
                     Serial.printf("BLE OTA: Started! Total size = %d bytes\n", otaExpectedSize);
                 }
                 else
@@ -1299,13 +1300,16 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     if (Update.end(true))
                     {
                         Serial.println("BLE OTA: Firmware update success! Rebooting ESP32...");
-                        delay(500);
+                        otaWritten = otaExpectedSize;
+                        drawOtaProgressScreen();
+                        delay(1200);
                         ESP.restart();
                     }
                     else
                     {
                         Serial.println("BLE OTA ERROR: Update.end failed!");
                         isOtaMode = false;
+                        screenNeedsRedraw = true;
                     }
                 }
                 else
@@ -1313,7 +1317,8 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     // Gói tin binary chunk
                     size_t bytesWritten = Update.write((uint8_t *)val.data(), val.length());
                     otaWritten += bytesWritten;
-                    if (otaExpectedSize > 0 && otaWritten % 50000 < val.length()) {
+                    screenNeedsRedraw = true;
+                    if (otaExpectedSize > 0 && otaWritten % 20000 < val.length()) {
                         Serial.printf("BLE OTA Progress: %d / %d bytes (%d%%)\n", otaWritten, otaExpectedSize, (int)((uint64_t)otaWritten * 100 / otaExpectedSize));
                     }
                 }
@@ -1675,6 +1680,18 @@ void setup()
 
 void loop()
 {
+    // Nếu đang trong chế độ Nạp Firmware OTA, ưu tiên vẽ màn hình tiến trình OTA
+    if (isOtaMode)
+    {
+        if (screenNeedsRedraw)
+        {
+            drawOtaProgressScreen();
+            screenNeedsRedraw = false;
+        }
+        delay(10);
+        return;
+    }
+
     btnMode.tick();
     btnZoom.tick();
 
