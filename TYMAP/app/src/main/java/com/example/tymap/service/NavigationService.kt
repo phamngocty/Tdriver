@@ -1234,12 +1234,13 @@ class NavigationService : Service() {
         list.add(mapCnDark)           // 0: CartoDB Dark Matter
         list.add(mapCnPositron)       // 1: CartoDB Positron
         list.add(mapCnVoyager)        // 2: CartoDB Voyager
-        list.add(googleMapsDark)      // 3: Google Maps Dark
-        list.add(googleMaps)          // 4: Google Maps Chuẩn
-        list.add(googleMapsSatellite) // 5: Google Maps Vệ Tinh
-        list.add(googleMapsHybrid)    // 6: Google Maps Vệ Tinh Lai
-        list.add(osmStandard)         // 7: OpenStreetMap Chuẩn
-        list.add(osmHot)              // 8: OpenStreetMap HOT
+        list.add(googleMaps)          // 3: Google Maps (MT)
+        list.add(googleMapsDark)      // 4: Google Maps Dark (MT)
+        list.add(googleMaps)          // 5: Google Maps Đảo Màu (MT Invert)
+        list.add(googleMapsSatellite) // 6: Google Maps Satellite (MT)
+        list.add(googleMapsHybrid)    // 7: Google Maps Hybrid (MT)
+        list.add(osmStandard)         // 8: OpenStreetMap Chuẩn
+        list.add(osmHot)              // 9: OpenStreetMap HOT
 
         val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {

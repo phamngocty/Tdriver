@@ -755,8 +755,9 @@ class SettingsFragment : Fragment() {
             "CartoDB Dark Matter",
             "CartoDB Positron",
             "CartoDB Voyager",
-            "Google Maps Dark (MT)",
             "Google Maps (MT)",
+            "Google Maps Dark (MT)",
+            "Google Maps Đảo Màu (MT Invert)",
             "Google Maps Satellite (MT)",
             "Google Maps Hybrid (MT)",
             "OpenStreetMap Chuẩn",
@@ -765,10 +766,10 @@ class SettingsFragment : Fragment() {
         )
         val rawTileSource = PrefsHelper.getInt(context, "tile_source", 0)
         val initialTileSource = if (rawTileSource >= mapSources.size) 0 else rawTileSource
-        binding.tilCustomTileUrl.visibility = if (initialTileSource == 9) View.VISIBLE else View.GONE
+        binding.tilCustomTileUrl.visibility = if (initialTileSource == 10) View.VISIBLE else View.GONE
         setupSpinner(binding.spinnerTileSource, mapSources, initialTileSource) {
             PrefsHelper.putInt(context, "tile_source", it)
-            binding.tilCustomTileUrl.visibility = if (it == 9) View.VISIBLE else View.GONE
+            binding.tilCustomTileUrl.visibility = if (it == 10) View.VISIBLE else View.GONE
         }
 
         binding.etCustomTileUrl.setText(PrefsHelper.getString(context, "custom_tile_url", ""))
