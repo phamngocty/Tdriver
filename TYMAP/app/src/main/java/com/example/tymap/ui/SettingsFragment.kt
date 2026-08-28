@@ -1142,20 +1142,6 @@ class SettingsFragment : Fragment() {
     }
 
     private fun setupOtaUpdateUI() {
-        val context = context ?: return
-        val savedUrl = PrefsHelper.getString(context, "github_update_url", "")
-        if (savedUrl.isNotEmpty()) {
-            binding.etGithubUpdateUrl.setText(savedUrl)
-        } else {
-            binding.etGithubUpdateUrl.setText("https://git.nas152.duckdns.org/nas152/TYMAP/raw/branch/main/version.json")
-        }
-
-        binding.etGithubUpdateUrl.addTextChangedListener {
-            val url = it?.toString()?.trim() ?: ""
-            val ctx = context ?: return@addTextChangedListener
-            PrefsHelper.putString(ctx, "github_update_url", url)
-        }
-
         var currentUpdateInfo: UpdateInfo? = null
 
         binding.btnCheckUpdate.setOnClickListener {
