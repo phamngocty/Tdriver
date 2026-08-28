@@ -34,71 +34,110 @@ sealed class UpdateCheckResult {
 }
 
 object UpdateManager {
-    private val httpClient = OkHttpClient()
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
 
     /**
-     * Tự động kiểm tra bản cập nhật App APK và Firmware ESP32 từ GitHub Releases / Raw Version JSON.
+     * Danh sách máy chủ cập nhật theo thứ tự ưu tiên:
+     * 1. Gitea NAS (Public DuckDNS qua Nginx Proxy Manager SSL)
+     * 2. Gitea NAS (Mạng nội bộ LAN)
+     * 3. Fusion Engine NAS (Public DuckDNS)
+     * 4. GitHub Cloud (Dự phòng toàn cầu)
+     */
+    fun getDefaultUpdateUrls(context: Context): List<String> {
+        val customUrl = PrefsHelper.getString(context, "github_update_url", "").trim()
+        val list = mutableListOf<String>()
+        if (customUrl.isNotEmpty()) {
+            list.add(customUrl)
+        }
+        list.add("https://git.nas152.duckdns.org/nas152/TYMAP/raw/branch/main/version.json")
+        list.add("http://192.168.1.114:3002/nas152/TYMAP/raw/branch/main/version.json")
+        list.add("https://alert.nas152.duckdns.org/version.json")
+        list.add("http://192.168.1.114:8088/version.json")
+        list.add("https://raw.githubusercontent.com/phamn/TYMAP/main/version.json")
+        return list
+    }
+
+    /**
+     * Tự động kiểm tra bản cập nhật App APK và Firmware ESP32 từ Gitea NAS / Fusion Engine / GitHub.
      */
     suspend fun checkUpdate(context: Context): UpdateCheckResult = withContext(Dispatchers.IO) {
-        val customUrl = PrefsHelper.getString(context, "github_update_url", "").trim()
-        val updateUrl = if (customUrl.isNotEmpty()) {
-            customUrl
-        } else {
-            "https://raw.githubusercontent.com/phamn/TYMAP/main/version.json"
-        }
+        val urls = getDefaultUpdateUrls(context)
+        var lastError = "Không thể kết nối đến máy chủ cập nhật."
 
-        try {
-            val request = Request.Builder().url(updateUrl).build()
-            clientNewCall(request).use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext UpdateCheckResult.Error("Khởi tạo kết nối thất bại (HTTP ${response.code})")
-                }
-                val bodyStr = response.body?.string() ?: return@withContext UpdateCheckResult.Error("Dữ liệu trống")
-                val json = JSONObject(bodyStr)
+        for (updateUrl in urls) {
+            try {
+                val request = Request.Builder()
+                    .url(updateUrl)
+                    .header("User-Agent", "TYMAP-Updater/2.0")
+                    .build()
 
-                val appObj = json.optJSONObject("app") ?: JSONObject()
-                val appVerCode = appObj.optInt("versionCode", 0)
-                val appVerName = appObj.optString("versionName", "")
-                val appApkUrl = appObj.optString("apkUrl", "")
-                val appChangelog = appObj.optString("changelog", "Bản cập nhật mới cho TYMAP.")
-
-                val fwObj = json.optJSONObject("firmware") ?: JSONObject()
-                val fwVerCode = fwObj.optInt("versionCode", 0)
-                val fwVerName = fwObj.optString("versionName", "")
-                val fwBinUrl = fwObj.optString("binUrl", "")
-                val fwChangelog = fwObj.optString("changelog", "Bản nâng cấp firmware mới cho ESP32 HUD.")
-
-                val currentAppVerCode = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
-                    } else {
-                        @Suppress("DEPRECATION")
-                        context.packageManager.getPackageInfo(context.packageName, 0).versionCode
+                clientNewCall(request).use { response ->
+                    if (!response.isSuccessful) {
+                        lastError = "Máy chủ $updateUrl phản hồi mã lỗi HTTP ${response.code}"
+                        return@use
                     }
-                } catch (e: Exception) { 1 }
+                    val bodyStr = response.body?.string() ?: return@use
+                    val json = JSONObject(bodyStr)
 
-                val hasAppUpdate = appVerCode > currentAppVerCode && appApkUrl.isNotEmpty()
+                    val appObj = json.optJSONObject("app") ?: JSONObject()
+                    val appVerCode = appObj.optInt("versionCode", 0)
+                    val appVerName = appObj.optString("versionName", "")
+                    var appApkUrl = appObj.optString("apkUrl", "")
+                    val appChangelog = appObj.optString("changelog", "Bản cập nhật mới cho TYMAP.")
 
-                val currentFwVerCode = PrefsHelper.getInt(context, "esp32_fw_version_code", 0)
-                val hasFirmwareUpdate = fwVerCode > currentFwVerCode && fwBinUrl.isNotEmpty()
+                    val fwObj = json.optJSONObject("firmware") ?: JSONObject()
+                    val fwVerCode = fwObj.optInt("versionCode", 0)
+                    val fwVerName = fwObj.optString("versionName", "")
+                    var fwBinUrl = fwObj.optString("binUrl", "")
+                    val fwChangelog = fwObj.optString("changelog", "Bản nâng cấp firmware mới cho ESP32 HUD.")
 
-                val info = UpdateInfo(
-                    hasAppUpdate = hasAppUpdate,
-                    appVersionCode = appVerCode,
-                    appVersionName = appVerName,
-                    appApkUrl = appApkUrl,
-                    appChangelog = appChangelog,
-                    hasFirmwareUpdate = hasFirmwareUpdate,
-                    firmwareVersionCode = fwVerCode,
-                    firmwareVersionName = fwVerName,
-                    firmwareBinUrl = fwBinUrl,
-                    firmwareChangelog = fwChangelog
-                )
-                UpdateCheckResult.Success(info)
+                    // Resolve relative URLs based on the active server URL
+                    val baseUrl = updateUrl.substringBeforeLast("/")
+                    if (appApkUrl.startsWith("./") || (!appApkUrl.startsWith("http://") && !appApkUrl.startsWith("https://") && appApkUrl.isNotEmpty())) {
+                        appApkUrl = "$baseUrl/${appApkUrl.removePrefix("./")}"
+                    }
+                    if (fwBinUrl.startsWith("./") || (!fwBinUrl.startsWith("http://") && !fwBinUrl.startsWith("https://") && fwBinUrl.isNotEmpty())) {
+                        fwBinUrl = "$baseUrl/${fwBinUrl.removePrefix("./")}"
+                    }
+
+                    val currentAppVerCode = try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+                        } else {
+                            @Suppress("DEPRECATION")
+                            context.packageManager.getPackageInfo(context.packageName, 0).versionCode
+                        }
+                    } catch (e: Exception) { 1 }
+
+                    val hasAppUpdate = appVerCode > currentAppVerCode && appApkUrl.isNotEmpty()
+
+                    val currentFwVerCode = PrefsHelper.getInt(context, "esp32_fw_version_code", 0)
+                    val hasFirmwareUpdate = fwVerCode > currentFwVerCode && fwBinUrl.isNotEmpty()
+
+                    val info = UpdateInfo(
+                        hasAppUpdate = hasAppUpdate,
+                        appVersionCode = appVerCode,
+                        appVersionName = appVerName,
+                        appApkUrl = appApkUrl,
+                        appChangelog = appChangelog,
+                        hasFirmwareUpdate = hasFirmwareUpdate,
+                        firmwareVersionCode = fwVerCode,
+                        firmwareVersionName = fwVerName,
+                        firmwareBinUrl = fwBinUrl,
+                        firmwareChangelog = fwChangelog
+                    )
+                    NavigationRepository.addLog("UpdateManager: Kết nối thành công tới máy chủ: $updateUrl")
+                    return@withContext UpdateCheckResult.Success(info)
+                }
+            } catch (e: Exception) {
+                lastError = "Lỗi kết nối $updateUrl: ${e.message}"
             }
-        } catch (e: Exception) {
-            UpdateCheckResult.Error("Lỗi kết nối GitHub: ${e.message}")
         }
+
+        UpdateCheckResult.Error(lastError)
     }
 
     private fun clientNewCall(request: Request) = httpClient.newBuilder()

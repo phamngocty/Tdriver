@@ -3,6 +3,7 @@ package com.example.tymap.service
 import android.content.Context
 import android.location.Location
 import android.util.Log
+import com.example.tymap.utils.NasConnectionManager
 import com.example.tymap.utils.PrefsHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,11 +27,6 @@ data class SpeedLimitResult(
 
 object SpeedLimitEngine {
     private const val TAG = "SpeedLimitEngine"
-
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
-        .build()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -70,8 +66,8 @@ object SpeedLimitEngine {
 
         scope.launch {
             try {
-                // TẦNG 1: Overpass API (OpenStreetMap - Miễn phí)
-                var result = queryOverpassApi(location.latitude, location.longitude)
+                // TẦNG 1: Overpass API (NAS Server & OpenStreetMap - Miễn phí)
+                var result = queryOverpassApi(context, location.latitude, location.longitude)
 
                 // TẦNG 2: HERE Location Services API (Nếu Overpass không có & có Key HERE)
                 if (result == null) {
@@ -92,6 +88,7 @@ object SpeedLimitEngine {
                 if (result != null) {
                     ramGridCache[key] = result
                     Log.d(TAG, "==> [SpeedLimitEngine] Tìm thấy tốc độ giới hạn: ${result.speedLimit} km/h (Nguồn: ${result.source})")
+                    com.example.tymap.repository.NavigationRepository.updateSpeedLimit(result.speedLimit, result.roadName)
                     withContext(Dispatchers.Main) {
                         onResult(result)
                     }
@@ -109,25 +106,30 @@ object SpeedLimitEngine {
     }
 
     /**
-     * Truy vấn TẦNG 1: Overpass API (OpenStreetMap)
+     * Truy vấn TẦNG 1: Overpass API (NAS Server & OpenStreetMap)
      */
-    private fun queryOverpassApi(lat: Double, lon: Double): SpeedLimitResult? {
+    private fun queryOverpassApi(context: Context, lat: Double, lon: Double): SpeedLimitResult? {
         val query = """
             [out:json][timeout:5];
             way(around:50,$lat,$lon)["maxspeed"];
             out tags;
         """.trimIndent()
 
-        val endpoints = listOf(
-            "https://overpass-api.de/api/interpreter?data=",
-            "https://overpass.kumi.systems/api/interpreter?data="
-        )
+        val endpoints = mutableListOf<String>()
+        if (NasConnectionManager.isNasPotentiallyAvailable(context)) {
+            val fusionBaseUrl = NasConnectionManager.getFusionEngineBaseUrl(context)
+            endpoints.add("$fusionBaseUrl/api/interpreter?data=")
+        }
+        endpoints.add("https://overpass-api.de/api/interpreter?data=")
+        endpoints.add("https://overpass.kumi.systems/api/interpreter?data=")
 
         for (endpoint in endpoints) {
             try {
+                val isNas = NasConnectionManager.isNasEndpoint(endpoint)
+                val client = if (isNas) NasConnectionManager.nasHttpClient else NasConnectionManager.publicHttpClient
                 val url = endpoint + URLEncoder.encode(query, "UTF-8")
                 val request = Request.Builder().url(url).build()
-                val response = httpClient.newCall(request).execute()
+                val response = client.newCall(request).execute()
                 val body = response.body?.string() ?: continue
 
                 val json = JSONObject(body)
@@ -140,14 +142,20 @@ object SpeedLimitEngine {
 
                     val parsedSpeed = parseSpeedString(maxspeedStr)
                     if (parsedSpeed > 0) {
+                        if (isNas) {
+                            NasConnectionManager.markNasSuccess()
+                        }
                         return SpeedLimitResult(
                             speedLimit = parsedSpeed,
-                            source = "OpenStreetMap (Overpass)",
+                            source = if (isNas) "NAS Fusion Engine" else "OpenStreetMap (Overpass)",
                             roadName = roadName
                         )
                     }
                 }
             } catch (e: Exception) {
+                if (NasConnectionManager.isNasEndpoint(endpoint) && NasConnectionManager.isConnectionFailure(e)) {
+                    NasConnectionManager.markNasFailed(e.message)
+                }
                 Log.w(TAG, "Overpass endpoint $endpoint lỗi: ${e.message}")
             }
         }
@@ -161,7 +169,7 @@ object SpeedLimitEngine {
         try {
             val url = "https://revgeocode.search.hereapi.com/v1/revgeocode?at=$lat,$lon&lang=vi&apiKey=$apiKey"
             val request = Request.Builder().url(url).build()
-            val response = httpClient.newCall(request).execute()
+            val response = NasConnectionManager.publicHttpClient.newCall(request).execute()
             val body = response.body?.string() ?: return null
 
             val json = JSONObject(body)
@@ -169,10 +177,7 @@ object SpeedLimitEngine {
             if (items.length() > 0) {
                 val item = items.getJSONObject(0)
                 val title = item.optString("title", "")
-
-                // Kiểm tra xem có thuộc tính tốc độ hoặc phân loại đường từ HERE không
                 val roadInfo = item.optJSONObject("address")?.optString("street", title) ?: title
-                // Nút fallback phân tích tên đường hoặc quy chuẩn cơ bản
                 Log.d(TAG, "HERE API RevGeocode Road: $roadInfo")
             }
         } catch (e: Exception) {
@@ -188,7 +193,7 @@ object SpeedLimitEngine {
         try {
             val url = "https://api.tomtom.com/search/2/reverseGeocode/$lat,$lon.json?key=$apiKey"
             val request = Request.Builder().url(url).build()
-            val response = httpClient.newCall(request).execute()
+            val response = NasConnectionManager.publicHttpClient.newCall(request).execute()
             val body = response.body?.string() ?: return null
 
             val json = JSONObject(body)
@@ -216,7 +221,7 @@ object SpeedLimitEngine {
     /**
      * Trích xuất số tốc độ (km/h) từ chuỗi tag maxspeed (VD: "50", "60 km/h", "80", "50 mph")
      */
-    private fun parseSpeedString(rawStr: String): Int {
+    fun parseSpeedString(rawStr: String): Int {
         if (rawStr.isBlank()) return 0
         val clean = rawStr.lowercase().trim()
         val numMatch = Regex("""\d+""").find(clean)?.value?.toIntOrNull() ?: return 0

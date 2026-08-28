@@ -228,7 +228,7 @@ object UrlParser {
         
         try {
             val geocodeUrl = "https://photon.komoot.io/api/?q=${URLEncoder.encode(cleanedName, "UTF-8")}&limit=1"
-            val response = client.newCall(Request.Builder().url(geocodeUrl).build()).execute()
+            val response = client.newCall(Request.Builder().url(geocodeUrl).header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)").build()).execute()
             if (response.isSuccessful) {
                 val json = JSONObject(response.body!!.string())
                 val features = json.getJSONArray("features")
@@ -247,7 +247,7 @@ object UrlParser {
         // Fallback to Nominatim
         try {
             val nominatimUrl = "https://nominatim.openstreetmap.org/search?q=${URLEncoder.encode(cleanedName, "UTF-8")}&format=json&limit=1"
-            val request = Request.Builder().url(nominatimUrl).header("User-Agent", "TYMAP").build()
+            val request = Request.Builder().url(nominatimUrl).header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)").build()
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
                 val array = JSONArray(response.body!!.string())

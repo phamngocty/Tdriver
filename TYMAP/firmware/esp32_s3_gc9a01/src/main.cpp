@@ -1319,6 +1319,29 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                 }
             }
         }
+        else if (uuid == CHA_WARNING_UUID)
+        {
+            if (val.length() >= 2)
+            {
+                uint8_t type = (uint8_t)val[0];
+                uint8_t valSpeed = (uint8_t)val[1];
+                trafficWarningType = type;
+                trafficWarningValue = valSpeed;
+                isTrafficWarningActive = true;
+                trafficWarningStartTime = millis();
+                screenNeedsRedraw = true;
+                Serial.printf("BLE: Received Traffic Warning -> Type=0x%02X, Value=%d\n", type, valSpeed);
+            }
+            else if (val.length() == 1)
+            {
+                trafficWarningType = (uint8_t)val[0];
+                trafficWarningValue = 0;
+                isTrafficWarningActive = true;
+                trafficWarningStartTime = millis();
+                screenNeedsRedraw = true;
+                Serial.printf("BLE: Received Traffic Warning -> Type=0x%02X\n", (uint8_t)val[0]);
+            }
+        }
     }
 };
 

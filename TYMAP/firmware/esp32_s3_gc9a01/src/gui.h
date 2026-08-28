@@ -115,6 +115,7 @@ void drawMapOverlay();
 void drawTrafficWarningOverlay();
 void drawLogoWithLoadingBar(unsigned long currentTime, unsigned long startTime,
                             unsigned long introDuration);
+void drawWeatherIcon(TFT_eSprite &sprite, const String &icon, int cx, int cy);
 
 uint16_t getAppAccentColor(const String& appName);
 

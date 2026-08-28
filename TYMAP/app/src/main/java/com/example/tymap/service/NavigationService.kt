@@ -867,28 +867,34 @@ class NavigationService : Service() {
     private fun startWeatherSync() {
         serviceScope.launch(Dispatchers.IO) {
             while (isActive) {
-                val location = NavigationRepository.gpsLocation.value
-                if (location != null) {
-                    try {
-                        val url = "https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true"
-                        val request = Request.Builder().url(url).build()
-                        httpClient.newCall(request).execute().use { response ->
-                            val body = response.body.string()
-                            if (response.isSuccessful && body.startsWith("{")) {
-                                val json = gson.fromJson(body, WeatherResponse::class.java)
-                                bleManager.writeWeather(gson.toJson(mapOf(
-                                    "t" to json.current_weather.temperature,
-                                    "i" to mapWeatherCode(json.current_weather.weathercode)
-                                )))
-                            } else {
-                                android.util.Log.e("NavigationService", "Weather API Error: ${response.code} - $body")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.e("NavigationService", "Weather Sync Exception: ${e.message}")
+                fetchAndSyncWeatherNow()
+                delay(300_000) // Định kỳ cập nhật mỗi 5 phút
+            }
+        }
+    }
+
+    private fun fetchAndSyncWeatherNow() {
+        serviceScope.launch(Dispatchers.IO) {
+            val location = NavigationRepository.gpsLocation.value ?: return@launch
+            try {
+                val url = "https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true"
+                val request = Request.Builder().url(url).build()
+                httpClient.newCall(request).execute().use { response ->
+                    val body = response.body.string()
+                    if (response.isSuccessful && body.startsWith("{")) {
+                        val json = gson.fromJson(body, WeatherResponse::class.java)
+                        val iconCode = mapWeatherCode(json.current_weather.weathercode)
+                        bleManager.writeWeather(gson.toJson(mapOf(
+                            "t" to json.current_weather.temperature,
+                            "i" to iconCode
+                        )))
+                        android.util.Log.d("NavigationService", "BLE Weather Synced: ${json.current_weather.temperature}°C, icon: $iconCode")
+                    } else {
+                        android.util.Log.e("NavigationService", "Weather API Error: ${response.code} - $body")
                     }
                 }
-                delay(600_000)
+            } catch (e: Exception) {
+                android.util.Log.e("NavigationService", "Weather Sync Exception: ${e.message}")
             }
         }
     }
@@ -903,7 +909,16 @@ class NavigationService : Service() {
     }
 
     private fun mapWeatherCode(code: Int): String {
-        return when (code) { 0 -> "01d"; 1, 2, 3 -> "02d"; else -> "03d" }
+        return when (code) {
+            0 -> "01d" // Nắng / quang đãng
+            1, 2 -> "02d" // Ít mây / Mây rải rác
+            3 -> "04d" // Nhiều mây / U ám
+            45, 48 -> "50d" // Sương mù
+            51, 53, 55, 61, 63, 65, 80, 81, 82 -> "10d" // Mưa phùn / Mưa rào
+            71, 73, 75, 85, 86 -> "13d" // Tuyết
+            95, 96, 99 -> "11d" // Sấm sét / Dông bão
+            else -> "02d"
+        }
     }
 
     data class WeatherResponse(val current_weather: CurrentWeather)
@@ -1634,6 +1649,7 @@ class NavigationService : Service() {
             NavigationRepository.navigationState.collect { running ->
                 val captureMode = PrefsHelper.getInt(this@NavigationService, "map_capture_mode", 0)
                 if (running) {
+                    fetchAndSyncWeatherNow()
                     if (captureMode == 0 || captureMode == 4 || (captureMode == 5 && !isGmapsActive)) {
                         if (bleManager.isConnected) {
                             android.util.Log.d("NavigationService", "Navigation started (Mode $captureMode, isGmapsActive=$isGmapsActive), switching ESP32 to MAP_MODE")
@@ -1663,6 +1679,9 @@ class NavigationService : Service() {
 
                     // Send time immediately upon ready
                     bleManager.writeTime(System.currentTimeMillis())
+
+                    // Send weather immediately upon ready
+                    fetchAndSyncWeatherNow()
                     
                     // Trigger manual sticky battery update
                     val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))

@@ -74,6 +74,12 @@ void drawHUD()
     myFont.print(startX, 22, part1, TFT_SKYBLUE, TFT_BLACK);
     myFont.print(startX + len1, 22, part2, TFT_WHITE, TFT_BLACK);
 
+    // Hiển thị icon thời tiết góc trên bên phải nếu có dữ liệu
+    if (weatherIcon.length() > 0)
+    {
+        drawWeatherIcon(canvasSprite, weatherIcon, 204, 26);
+    }
+
     // 2. Icon hướng rẽ trung tâm (cy=84)
     // Ưu tiên: 1bpp bitmap (Google Maps TBT); fallback: mũi tên vector theo navDirIdx
     if (hasCustomIcon)
@@ -478,6 +484,12 @@ void drawMapHudOverlay()
             myFont.print(70, 203, nextStreet, TFT_WHITE, cardBgColor);
         }
     }
+
+    // Hiển thị icon thời tiết góc trên bên phải nếu có dữ liệu
+    if (weatherIcon.length() > 0)
+    {
+        drawWeatherIcon(canvasSprite, weatherIcon, 204, 26);
+    }
 }
 
 // ==========================================
@@ -513,11 +525,17 @@ void drawMapOverlay()
     // Vẽ Overlay Cảnh báo Giao thông (nếu có)
     drawTrafficWarningOverlay();
 
+    // 4. Hiển thị icon thời tiết góc trên bên phải nếu có dữ liệu
+    if (weatherIcon.length() > 0)
+    {
+        drawWeatherIcon(canvasSprite, weatherIcon, 204, 26);
+    }
+
     canvasSprite.pushSprite(0, 0);
 }
 
 // ==========================================
-// CẢNH BÁO GIAO THÔNG (SPEED LIMIT & CAMERA PHẠT NGUỘI) - POPUP OVERLAY 3 GIÂY
+// CẢNH BÁO GIAO THÔNG (SPEED LIMIT & CAMERA PHẠT NGUỘI) - POPUP OVERLAY 3 GIÂY & VIỀN NHÁP NHÁY ĐỎ
 // ==========================================
 void drawTrafficWarningOverlay()
 {
@@ -529,8 +547,18 @@ void drawTrafficWarningOverlay()
     int cy = 120;
     int r = 48; // Bán kính hình tròn biển báo giao thông
 
-    // 1. Vẽ vòng tròn ngoài màu đỏ nổi bật (Viền dày 4px chuẩn biển báo giao thông)
-    canvasSprite.fillCircle(cx, cy, r + 4, TFT_RED);
+    // 0. Hiệu ứng viền tròn ngoài cùng màn hình nhấp nháy đỏ (chu kỳ 250ms) giúp tài xế phát hiện ngay lập tức
+    bool isBlink = ((millis() - trafficWarningStartTime) / 250) % 2 == 0;
+    if (isBlink)
+    {
+        canvasSprite.drawCircle(cx, cy, 119, TFT_RED);
+        canvasSprite.drawCircle(cx, cy, 118, TFT_RED);
+        canvasSprite.drawCircle(cx, cy, 117, TFT_RED);
+        canvasSprite.drawCircle(cx, cy, 116, TFT_RED);
+    }
+
+    // 1. Vẽ vòng tròn ngoài màu đỏ nổi bật (Viền dày 5px chuẩn biển báo giao thông)
+    canvasSprite.fillCircle(cx, cy, r + 5, TFT_RED);
 
     // 2. Vẽ vòng tròn viền trong màu trắng
     canvasSprite.fillCircle(cx, cy, r + 1, TFT_WHITE);
@@ -1304,6 +1332,9 @@ void drawINFO()
     String verStr = "TYMAP v1.0.0 | GC9A01";
     uint16_t verLen = myFont.getLength(verStr);
     myFont.print(120 - verLen / 2, 180, verStr, TFT_DARKGREY, TFT_BLACK);
+
+    // Vẽ Overlay Cảnh báo Giao thông (nếu có)
+    drawTrafficWarningOverlay();
 
     canvasSprite.pushSprite(0, 0);
 }

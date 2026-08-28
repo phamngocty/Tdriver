@@ -35,6 +35,40 @@ object NavigationRepository {
     private val _currentSpeedKmh = MutableStateFlow(0)
     val currentSpeedKmh: StateFlow<Int> = _currentSpeedKmh.asStateFlow()
 
+    data class TrafficAlert(
+        val type: Byte,
+        val speedLimit: Int,
+        val distanceMeters: Int,
+        val message: String
+    )
+
+    private val _currentSpeedLimit = MutableStateFlow<Int>(60)
+    val currentSpeedLimit: StateFlow<Int> = _currentSpeedLimit.asStateFlow()
+
+    private val _currentRoadName = MutableStateFlow<String>("")
+    val currentRoadName: StateFlow<String> = _currentRoadName.asStateFlow()
+
+    private val _trafficWarningPoints = MutableStateFlow<List<com.example.tymap.service.TrafficWarningPoint>>(emptyList())
+    val trafficWarningPoints: StateFlow<List<com.example.tymap.service.TrafficWarningPoint>> = _trafficWarningPoints.asStateFlow()
+
+    private val _activeTrafficAlert = MutableStateFlow<TrafficAlert?>(null)
+    val activeTrafficAlert: StateFlow<TrafficAlert?> = _activeTrafficAlert.asStateFlow()
+
+    fun updateSpeedLimit(speedLimit: Int, roadName: String = "") {
+        if (speedLimit > 0) {
+            _currentSpeedLimit.value = speedLimit
+            _currentRoadName.value = roadName
+        }
+    }
+
+    fun updateTrafficWarningPoints(points: List<com.example.tymap.service.TrafficWarningPoint>) {
+        _trafficWarningPoints.value = points
+    }
+
+    fun triggerTrafficAlert(alert: TrafficAlert?) {
+        _activeTrafficAlert.value = alert
+    }
+
     private val _routes = MutableStateFlow<List<RouteInfo>>(emptyList())
     val routes = _routes.asStateFlow()
 

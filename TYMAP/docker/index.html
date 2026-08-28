@@ -829,8 +829,8 @@
         let url = `http://${nasIp}:8989/route?point=${start.lat},${start.lng}&point=${end.lat},${end.lng}&profile=${currentProfile}&locale=vi&points_encoded=false&instructions=true&algorithm=alternative_route&ch.disable=true&alternative_route.max_paths=3&alternative_route.max_weight_factor=2.0&alternative_route.max_share_factor=0.9`;
 
         let priorityRules = [];
-        if (avoidTolls) priorityRules.push({"if": "toll == YES", "multiply_by": "0.0"});
-        if (avoidFerries) priorityRules.push({"if": "ferry == YES", "multiply_by": "0.0"});
+        if (avoidTolls) priorityRules.push({"if": "toll != NO", "multiply_by": 0.0});
+        if (avoidFerries) priorityRules.push({"if": "road_environment == FERRY", "multiply_by": 0.0});
 
         if (priorityRules.length > 0) {
             const customModel = JSON.stringify({"priority": priorityRules});

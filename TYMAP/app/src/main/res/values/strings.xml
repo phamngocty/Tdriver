@@ -33,7 +33,7 @@
     <string name="clear_log">Clear Log</string>
 
     <!-- Map -->
-    <string name="search_here">Search here</string>
+    <string name="search_here">Nhập tên đường, ngã tư hoặc khu vực...</string>
     <string name="recenter">Recenter</string>
     <string name="directions">Directions</string>
     <string name="start">Start</string>

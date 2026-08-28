@@ -10,6 +10,7 @@ import java.util.Locale
 
 class RouteStepsAdapter : RecyclerView.Adapter<RouteStepsAdapter.ViewHolder>() {
 
+    var onStepClickListener: ((StepInfo) -> Unit)? = null
     private var steps = emptyList<StepInfo>()
 
     fun submitList(newSteps: List<StepInfo>) {
@@ -23,7 +24,11 @@ class RouteStepsAdapter : RecyclerView.Adapter<RouteStepsAdapter.ViewHolder>() {
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(steps[position], position == steps.size - 1)
+        val step = steps[position]
+        holder.bind(step, position == steps.size - 1)
+        holder.itemView.setOnClickListener {
+            onStepClickListener?.invoke(step)
+        }
     }
 
     override fun getItemCount(): Int = steps.size

@@ -8,6 +8,7 @@ import android.graphics.*
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.LayoutInflater
@@ -35,6 +36,7 @@ import com.example.tymap.databinding.FragmentMapBinding
 import com.example.tymap.repository.NavigationRepository
 import com.example.tymap.service.NavigationService
 import com.example.tymap.service.RoutingEngine
+import com.example.tymap.utils.NasConnectionManager
 import com.example.tymap.utils.PrefsHelper
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +96,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private lateinit var suggestionAdapter: SuggestionAdapter
     private lateinit var routeAlternativeAdapter: RouteAlternativeAdapter
     private lateinit var routeStepsAdapter: RouteStepsAdapter
+    private lateinit var savedPlaceDbHelper: com.example.tymap.repository.SavedPlaceDbHelper
     private val httpClient = OkHttpClient()
     private lateinit var routingEngine: RoutingEngine
 
@@ -237,6 +240,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        savedPlaceDbHelper = com.example.tymap.repository.SavedPlaceDbHelper(requireContext())
         setupWindowInsets()
         setupMap()
         setupBottomSheet()
@@ -500,23 +504,79 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private fun reverseGeocode(lat: Double, lon: Double) {
         binding.searchProgress.visibility = View.VISIBLE
         lifecycleScope.launch(Dispatchers.IO) {
-            val url = "https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json"
-            val request = Request.Builder().url(url).header("User-Agent", "TYMAP").build()
-            try {
-                httpClient.newCall(request).execute().use { response ->
-                    val body = response.body.string()
-                    val json = JSONObject(body)
-                    val name = json.optString("display_name", "Vị trí đã chọn")
-                    withContext(Dispatchers.Main) {
-                        onPlaceSelected(lat, lon, name)
+            val context = requireContext()
+            var resolvedName: String? = null
+
+            // 1. Thử Goong Reverse Geocoding nếu có API key
+            val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "").trim()
+            if (goongKey.isNotEmpty()) {
+                try {
+                    val goongUrl = "https://rsapi.goong.io/Geocode?latlng=$lat,$lon&api_key=$goongKey"
+                    val request = Request.Builder().url(goongUrl).header("User-Agent", "TYMAP-Android/1.0").build()
+                    NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val json = JSONObject(response.body.string())
+                            val results = json.optJSONArray("results")
+                            if (results != null && results.length() > 0) {
+                                val name = results.getJSONObject(0).optString("formatted_address", "")
+                                if (name.isNotEmpty()) {
+                                    resolvedName = name
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+
+            // 2. Thử NAS Nominatim nếu NAS đang online
+            if (resolvedName == null && NasConnectionManager.isNasPotentiallyAvailable(context)) {
+                val nominatimBaseUrl = NasConnectionManager.getNominatimBaseUrl(context)
+                val nasUrl = "$nominatimBaseUrl/reverse?lat=$lat&lon=$lon&format=json"
+                try {
+                    val request = Request.Builder()
+                        .url(nasUrl)
+                        .header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)")
+                        .build()
+                    NasConnectionManager.nasHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val json = JSONObject(response.body.string())
+                            val name = json.optString("display_name", "")
+                            if (name.isNotEmpty()) {
+                                resolvedName = name
+                                NasConnectionManager.markNasSuccess()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (NasConnectionManager.isConnectionFailure(e)) {
+                        NasConnectionManager.markNasFailed(e.message)
                     }
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    onPlaceSelected(lat, lon, "Vị trí đã thả ghim")
-                }
-            } finally {
-                withContext(Dispatchers.Main) { binding.searchProgress.visibility = View.GONE }
+            }
+
+            // 3. Fallback sang OpenStreetMap Nominatim công cộng
+            if (resolvedName == null) {
+                try {
+                    val osmUrl = "https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json"
+                    val request = Request.Builder()
+                        .url(osmUrl)
+                        .header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)")
+                        .build()
+                    NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val json = JSONObject(response.body.string())
+                            val name = json.optString("display_name", "")
+                            if (name.isNotEmpty()) {
+                                resolvedName = name
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+
+            withContext(Dispatchers.Main) {
+                onPlaceSelected(lat, lon, resolvedName ?: "Vị trí đã thả ghim")
+                binding.searchProgress.visibility = View.GONE
             }
         }
     }
@@ -581,9 +641,21 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.bottomSheet.rvAlternatives.layoutManager = LinearLayoutManager(requireContext())
         binding.bottomSheet.rvAlternatives.adapter = routeAlternativeAdapter
 
-        routeStepsAdapter = RouteStepsAdapter()
+        routeStepsAdapter = RouteStepsAdapter().apply {
+            onStepClickListener = { step ->
+                if (step.location.first != 0.0 && step.location.second != 0.0) {
+                    binding.mapView.controller.animateTo(GeoPoint(step.location.first, step.location.second))
+                    binding.mapView.controller.setZoom(17.5)
+                    Toast.makeText(requireContext(), "📍 ${step.instruction}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
         binding.rvRouteSteps.layoutManager = LinearLayoutManager(requireContext())
         binding.rvRouteSteps.adapter = routeStepsAdapter
+
+        binding.btnCloseSteps.setOnClickListener {
+            binding.layoutRouteSteps.visibility = View.GONE
+        }
 
         binding.bottomSheet.btnClosePreview.setOnClickListener {
             clearDestination()
@@ -606,19 +678,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             }
         }
 
-        binding.bottomSheet.btnSimulateRoute.setOnClickListener {
-            val destPos = destinationMarker?.position
-            val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
-                ?: NavigationRepository.routes.value.firstOrNull()
-            if (destPos != null) {
-                startSimulation(destPos.latitude, destPos.longitude)
-            } else if (activeRoute != null && activeRoute.polyline.isNotEmpty()) {
-                val lastPt = activeRoute.polyline.last()
-                startSimulation(lastPt.first, lastPt.second)
-            } else {
-                Toast.makeText(requireContext(), "Vui lòng chọn điểm đến trước khi chạy thử", Toast.LENGTH_SHORT).show()
-            }
-        }
+
 
         binding.bottomSheet.btnShowStepsPreview.setOnClickListener {
             val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
@@ -667,9 +727,24 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     private fun setupSearch() {
         suggestionAdapter = SuggestionAdapter { item ->
+            if (item.optBoolean("is_pin_action")) {
+                binding.suggestionsCard.visibility = View.GONE
+                binding.etSearch.clearFocus()
+                Toast.makeText(requireContext(), "Chạm trực tiếp vào bản đồ để ghim vị trí điểm đến", Toast.LENGTH_LONG).show()
+                return@SuggestionAdapter
+            }
+
+            if (item.optBoolean("is_placeholder")) {
+                val cat = item.optString("category")
+                binding.suggestionsCard.visibility = View.GONE
+                binding.etSearch.clearFocus()
+                showConfigureCategoryDialog(cat)
+                return@SuggestionAdapter
+            }
+
             val lat = item.optDouble("lat")
             val lon = item.optDouble("lon")
-            val name = item.optString("display_name")
+            val name = item.optString("title").ifEmpty { item.optString("display_name") }
             if (item.optBoolean("is_current_location")) {
                 NavigationRepository.gpsLocation.value?.let {
                     binding.mapView.controller.animateTo(GeoPoint(it.latitude, it.longitude))
@@ -720,18 +795,112 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     private fun performSearch(query: String) {
-        if (query.length < 2) {
-            binding.suggestionsCard.visibility = View.GONE
+        val trimmed = query.trim()
+        val currentLoc = NavigationRepository.gpsLocation.value
+
+        if (trimmed.isEmpty() || trimmed.length < 2) {
+            // Hiển thị danh sách địa điểm cá nhân đã lưu trong SQLite (truy xuất tức thì < 1ms)
+            lifecycleScope.launch(Dispatchers.IO) {
+                val mergedResults = mutableListOf<JSONObject>()
+                val allSaved = savedPlaceDbHelper.getAllPlaces()
+                for (place in allSaved) {
+                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, place.lat, place.lon) else 0.0
+                    mergedResults.add(JSONObject().apply {
+                        put("is_saved_place", true)
+                        put("category", place.category)
+                        put("title", place.title)
+                        put("address", place.address)
+                        put("display_name", "${place.title}, ${place.address}")
+                        put("lat", place.lat)
+                        put("lon", place.lon)
+                        put("dist_meters", dist)
+                    })
+                }
+
+                // Nếu chưa lưu Nhà riêng hoặc Công ty, hiển thị gợi ý thiết lập
+                val hasHome = allSaved.any { it.category == com.example.tymap.repository.SavedPlace.CATEGORY_HOME }
+                val hasWork = allSaved.any { it.category == com.example.tymap.repository.SavedPlace.CATEGORY_WORK }
+                if (!hasHome) {
+                    mergedResults.add(JSONObject().apply {
+                        put("is_saved_place", true)
+                        put("category", "HOME")
+                        put("title", "Nhà riêng")
+                        put("address", "Chạm để ghim hoặc lưu địa chỉ nhà")
+                        put("display_name", "Nhà riêng (Chưa thiết lập)")
+                        put("is_placeholder", true)
+                    })
+                }
+                if (!hasWork) {
+                    mergedResults.add(JSONObject().apply {
+                        put("is_saved_place", true)
+                        put("category", "WORK")
+                        put("title", "Công ty")
+                        put("address", "Chạm để ghim hoặc lưu địa chỉ công ty")
+                        put("display_name", "Công ty (Chưa thiết lập)")
+                        put("is_placeholder", true)
+                    })
+                }
+
+                // Vị trí GPS hiện tại
+                currentLoc?.let {
+                    mergedResults.add(JSONObject().apply {
+                        put("title", getString(R.string.current_location))
+                        put("address", "Vị trí GPS hiện tại của bạn")
+                        put("display_name", getString(R.string.current_location))
+                        put("lat", it.latitude); put("lon", it.longitude); put("is_current_location", true)
+                        put("dist_meters", 0.0)
+                    })
+                }
+
+                // Nút Ghim vị trí
+                mergedResults.add(JSONObject().apply {
+                    put("is_pin_action", true)
+                    put("title", "Ghim vị trí trực tiếp trên bản đồ")
+                    put("address", "Chạm vào bản đồ để chọn tọa độ đích đến")
+                    put("display_name", "Ghim vị trí trực tiếp trên bản đồ")
+                })
+
+                withContext(Dispatchers.Main) {
+                    if (binding.etSearch.hasFocus()) {
+                        suggestionAdapter.submitList(mergedResults)
+                        binding.suggestionsCard.visibility = View.VISIBLE
+                        binding.searchProgress.visibility = View.GONE
+                    }
+                }
+            }
             return
         }
+
         binding.searchProgress.visibility = View.VISIBLE
-        val currentLoc = NavigationRepository.gpsLocation.value
         
         lifecycleScope.launch(Dispatchers.IO) {
-            val rawResults = mutableListOf<JSONObject>()
-            if (getString(R.string.current_location).contains(query, true)) {
+            val mergedResults = mutableListOf<JSONObject>()
+
+            // 1. Ưu tiên tìm kiếm từ Cơ sở dữ liệu Cá nhân (SQLite)
+            try {
+                val savedPlaces = savedPlaceDbHelper.searchPlaces(trimmed)
+                for (place in savedPlaces) {
+                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, place.lat, place.lon) else 0.0
+                    mergedResults.add(JSONObject().apply {
+                        put("is_saved_place", true)
+                        put("category", place.category)
+                        put("title", place.title)
+                        put("address", place.address)
+                        put("display_name", "${place.title}, ${place.address}")
+                        put("lat", place.lat)
+                        put("lon", place.lon)
+                        put("dist_meters", dist)
+                    })
+                }
+            } catch (e: Exception) {
+                Log.e("MapFragment", "Lỗi tìm kiếm SQLite: ${e.message}")
+            }
+
+            if (getString(R.string.current_location).contains(trimmed, true)) {
                 currentLoc?.let {
-                    rawResults.add(JSONObject().apply {
+                    mergedResults.add(JSONObject().apply {
+                        put("title", getString(R.string.current_location))
+                        put("address", "Vị trí GPS hiện tại của bạn")
                         put("display_name", getString(R.string.current_location))
                         put("lat", it.latitude); put("lon", it.longitude); put("is_current_location", true)
                         put("dist_meters", 0.0)
@@ -739,64 +908,144 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 }
             }
 
-            // Autocomplete search using Photon (NAS Port 2322 primary -> Photon Public fallback)
+            // 2. Gợi ý tìm kiếm trực tuyến (Goong / NAS Photon / Photon Public)
             val photonDeferred = async {
                 val list = mutableListOf<JSONObject>()
-                val nasIp = PrefsHelper.getString(requireContext(), "nas_ip", "192.168.1.114").ifEmpty { "192.168.1.114" }
-                val customSearchUrl = PrefsHelper.getString(requireContext(), "custom_search_url", "").trim()
-                
-                val urls = mutableListOf<String>()
-                if (customSearchUrl.isNotEmpty()) {
-                    urls.add(if (customSearchUrl.contains("?")) "$customSearchUrl&q=$query&limit=5" else "$customSearchUrl?q=$query&limit=5")
-                }
-                urls.add("http://$nasIp:2322/api?q=$query&limit=5" + (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: ""))
-                urls.add("https://photon.komoot.io/api?q=$query&limit=5" + (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: ""))
+                val context = requireContext()
+                val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "").trim()
 
-                for (photonUrl in urls) {
+                // A. Ưu tiên Goong AutoComplete nếu có API Key (Cực nhanh và chuẩn xác tại Việt Nam)
+                if (goongKey.isNotEmpty()) {
                     try {
-                        httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
-                            .newCall(Request.Builder().url(photonUrl).build()).execute().use { response ->
-                                if (response.isSuccessful) {
-                                    val json = JSONObject(response.body.string())
-                                    val features = json.optJSONArray("features")
-                                    if (features != null && features.length() > 0) {
-                                        for (i in 0 until features.length()) {
-                                            val feat = features.getJSONObject(i)
-                                            val prop = feat.getJSONObject("properties")
-                                            val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
-                                            val displayName = listOfNotNull(prop.optString("name"), prop.optString("city"), prop.optString("country"))
-                                                .filter { it.isNotBlank() }.joinToString(", ")
-                                            val lat = geom.getDouble(1)
-                                            val lon = geom.getDouble(0)
-                                            val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
-                                            if (displayName.isNotEmpty()) {
-                                                list.add(JSONObject().apply {
-                                                    put("display_name", displayName)
-                                                    put("provider", "Photon Autocomplete")
-                                                    put("lat", lat); put("lon", lon)
-                                                    put("dist_meters", dist)
-                                                })
-                                            }
-                                        }
-                                        if (list.isNotEmpty()) return@async list
+                        val encodedQuery = java.net.URLEncoder.encode(trimmed, "UTF-8")
+                        val goongUrl = "https://rsapi.goong.io/Place/AutoComplete?input=$encodedQuery&api_key=$goongKey" + (currentLoc?.let { "&location=${it.latitude},${it.longitude}" } ?: "")
+                        val request = Request.Builder().url(goongUrl).header("User-Agent", "TYMAP-Android/1.0").build()
+                        NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val json = JSONObject(response.body.string())
+                                val predictions = json.optJSONArray("predictions")
+                                if (predictions != null && predictions.length() > 0) {
+                                    for (i in 0 until predictions.length()) {
+                                        val pred = predictions.getJSONObject(i)
+                                        val desc = pred.optString("description", "")
+                                        val structured = pred.optJSONObject("structured_formatting")
+                                        val mainText = structured?.optString("main_text", desc) ?: desc
+                                        val secondaryText = structured?.optString("secondary_text", "") ?: ""
+                                        val placeId = pred.optString("place_id", "")
+
+                                        // Note: Detail resolution occurs when selected or lat/lon if provided
+                                        list.add(JSONObject().apply {
+                                            put("title", mainText)
+                                            put("address", secondaryText.ifEmpty { desc })
+                                            put("display_name", desc)
+                                            put("place_id", placeId)
+                                            put("is_goong", true)
+                                            put("lat", currentLoc?.latitude ?: 0.0)
+                                            put("lon", currentLoc?.longitude ?: 0.0)
+                                            put("dist_meters", 0.0)
+                                        })
+                                    }
+                                    if (list.isNotEmpty()) return@async list
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {}
+                }
+
+                // B. Thử NAS Photon nếu NAS đang online
+                if (list.isEmpty() && NasConnectionManager.isNasPotentiallyAvailable(context)) {
+                    val photonBaseUrl = NasConnectionManager.getPhotonBaseUrl(context)
+                    val nasPhotonUrl = "$photonBaseUrl/api?q=$trimmed&limit=5" + (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: "")
+                    try {
+                        val request = Request.Builder().url(nasPhotonUrl).header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)").build()
+                        NasConnectionManager.fastSearchHttpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val json = JSONObject(response.body.string())
+                                val features = json.optJSONArray("features")
+                                if (features != null && features.length() > 0) {
+                                    parsePhotonFeatures(features, list, currentLoc)
+                                    if (list.isNotEmpty()) {
+                                        NasConnectionManager.markNasSuccess()
+                                        return@async list
                                     }
                                 }
                             }
+                        }
+                    } catch (e: Exception) {
+                        if (NasConnectionManager.isConnectionFailure(e)) {
+                            NasConnectionManager.markNasFailed("NAS Photon failed: ${e.message}")
+                        }
+                    }
+                }
+
+                // C. Fallback sang Photon Komoot Công cộng (Miễn phí & Cực nhanh)
+                if (list.isEmpty()) {
+                    val publicPhotonUrl = "https://photon.komoot.io/api?q=$trimmed&limit=5" + (currentLoc?.let { "&lat=${it.latitude}&lon=${it.longitude}" } ?: "")
+                    try {
+                        val request = Request.Builder().url(publicPhotonUrl).header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)").build()
+                        NasConnectionManager.fastSearchHttpClient.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val json = JSONObject(response.body.string())
+                                val features = json.optJSONArray("features")
+                                if (features != null && features.length() > 0) {
+                                    parsePhotonFeatures(features, list, currentLoc)
+                                }
+                            }
+                        }
                     } catch (e: Exception) {}
                 }
+
                 list
             }
 
-            val allFetched = photonDeferred.await()
-            rawResults.addAll(allFetched)
+            val photonFetched = photonDeferred.await()
+            // Sắp xếp kết quả Photon theo khoảng cách
+            val sortedPhoton = photonFetched.sortedBy { it.optDouble("dist_meters", Double.MAX_VALUE) }
+            mergedResults.addAll(sortedPhoton)
 
-            // Sort search results by distance to current GPS location (nearest location first)
-            val sortedResults = rawResults.sortedBy { it.optDouble("dist_meters", Double.MAX_VALUE) }
+            // 3. Nếu không có kết quả -> Hiển thị nút Ghim vị trí trực tiếp
+            if (mergedResults.isEmpty()) {
+                mergedResults.add(JSONObject().apply {
+                    put("is_pin_action", true)
+                    put("title", "Ghim vị trí trực tiếp trên bản đồ")
+                    put("address", "Chạm vào bản đồ để chọn tọa độ đích đến")
+                    put("display_name", "Ghim vị trí trực tiếp trên bản đồ")
+                })
+            }
 
             withContext(Dispatchers.Main) {
-                suggestionAdapter.submitList(sortedResults)
-                binding.suggestionsCard.visibility = if (sortedResults.isNotEmpty()) View.VISIBLE else View.GONE
+                suggestionAdapter.submitList(mergedResults)
+                binding.suggestionsCard.visibility = if (mergedResults.isNotEmpty()) View.VISIBLE else View.GONE
                 binding.searchProgress.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun parsePhotonFeatures(features: JSONArray, list: MutableList<JSONObject>, currentLoc: android.location.Location?) {
+        for (i in 0 until features.length()) {
+            val feat = features.getJSONObject(i)
+            val prop = feat.getJSONObject("properties")
+            val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
+            val name = prop.optString("name", "")
+            val details = listOfNotNull(
+                prop.optString("street").ifEmpty { null },
+                prop.optString("district").ifEmpty { null },
+                prop.optString("city").ifEmpty { null },
+                prop.optString("country").ifEmpty { null }
+            ).filter { it.isNotBlank() }.joinToString(", ")
+
+            val displayName = if (name.isNotEmpty() && details.isNotEmpty()) "$name, $details" else (name.ifEmpty { details })
+            val lat = geom.getDouble(1)
+            val lon = geom.getDouble(0)
+            val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+            if (displayName.isNotEmpty()) {
+                list.add(JSONObject().apply {
+                    put("title", name.ifEmpty { details })
+                    put("address", details)
+                    put("display_name", displayName)
+                    put("lat", lat); put("lon", lon)
+                    put("dist_meters", dist)
+                })
             }
         }
     }
@@ -807,81 +1056,141 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val currentLoc = NavigationRepository.gpsLocation.value
 
         lifecycleScope.launch(Dispatchers.IO) {
+            val context = requireContext()
+
+            // 1. Kiểm tra nhanh SQLite trước (0ms)
+            try {
+                val savedPlaces = savedPlaceDbHelper.searchPlaces(query)
+                if (savedPlaces.isNotEmpty()) {
+                    val first = savedPlaces.first()
+                    withContext(Dispatchers.Main) {
+                        binding.searchProgress.visibility = View.GONE
+                        onPlaceSelected(first.lat, first.lon, "${first.title}, ${first.address}")
+                        binding.suggestionsCard.visibility = View.GONE
+                        binding.etSearch.clearFocus()
+                    }
+                    return@launch
+                }
+            } catch (e: Exception) {}
+
             val results = mutableListOf<JSONObject>()
-            val nasIp = PrefsHelper.getString(requireContext(), "nas_ip", "192.168.1.114").ifEmpty { "192.168.1.114" }
+            val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "").trim()
 
-            // 1. Thử Nominatim (NAS Port 8080 -> Nominatim Public)
-            val nominatimUrls = listOf(
-                "http://$nasIp:8080/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&format=json&limit=5",
-                "https://nominatim.openstreetmap.org/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&format=json&limit=5"
-            )
-
-            for (url in nominatimUrls) {
+            // 2. Thử Goong Geocoding nếu có key
+            if (goongKey.isNotEmpty()) {
                 try {
-                    httpClient.newBuilder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build()
-                        .newCall(Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()).execute().use { response ->
-                            if (response.isSuccessful) {
-                                val array = JSONArray(response.body.string())
-                                for (i in 0 until array.length()) {
-                                    val item = array.getJSONObject(i)
-                                    val lat = item.getDouble("lat")
-                                    val lon = item.getDouble("lon")
-                                    val displayName = item.optString("display_name", "")
-                                    val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
-                                    if (displayName.isNotEmpty()) {
+                    val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+                    val goongUrl = "https://rsapi.goong.io/geocode?address=$encoded&api_key=$goongKey"
+                    val request = Request.Builder().url(goongUrl).header("User-Agent", "TYMAP-Android/1.0").build()
+                    NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val json = JSONObject(response.body.string())
+                            val resArray = json.optJSONArray("results")
+                            if (resArray != null) {
+                                for (i in 0 until resArray.length()) {
+                                    val item = resArray.getJSONObject(i)
+                                    val formatted = item.optString("formatted_address", "")
+                                    val geom = item.optJSONObject("geometry")?.optJSONObject("location")
+                                    if (geom != null) {
+                                        val lat = geom.optDouble("lat", 0.0)
+                                        val lon = geom.optDouble("lng", 0.0)
+                                        val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
                                         results.add(JSONObject().apply {
-                                            put("display_name", displayName)
-                                            put("provider", "Nominatim OSM")
+                                            put("title", formatted.substringBefore(","))
+                                            put("address", formatted.substringAfter(",", ""))
+                                            put("display_name", formatted)
                                             put("lat", lat); put("lon", lon)
                                             put("dist_meters", dist)
                                         })
                                     }
                                 }
-                                if (results.isNotEmpty()) break
                             }
                         }
+                    }
                 } catch (e: Exception) {}
             }
 
-            // 2. Thử 2: Nếu Nominatim trả về rỗng -> Fallback sang Photon
-            if (results.isEmpty()) {
-                val photonUrls = listOf(
-                    "http://$nasIp:2322/api?q=${java.net.URLEncoder.encode(query, "UTF-8")}&limit=5",
-                    "https://photon.komoot.io/api?q=${java.net.URLEncoder.encode(query, "UTF-8")}&limit=5"
-                )
-
-                for (url in photonUrls) {
-                    try {
-                        httpClient.newBuilder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
-                            .newCall(Request.Builder().url(url).build()).execute().use { response ->
-                                if (response.isSuccessful) {
-                                    val json = JSONObject(response.body.string())
-                                    val features = json.optJSONArray("features")
-                                    if (features != null) {
-                                        for (i in 0 until features.length()) {
-                                            val feat = features.getJSONObject(i)
-                                            val prop = feat.getJSONObject("properties")
-                                            val geom = feat.getJSONObject("geometry").getJSONArray("coordinates")
-                                            val displayName = listOfNotNull(prop.optString("name"), prop.optString("city"), prop.optString("country"))
-                                                .filter { it.isNotBlank() }.joinToString(", ")
-                                            val lat = geom.getDouble(1)
-                                            val lon = geom.getDouble(0)
-                                            val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
-                                            if (displayName.isNotEmpty()) {
-                                                results.add(JSONObject().apply {
-                                                    put("display_name", displayName)
-                                                    put("provider", "Photon Fallback")
-                                                    put("lat", lat); put("lon", lon)
-                                                    put("dist_meters", dist)
-                                                })
-                                            }
-                                        }
-                                        if (results.isNotEmpty()) break
-                                    }
+            // 3. Thử NAS Nominatim nếu NAS đang online
+            if (results.isEmpty() && NasConnectionManager.isNasPotentiallyAvailable(context)) {
+                val nominatimBaseUrl = NasConnectionManager.getNominatimBaseUrl(context)
+                val nasUrl = "$nominatimBaseUrl/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&format=json&limit=5"
+                try {
+                    val request = Request.Builder().url(nasUrl).header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)").build()
+                    NasConnectionManager.nasHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val array = JSONArray(response.body.string())
+                            for (i in 0 until array.length()) {
+                                val item = array.getJSONObject(i)
+                                val lat = item.getDouble("lat")
+                                val lon = item.getDouble("lon")
+                                val displayName = item.optString("display_name", "")
+                                val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+                                if (displayName.isNotEmpty()) {
+                                    results.add(JSONObject().apply {
+                                        put("title", displayName.substringBefore(","))
+                                        put("address", displayName.substringAfter(",", ""))
+                                        put("display_name", displayName)
+                                        put("lat", lat); put("lon", lon)
+                                        put("dist_meters", dist)
+                                    })
                                 }
                             }
-                    } catch (e: Exception) {}
+                            if (results.isNotEmpty()) {
+                                NasConnectionManager.markNasSuccess()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (NasConnectionManager.isConnectionFailure(e)) {
+                        NasConnectionManager.markNasFailed(e.message)
+                    }
                 }
+            }
+
+            // 4. Fallback sang OpenStreetMap Nominatim công cộng
+            if (results.isEmpty()) {
+                val osmUrl = "https://nominatim.openstreetmap.org/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&format=json&limit=5"
+                try {
+                    val request = Request.Builder().url(osmUrl).header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)").build()
+                    NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val array = JSONArray(response.body.string())
+                            for (i in 0 until array.length()) {
+                                val item = array.getJSONObject(i)
+                                val lat = item.getDouble("lat")
+                                val lon = item.getDouble("lon")
+                                val displayName = item.optString("display_name", "")
+                                val dist = if (currentLoc != null) calculateDistanceMeters(currentLoc.latitude, currentLoc.longitude, lat, lon) else 0.0
+                                if (displayName.isNotEmpty()) {
+                                    results.add(JSONObject().apply {
+                                        put("title", displayName.substringBefore(","))
+                                        put("address", displayName.substringAfter(",", ""))
+                                        put("display_name", displayName)
+                                        put("lat", lat); put("lon", lon)
+                                        put("dist_meters", dist)
+                                    })
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+
+            // 5. Fallback cuối: Photon Komoot Công cộng
+            if (results.isEmpty()) {
+                val photonUrl = "https://photon.komoot.io/api?q=${java.net.URLEncoder.encode(query, "UTF-8")}&limit=5"
+                try {
+                    val request = Request.Builder().url(photonUrl).header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)").build()
+                    NasConnectionManager.fastSearchHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val json = JSONObject(response.body.string())
+                            val features = json.optJSONArray("features")
+                            if (features != null) {
+                                parsePhotonFeatures(features, results, currentLoc)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {}
             }
 
             val sortedResults = results.sortedBy { it.optDouble("dist_meters", Double.MAX_VALUE) }
@@ -928,6 +1237,76 @@ class MapFragment : Fragment(), IOrientationConsumer {
         
         binding.bottomSheet.btnStart.setOnClickListener { startNavigation(lat, lon) }
         binding.bottomSheet.btnDirections.setOnClickListener { showRoutePreview(lat, lon) }
+        binding.bottomSheet.btnSavePlace?.setOnClickListener {
+            showSavePlaceDialog(lat, lon, name)
+        }
+    }
+
+    private fun showSavePlaceDialog(lat: Double, lon: Double, name: String) {
+        val options = arrayOf("🏠 Lưu làm Nhà riêng", "🏢 Lưu làm Công ty", "⭐ Lưu vào Yêu thích")
+        AlertDialog.Builder(requireContext())
+            .setTitle("Lưu vào Địa điểm cá nhân")
+            .setItems(options) { _, which ->
+                val titlePart = name.split(",")[0].trim()
+                val addressPart = name.trim()
+                when (which) {
+                    0 -> {
+                        savedPlaceDbHelper.saveOrUpdateCategory(com.example.tymap.repository.SavedPlace.CATEGORY_HOME, "Nhà riêng", addressPart, lat, lon)
+                        Toast.makeText(requireContext(), " Đã lưu Nhà riêng thành công!", Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> {
+                        savedPlaceDbHelper.saveOrUpdateCategory(com.example.tymap.repository.SavedPlace.CATEGORY_WORK, "Công ty", addressPart, lat, lon)
+                        Toast.makeText(requireContext(), " Đã lưu Công ty thành công!", Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        val input = EditText(requireContext()).apply {
+                            setText(titlePart)
+                            hint = "Nhập tên địa điểm"
+                        }
+                        AlertDialog.Builder(requireContext())
+                            .setTitle("Tên địa điểm yêu thích")
+                            .setView(input)
+                            .setPositiveButton("Lưu") { _, _ ->
+                                val customTitle = input.text.toString().trim().ifEmpty { titlePart }
+                                savedPlaceDbHelper.insertPlace(
+                                    com.example.tymap.repository.SavedPlace(
+                                        title = customTitle,
+                                        address = addressPart,
+                                        lat = lat,
+                                        lon = lon,
+                                        category = com.example.tymap.repository.SavedPlace.CATEGORY_FAVORITE
+                                    )
+                                )
+                                Toast.makeText(requireContext(), " Đã thêm '$customTitle' vào Yêu thích!", Toast.LENGTH_SHORT).show()
+                            }
+                            .setNegativeButton("Hủy", null)
+                            .show()
+                    }
+                }
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
+    }
+
+    private fun showConfigureCategoryDialog(category: String) {
+        val catName = if (category == "HOME") "Nhà riêng" else "Công ty"
+        val currentLoc = NavigationRepository.gpsLocation.value
+        val options = mutableListOf<String>()
+        if (currentLoc != null) options.add("📍 Lưu vị trí GPS hiện tại làm $catName")
+        options.add("📌 Chạm bản đồ để ghim $catName")
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Thiết lập $catName")
+            .setItems(options.toTypedArray()) { _, which ->
+                if (which == 0 && currentLoc != null) {
+                    savedPlaceDbHelper.saveOrUpdateCategory(category, catName, "Vị trí đã lưu", currentLoc.latitude, currentLoc.longitude)
+                    Toast.makeText(requireContext(), " Đã thiết lập $catName thành công!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), "Chạm vào bản đồ để chọn vị trí $catName", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
     }
 
     private fun setupButtons() {
@@ -1025,6 +1404,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 .show()
         }
 
+
+
         binding.fabZoomIn.setOnClickListener { binding.mapView.controller.zoomIn() }
         binding.fabZoomOut.setOnClickListener { binding.mapView.controller.zoomOut() }
         
@@ -1046,6 +1427,98 @@ class MapFragment : Fragment(), IOrientationConsumer {
             bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
         }
     }
+
+    private var trafficMarkers = mutableListOf<Marker>()
+
+    private fun scanTrafficWarningsAroundCenter() {
+        val center = binding.mapView.mapCenter as GeoPoint
+        Toast.makeText(requireContext(), "📡 Đang quét Camera phạt nguội & Biển báo quanh đây...", Toast.LENGTH_SHORT).show()
+        val context = requireContext()
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            val query = "[out:json][timeout:10];(node[\"highway\"=\"speed_camera\"](around:8000,${center.latitude},${center.longitude});node[\"maxspeed\"](around:8000,${center.latitude},${center.longitude}););out body;"
+            val endpoints = mutableListOf<String>()
+
+            if (NasConnectionManager.isNasPotentiallyAvailable(context)) {
+                val fusionBaseUrl = NasConnectionManager.getFusionEngineBaseUrl(context)
+                endpoints.add("$fusionBaseUrl/api/interpreter")
+            }
+
+            endpoints.add("https://overpass-api.de/api/interpreter")
+            endpoints.add("https://overpass.kumi.systems/api/interpreter")
+            endpoints.add("https://maps.mail.ru/osm/tools/overpass/api/interpreter")
+            
+            var success = false
+            for (ep in endpoints) {
+                try {
+                    val isNas = NasConnectionManager.isNasEndpoint(ep)
+                    val callClient = if (isNas) NasConnectionManager.nasHttpClient else NasConnectionManager.publicHttpClient
+                    val formBody = okhttp3.FormBody.Builder().add("data", query).build()
+                    val request = Request.Builder().url(ep).post(formBody).build()
+                    callClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: return@use
+                            val json = JSONObject(body)
+                            val elements = json.optJSONArray("elements") ?: JSONArray()
+                            
+                            withContext(Dispatchers.Main) {
+                                trafficMarkers.forEach { binding.mapView.overlays.remove(it) }
+                                trafficMarkers.clear()
+                                
+                                var camCount = 0
+                                var speedCount = 0
+                                
+                                for (i in 0 until elements.length()) {
+                                    val node = elements.getJSONObject(i)
+                                    val lat = node.getDouble("lat")
+                                    val lon = node.getDouble("lon")
+                                    val tags = node.optJSONObject("tags") ?: JSONObject()
+                                    val isCam = tags.optString("highway") == "speed_camera" || tags.optString("traffic_signals") == "camera"
+                                    val maxspeed = tags.optString("maxspeed")
+                                    
+                                    val marker = Marker(binding.mapView).apply {
+                                        position = GeoPoint(lat, lon)
+                                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                                        if (isCam) {
+                                            camCount++
+                                            title = "📷 Camera Phạt Nguội"
+                                            snippet = "Tọa độ: $lat, $lon"
+                                            icon = ContextCompat.getDrawable(requireContext(), R.drawable.ic_speedometer)
+                                        } else if (maxspeed.isNotEmpty()) {
+                                            speedCount++
+                                            title = "🛑 Biển Tốc Độ: $maxspeed km/h"
+                                            snippet = "Tọa độ: $lat, $lon"
+                                            icon = ContextCompat.getDrawable(requireContext(), R.drawable.ic_speedometer)
+                                        }
+                                    }
+                                    binding.mapView.overlays.add(marker)
+                                    trafficMarkers.add(marker)
+                                }
+                                binding.mapView.invalidate()
+                                Toast.makeText(requireContext(), "📡 Tìm thấy ${elements.length()} điểm cảnh báo (📷 $camCount Cam, 🛑 $speedCount Biển)!", Toast.LENGTH_LONG).show()
+                            }
+                            if (isNas) {
+                                NasConnectionManager.markNasSuccess()
+                            }
+                            success = true
+                            return@launch
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (NasConnectionManager.isNasEndpoint(ep) && NasConnectionManager.isConnectionFailure(e)) {
+                        NasConnectionManager.markNasFailed(e.message)
+                    }
+                }
+            }
+            if (!success) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "Không thể kết nối máy chủ Overpass cảnh báo", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+
 
     private fun startGoogleMapsCapture() {
         val mpm = requireContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -1206,6 +1679,63 @@ class MapFragment : Fragment(), IOrientationConsumer {
             }
         }
 
+        // Quan sát giới hạn tốc độ từ Overpass API / Settings
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                NavigationRepository.currentSpeedLimit.collect { speedLimit ->
+                    val isSpeedWarningEnabled = PrefsHelper.getBoolean(requireContext(), "speed_warning", true)
+                    if (isSpeedWarningEnabled && speedLimit > 0) {
+                        binding.cardSpeedLimitSign.visibility = View.VISIBLE
+                        binding.tvSpeedLimitSignValue.text = "$speedLimit"
+                    }
+                }
+            }
+        }
+
+        // Quan sát các điểm cảnh báo (Camera phạt nguội, Biển tốc độ) từ Overpass API để vẽ lên bản đồ
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                NavigationRepository.trafficWarningPoints.collect { points ->
+                    trafficMarkers.forEach { binding.mapView.overlays.remove(it) }
+                    trafficMarkers.clear()
+
+                    for (point in points) {
+                        val isCam = point.type == com.example.tymap.service.WarningType.CAMERA
+                        val marker = Marker(binding.mapView).apply {
+                            position = GeoPoint(point.lat, point.lon)
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                            if (isCam) {
+                                title = "📷 Camera Phạt Nguội"
+                                snippet = "Tọa độ: ${point.lat}, ${point.lon}"
+                                icon = ContextCompat.getDrawable(requireContext(), R.drawable.ic_speedometer)
+                            } else {
+                                title = "🛑 Biển Giới Hạn: ${point.speedLimit} km/h"
+                                snippet = "Tọa độ: ${point.lat}, ${point.lon}"
+                                icon = ContextCompat.getDrawable(requireContext(), R.drawable.ic_speedometer)
+                            }
+                        }
+                        binding.mapView.overlays.add(marker)
+                        trafficMarkers.add(marker)
+                    }
+                    if (points.isNotEmpty()) {
+                        binding.mapView.invalidate()
+                    }
+                }
+            }
+        }
+
+        // Quan sát cảnh báo giao thông trực tiếp khi đến gần (< 200m)
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                NavigationRepository.activeTrafficAlert.collect { alert ->
+                    if (alert != null) {
+                        Toast.makeText(requireContext(), "🚨 ${alert.message}", Toast.LENGTH_SHORT).show()
+                        binding.ivSpeedWarning.visibility = View.VISIBLE
+                    }
+                }
+            }
+        }
+
         // Quan sát danh sách lộ trình để tự động vẽ lại Polyline và cập nhật giao diện chọn tuyến đường
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -1258,7 +1788,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     if (hud.bitmapIcon != null) {
                         binding.bottomSheet.ivNavIcon.setImageBitmap(hud.bitmapIcon)
                     } else {
-                        binding.bottomSheet.ivNavIcon.setImageResource(maneuverIconRes(hud.iconIndex))
+                        binding.bottomSheet.ivNavIcon.setImageResource(getManeuverIconRes(hud.iconIndex))
                     }
 
                     // Đồng bộ thông tin Header của danh sách ngã rẽ chi tiết
@@ -1288,6 +1818,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
     }
 
+    private var routeJob: Job? = null
+
     private fun showRoutePreview(lat: Double, lon: Double) {
         // Disable following to focus on route preview
         isFollowing = false
@@ -1296,11 +1828,15 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
         val startLoc = NavigationRepository.gpsLocation.value ?: return
         val context = requireContext()
-        lifecycleScope.launch(Dispatchers.IO) {
+        
+        routeJob?.cancel()
+        routeJob = lifecycleScope.launch(Dispatchers.IO) {
             // Progressive Fast Loading: Khi GraphHopper trả về kết quả trong 15-30ms, vẽ UI ngay lập tức!
             val fetchedRoutes = routingEngine.fetchOsrmAndValhalla(context, startLoc.latitude, startLoc.longitude, lat, lon) { progressiveRoutes ->
                 if (progressiveRoutes.isNotEmpty()) {
-                    renderRoutesToUi(progressiveRoutes, lat, lon, context)
+                    lifecycleScope.launch(Dispatchers.Main) {
+                        renderRoutesToUi(progressiveRoutes, lat, lon, context)
+                    }
                 }
             }
             withContext(Dispatchers.Main) {
@@ -1333,8 +1869,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
         updateVehicleTabSelection(currentVehicle)
 
         binding.bottomSheet.tabScooter.setOnClickListener {
-            PrefsHelper.putInt(context, "vehicle_type", 1) // Xe máy
+            PrefsHelper.putInt(context, "vehicle_type", 1) // 1: Xe máy (scooter)
             updateVehicleTabSelection(1)
+            showRoutePreview(lat, lon)
+        }
+
+        binding.bottomSheet.tabCar.setOnClickListener {
+            PrefsHelper.putInt(context, "vehicle_type", 0) // 0: Ô tô (car)
+            updateVehicleTabSelection(0)
             showRoutePreview(lat, lon)
         }
 
@@ -1346,6 +1888,28 @@ class MapFragment : Fragment(), IOrientationConsumer {
             binding.bottomSheet.tabRoutes.setBackgroundResource(if (!isVisible) R.drawable.bg_tab_selected else R.drawable.bg_tab_unselected)
             binding.bottomSheet.tvTabRoutesText.setTextColor(if (!isVisible) cyan else gray)
             binding.bottomSheet.ivTabRoutesIcon.imageTintList = android.content.res.ColorStateList.valueOf(if (!isVisible) cyan else gray)
+        }
+
+        // Cấu hình Checkbox Né trạm thu phí / Né phà
+        val avoidTolls = PrefsHelper.getBoolean(context, "avoid_tolls", false)
+        val avoidFerries = PrefsHelper.getBoolean(context, "avoid_ferries", false)
+        binding.bottomSheet.cbAvoidTolls.setOnCheckedChangeListener(null)
+        binding.bottomSheet.cbAvoidFerries.setOnCheckedChangeListener(null)
+        binding.bottomSheet.cbAvoidTolls.isChecked = avoidTolls
+        binding.bottomSheet.cbAvoidFerries.isChecked = avoidFerries
+        binding.bottomSheet.cbAvoidTolls.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "avoid_tolls", isChecked)
+            showRoutePreview(lat, lon)
+        }
+        binding.bottomSheet.cbAvoidFerries.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "avoid_ferries", isChecked)
+            showRoutePreview(lat, lon)
+        }
+
+        // Tải dự báo thời tiết lúc đến nơi (ETA Weather)
+        if (selectedRoute.polyline.isNotEmpty()) {
+            val endPoint = selectedRoute.polyline.last()
+            fetchWeatherEtaForRoute(endPoint.first, endPoint.second, selectedRoute.duration)
         }
 
         if (selectedRoute.polyline.isNotEmpty()) {
@@ -1408,7 +1972,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 }
 
                 withContext(Dispatchers.Main) {
-                    NavigationRepository.updateGpsLocation(mockLocation)
+                    NavigationRepository.updateLocation(mockLocation)
                 }
 
                 currentIdx++
@@ -1442,6 +2006,19 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.bottomSheet.ivTabCarIcon.imageTintList = android.content.res.ColorStateList.valueOf(if (isCar) ContextCompat.getColor(requireContext(), R.color.colorAccentCyan) else Color.parseColor("#94A3B8"))
     }
 
+    private fun getManeuverIconRes(iconIndex: Int): Int = when (iconIndex) {
+        1 -> R.drawable.ic_nav_slight_right
+        2 -> R.drawable.ic_nav_turn_right
+        3 -> R.drawable.ic_nav_sharp_right
+        4 -> R.drawable.ic_nav_slight_left
+        5 -> R.drawable.ic_nav_turn_left
+        6 -> R.drawable.ic_nav_sharp_left
+        7, 8 -> R.drawable.ic_nav_uturn
+        11, 12, 13 -> R.drawable.ic_nav_roundabout
+        14 -> R.drawable.ic_nav_arrive
+        else -> R.drawable.ic_nav_straight
+    }
+
     private fun getEngineName(index: Int) = when(index) { 1 -> "OpenRouteService"; 2 -> "GraphHopper"; 3 -> "Valhalla"; 4 -> "Tùy chỉnh (Self-Hosted OSRM)"; else -> "OSRM" }
 
     private fun selectRoute(index: Int) {
@@ -1458,6 +2035,68 @@ class MapFragment : Fragment(), IOrientationConsumer {
             "Tuyến đường tốt nhất từ Server NAS nhà (192.168.1.114:8989)"
         } else {
             "Tuyến đường dự phòng từ ${selectedRoute.engineName}"
+        }
+
+        if (selectedRoute.polyline.isNotEmpty()) {
+            val endPoint = selectedRoute.polyline.last()
+            fetchWeatherEtaForRoute(endPoint.first, endPoint.second, selectedRoute.duration)
+        }
+    }
+
+    private fun fetchWeatherEtaForRoute(destLat: Double, destLng: Double, durationSeconds: Double) {
+        val startLoc = NavigationRepository.gpsLocation.value
+        val startLat = startLoc?.latitude ?: destLat
+        val startLng = startLoc?.longitude ?: destLng
+
+        val selectedRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
+            ?: NavigationRepository.routes.value.firstOrNull()
+        val firstStepText = selectedRoute?.steps?.firstOrNull()?.instruction ?: "Tiếp tục"
+
+        binding.bottomSheet.tvWeatherFirstStep.text = "📍 Bước 1: $firstStepText"
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val weather = com.example.tymap.service.WeatherEtaService.checkFullRouteWeather(startLat, startLng, destLat, destLng, durationSeconds)
+            withContext(Dispatchers.Main) {
+                if (weather != null) {
+                    binding.bottomSheet.cardWeatherEta.visibility = View.VISIBLE
+                    binding.bottomSheet.tvWeatherEtaBadge.text = "ETA: ${weather.etaTimeStr} (+${weather.travelMinutes}m)"
+
+                    // Mốc 1: Xuất phát
+                    val sw = weather.startPointWeather
+                    binding.bottomSheet.tvWeatherStartLabel.text = "🚩 Hiện tại xuất phát (${sw.timeLabel}): ${sw.icon} ${sw.tempC}°C"
+                    binding.bottomSheet.tvWeatherStartStatus.text = sw.status
+                    binding.bottomSheet.tvWeatherStartStatus.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                        if (sw.isRainAlert) Color.parseColor("#991B1B") else Color.parseColor("#064E3B")
+                    )
+                    binding.bottomSheet.tvWeatherStartStatus.setTextColor(
+                        if (sw.isRainAlert) Color.parseColor("#FCA5A5") else Color.parseColor("#34D399")
+                    )
+
+                    // Mốc 2: Đến nơi (ETA)
+                    val ew = weather.etaPointWeather
+                    binding.bottomSheet.tvWeatherEtaLabel.text = "🏁 Khi đến nơi (${ew.timeLabel}): ${ew.icon} ${ew.tempC}°C"
+                    binding.bottomSheet.tvWeatherEtaStatus.text = ew.status
+                    binding.bottomSheet.tvWeatherEtaStatus.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                        if (ew.isRainAlert) Color.parseColor("#991B1B") else Color.parseColor("#064E3B")
+                    )
+                    binding.bottomSheet.tvWeatherEtaStatus.setTextColor(
+                        if (ew.isRainAlert) Color.parseColor("#FCA5A5") else Color.parseColor("#34D399")
+                    )
+
+                    // Mốc 3: 1 Giờ sau khi đến nơi
+                    val e1w = weather.etaPlus1hPointWeather
+                    binding.bottomSheet.tvWeatherEtaPlus1Label.text = "⏳ 1 Giờ sau đó (${e1w.timeLabel}): ${e1w.icon} ${e1w.tempC}°C"
+                    binding.bottomSheet.tvWeatherEtaPlus1Status.text = e1w.status
+                    binding.bottomSheet.tvWeatherEtaPlus1Status.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                        if (e1w.isRainAlert) Color.parseColor("#991B1B") else Color.parseColor("#064E3B")
+                    )
+                    binding.bottomSheet.tvWeatherEtaPlus1Status.setTextColor(
+                        if (e1w.isRainAlert) Color.parseColor("#FCA5A5") else Color.parseColor("#34D399")
+                    )
+                } else {
+                    binding.bottomSheet.cardWeatherEta.visibility = View.GONE
+                }
+            }
         }
     }
 
@@ -1653,14 +2292,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 // Gọi RoutingEngine với tọa độ xuất phát cố định
                 fetchCustomRoute(originLat, originLon, destLat, destLon)
             } else if (type == "POI") {
-                // Ghim điểm trên bản đồ
+                // Ghim điểm trên bản đồ và mở bảng xem trước lộ trình
                 onPlaceSelected(destLat, destLon, label)
-            }
-
-            // TỰ ĐỘNG BẬT DẪN ĐƯỜNG NGAY LẬP TỨC khi ứng dụng nhận tọa độ chia sẻ từ Google Maps
-            if (destLat != 0.0 && destLon != 0.0) {
-                android.util.Log.d("MapFragment", "Auto-starting navigation for shared Google location ($destLat, $destLon)")
-                startNavigation(destLat, destLon)
             }
         }
     }

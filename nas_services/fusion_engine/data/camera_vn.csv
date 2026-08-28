@@ -1,0 +1,5 @@
+id,lat,lon,type,speed_limit,description
+vn_cam_101,10.7770,106.7010,camera,60,Camera Lê Duẩn Q1 (Custom)
+vn_cam_102,10.7550,106.6600,camera,50,Camera ngã tư Nguyễn Trãi - An Dương Vương
+vn_cam_103,10.8000,106.7100,speed_limit,60,Biển báo tốc độ Cầu Sài Gòn
+vn_cam_104,21.0300,105.8500,camera,60,Camera phạt nguội Tràng Thi Hà Nội

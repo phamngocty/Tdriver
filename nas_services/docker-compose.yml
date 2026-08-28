@@ -1,0 +1,100 @@
+version: '3.8'
+
+networks:
+  tymap_net:
+    name: tymap_net
+    external: true
+
+services:
+  # 1. Nginx Proxy Manager (Cổng điều phối & Cấp SSL)
+  npm:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: tymap_npm
+    restart: unless-stopped
+    ports:
+      - "80:80"     # Đón HTTP Let's Encrypt & Redirect HTTPS
+      - "443:443"   # Đón HTTPS bảo mật từ 4G/5G vào App Android
+      - "81:81"     # Web UI quản trị (LAN: http://192.168.1.114:81)
+    environment:
+      DB_SQLITE_FILE: "/data/database.sqlite"
+      DISABLE_IPV6: 'true'
+    volumes:
+      - /home/nas152/tymap_data/npm/data:/data
+      - /home/nas152/tymap_data/npm/letsencrypt:/etc/letsencrypt
+    networks:
+      - tymap_net
+
+  # 2. DuckDNS Auto-Updater (Đồng bộ IP Public mỗi 5 phút)
+  duckdns:
+    image: lscr.io/linuxserver/duckdns:latest
+    container_name: tymap_duckdns
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Ho_Chi_Minh
+      - SUBDOMAINS=nas152
+      - TOKEN=75d515eb-26eb-440a-8c02-685607cbb07a
+      - UPDATE_IP=both
+      - LOG_FILE=false
+    networks:
+      - tymap_net
+
+  # 3. GraphHopper Routing Engine (Port 8989)
+  graphhopper:
+    image: israelhikingmap/graphhopper:latest
+    container_name: tymap_graphhopper
+    restart: unless-stopped
+    ports:
+      - "8989:8989"
+    environment:
+      - JAVA_OPTS=-Xmx4g -Xms2g
+    volumes:
+      - /home/nas152/tymap_data/osm_source/vietnam-latest.osm.pbf:/data/vietnam-latest.osm.pbf:ro
+      - /home/nas152/tymap_data/graphhopper_cache:/data/vietnam-latest.osm-gh
+      - /home/nas152/graphhopper-data/config-loc.yml:/data/config-loc.yml:ro
+    command: -i /data/vietnam-latest.osm.pbf -c /data/config-loc.yml
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8989/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+    networks:
+      - tymap_net
+
+  # 4. Nominatim Geocoding (Port 8081)
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: tymap_nominatim
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      - PBF_PATH=/osm/vietnam-latest.osm.pbf
+      - REPLICATION_URL=https://download.geofabrik.de/asia/vietnam-updates/
+      - NOMINATIM_PASSWORD=tymap_secret_pass
+    volumes:
+      - /home/nas152/tymap_data/nominatim_db:/var/lib/postgresql/14/main
+      - /home/nas152/tymap_data/osm_source:/osm:ro
+    shm_size: 2gb
+    networks:
+      - tymap_net
+
+  # 5. Fusion Engine (Port 8088 - Cảnh báo Camera & Tốc độ Node.js)
+  fusion_engine:
+    build:
+      context: ./fusion_engine
+      dockerfile: Dockerfile
+    container_name: tymap_fusion_engine
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    environment:
+      - PORT=8088
+      - DATA_DIR=/app/data
+    volumes:
+      - /home/nas152/graphhopper-data/fusion_engine/server.js:/app/server.js:ro
+      - /home/nas152/tymap_data/cameras:/app/data
+    networks:
+      - tymap_net

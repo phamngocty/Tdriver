@@ -149,7 +149,6 @@ class ConnectionFragment : Fragment() {
             ApiService("ors", "OpenRouteService (ORS)", "Dẫn đường chuyên sâu, yêu cầu API key.", "https://openrouteservice.org/dev/#/signup", true, apiKey = orsKey, status = if (orsKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("gh", "GraphHopper Routing", "Dẫn đường tối ưu xe máy, yêu cầu API key.", "https://www.graphhopper.com/", true, apiKey = ghKey, status = if (ghKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("photon", "Photon Autocomplete (Komoot)", "Tìm kiếm địa chỉ nhanh của Komoot, miễn phí.", "https://photon.komoot.io/", false, status = ServiceStatus.FREE),
-            ApiService("pelias", "Pelias Geocoder", "Tìm kiếm địa chỉ nguồn mở (Geocode Earth).", "https://pelias.io/", false, status = ServiceStatus.FREE),
             ApiService("nominatim", "Nominatim Geocoder (OSM)", "Tìm kiếm vị trí mặc định từ OpenStreetMap.", "https://nominatim.org/", false, status = ServiceStatus.FREE),
             ApiService("open_meteo", "Open-Meteo Weather", "Dự báo thời tiết 10.000 req/ngày miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
             ApiService("esri", "Esri World Canvas", "Bản đồ nền mượt OLED, miễn phí vô hạn.", "https://www.esri.com/", false, status = ServiceStatus.FREE),
@@ -206,7 +205,7 @@ class ConnectionFragment : Fragment() {
                 "stadia" -> testStadiaKey(service.apiKey)
                 "open_meteo" -> testOpenMeteo()
                 "photon" -> testPhoton()
-                "pelias" -> testPelias()
+                "nominatim" -> true
                 "esri" -> testEsri()
                 else -> true
             }
@@ -244,11 +243,6 @@ class ConnectionFragment : Fragment() {
     private fun testPhoton(): Boolean {
         val url = "https://photon.komoot.io/api/?q=Ho+Chi+Minh&limit=1"
         return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
-    }
-
-    private fun testPelias(): Boolean {
-        val url = "https://api.geocode.earth/v1/autocomplete?text=Ho+Chi+Minh&size=1"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful || it.code == 401 } } catch (e: Exception) { false }
     }
 
     private fun testEsri(): Boolean {

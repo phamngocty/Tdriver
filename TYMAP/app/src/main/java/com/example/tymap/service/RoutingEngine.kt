@@ -2,6 +2,7 @@ package com.example.tymap.service
 
 import android.content.Context
 import com.example.tymap.repository.RouteInfo
+import com.example.tymap.utils.NasConnectionManager
 import com.example.tymap.utils.PolylineDecoder
 import com.example.tymap.utils.PrefsHelper
 import kotlinx.coroutines.*
@@ -27,10 +28,10 @@ class RoutingEngine(private val client: OkHttpClient) {
     }
 
     /**
-     * Progressive multi-engine route calculation:
-     * 1. FAST-TRACK (ƯU TIÊN 1): Gọi GraphHopper (NAS Server/Cloud) trước tiên để hiển thị NGAY LẬP TỨC (15-30ms).
-     * 2. Phát callback onProgressiveUpdate ngay khi có tuyến đường đầu tiên (không cần chờ các dịch vụ khác).
-     * 3. Chạy song song các engine còn lại (OSRM, Valhalla, ORS) và nạp cảnh báo ngầm không làm đơ giao diện.
+     * Progressive multi-engine route calculation with Smart Circuit Breaker:
+     * 1. FAST-TRACK (ƯU TIÊN 1): Nếu NAS khả dụng, gọi GraphHopper NAS trước tiên để hiển thị NGAY LẬP TỨC (15-30ms).
+     * 2. FAST-FAIL (KHÔNG CHỜ ĐỢI): Nếu mất kết nối NAS hoặc ngoài LAN (4G/LTE), NAS Circuit Breaker ngắt ngay trong < 1s (hoặc 0ms nếu đã ngắt trước đó).
+     * 3. PARALLEL FALLBACK: Kích hoạt đồng thời các engine đám mây (Goong, OSRM, Valhalla, ORS, GH Cloud) và phát onProgressiveUpdate ngay khi engine đầu tiên trả về kết quả!
      */
     suspend fun fetchRouteWithFallback(
         context: Context,
@@ -41,41 +42,62 @@ class RoutingEngine(private val client: OkHttpClient) {
     ): List<RouteInfo>? = coroutineScope {
         val vehicleType = PrefsHelper.getInt(context, "vehicle_type", 1)
         val accumulatedRoutes = mutableListOf<RouteInfo>()
-        val emitted = java.util.concurrent.atomic.AtomicBoolean(false)
 
-        // 1. FAST-TRACK: Ưu tiên tuyệt đối GraphHopper
+        // 1. FAST-TRACK: Ưu tiên GraphHopper NAS (15-30ms) nếu NAS khả dụng
         val ghKey = PrefsHelper.getSecureString(context, "api_key_gh", "")
-        try {
-            val fastGhRoutes = fetchGraphHopperRoute(context, startLat, startLng, destLat, destLng, ghKey, vehicleType)
-            if (!fastGhRoutes.isNullOrEmpty()) {
-                synchronized(accumulatedRoutes) {
-                    accumulatedRoutes.addAll(fastGhRoutes)
+        if (NasConnectionManager.isNasPotentiallyAvailable(context)) {
+            try {
+                android.util.Log.d("RoutingEngine", "Fetching Fast-Track GraphHopper NAS route with vehicleType: $vehicleType (1=scooter, 0=car)")
+                val fastGhRoutes = fetchGraphHopperRoute(context, startLat, startLng, destLat, destLng, ghKey, vehicleType)
+                if (!fastGhRoutes.isNullOrEmpty()) {
+                    val selectedRoutes = fastGhRoutes.mapIndexed { i, r -> r.copy(isSelected = (i == 0)) }
+                    withContext(Dispatchers.Main) {
+                        onProgressiveUpdate?.invoke(selectedRoutes)
+                    }
+                    val primaryPolyline = selectedRoutes.firstOrNull()?.polyline
+                    if (!primaryPolyline.isNullOrEmpty()) {
+                        TrafficWarningManager.fetchRouteWarnings(context, primaryPolyline)
+                    }
+                    return@coroutineScope selectedRoutes
                 }
-                emitted.set(true)
-                // Hiển thị ngay lập tức lên bản đồ cho người dùng!
-                withContext(Dispatchers.Main) {
-                    onProgressiveUpdate?.invoke(fastGhRoutes.mapIndexed { i, r -> r.copy(isSelected = (i == 0)) })
-                }
+            } catch (e: Exception) {
+                android.util.Log.e("RoutingEngine", "Fast-track GraphHopper failed: ${e.message}")
             }
-        } catch (e: Exception) {
-            android.util.Log.e("RoutingEngine", "Fast-track GraphHopper failed: ${e.message}")
+        } else {
+            android.util.Log.d("RoutingEngine", "NAS is offline/remote, skipping direct NAS attempt to guarantee zero-wait cloud fallback.")
         }
 
-        // 2. Chạy song song các engine còn lại để bổ sung tuyến đường thay thế (Alternatives)
-        val otherEngines = mutableListOf(
-            "OSRM Backend",
-            "Valhalla Routing",
-            "OpenRouteService (ORS)"
-        )
+        // 2. Chạy SONG SONG các engine đám mây với Progressive UI Update
+        val otherEngines = mutableListOf<String>()
+        
+        val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "").trim()
+        if (goongKey.isNotEmpty()) {
+            otherEngines.add("Goong API (Việt Nam)")
+        }
+
         val customUrl = PrefsHelper.getString(context, "custom_routing_url", "").trim()
         if (customUrl.isNotEmpty()) {
-            otherEngines.add(0, "Tùy chỉnh (Self-Hosted OSRM)")
+            otherEngines.add("Tùy chỉnh (Self-Hosted OSRM)")
+        }
+
+        otherEngines.add("OSRM Backend")
+        otherEngines.add("Valhalla Routing")
+
+        val orsKey = PrefsHelper.getSecureString(context, "api_key_ors", "").trim()
+        if (orsKey.isNotEmpty()) {
+            otherEngines.add("OpenRouteService (ORS)")
+        }
+
+        if (ghKey.isNotEmpty()) {
+            otherEngines.add("GraphHopper Cloud")
         }
 
         val deferreds = otherEngines.map { engine ->
             async(Dispatchers.IO) {
                 val key = when {
-                    engine.contains("OpenRouteService") || engine.contains("ORS") -> PrefsHelper.getSecureString(context, "api_key_ors", "")
+                    engine.contains("Goong") -> goongKey
+                    engine.contains("OpenRouteService") || engine.contains("ORS") -> orsKey
+                    engine.contains("GraphHopper") -> ghKey
                     else -> null
                 }
                 try {
@@ -86,7 +108,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                         }
                         val sorted = synchronized(accumulatedRoutes) {
                             accumulatedRoutes.sortedWith(
-                                compareByDescending<RouteInfo> { it.engineName.contains("NAS") || it.engineName.contains("GraphHopper") }
+                                compareByDescending<RouteInfo> { it.engineName.contains("NAS") || it.engineName.contains("Goong") || it.engineName.contains("GraphHopper") }
                                     .thenBy { it.distance }
                             ).mapIndexed { index, route -> route.copy(isSelected = (index == 0)) }
                         }
@@ -101,23 +123,23 @@ class RoutingEngine(private val client: OkHttpClient) {
             }
         }
 
-        // Chờ các engine phụ hoàn tất
+        // Chờ các engine hoàn tất
         deferreds.awaitAll()
 
         val finalRoutes = synchronized(accumulatedRoutes) {
             if (accumulatedRoutes.isEmpty()) return@coroutineScope null
             accumulatedRoutes.sortedWith(
-                compareByDescending<RouteInfo> { it.engineName.contains("NAS") || it.engineName.contains("GraphHopper") }
+                compareByDescending<RouteInfo> { it.engineName.contains("NAS") || it.engineName.contains("Goong") || it.engineName.contains("GraphHopper") }
                     .thenBy { it.distance }
             ).mapIndexed { index, route -> route.copy(isSelected = (index == 0)) }
         }
 
         // 3. Tải cảnh báo giao thông ngầm (Hoàn toàn không chặn luồng hiển thị bản đồ)
-        val selectedRoute = finalRoutes.firstOrNull { it.isSelected } ?: finalRoutes.firstOrNull()
+        val selectedRoute = finalRoutes?.firstOrNull { it.isSelected } ?: finalRoutes?.firstOrNull()
         if (selectedRoute != null && selectedRoute.polyline.isNotEmpty()) {
             launch(Dispatchers.IO) {
                 try {
-                    TrafficWarningManager.fetchRouteWarningsFromGoong(context, selectedRoute.polyline)
+                    TrafficWarningManager.fetchRouteWarnings(context, selectedRoute.polyline)
                 } catch (e: Exception) {
                     android.util.Log.e("RoutingEngine", "Warning fetch background error: ${e.message}")
                 }
@@ -137,8 +159,10 @@ class RoutingEngine(private val client: OkHttpClient) {
     ): List<RouteInfo>? {
         val avoidHighways = vehicleType == 1
         return when {
+            engine.contains("Goong") -> fetchGoongRoute(startLat, startLng, destLat, destLng, apiKey, vehicleType)
             engine == "Tùy chỉnh (Self-Hosted OSRM)" -> fetchCustomOsrmRoute(context, startLat, startLng, destLat, destLng, avoidHighways)
             engine.contains("OpenRouteService") || engine == "ORS" -> fetchOrsRoute(startLat, startLng, destLat, destLng, apiKey, avoidHighways)
+            engine.contains("GraphHopper Cloud") -> fetchGraphHopperCloudRoute(startLat, startLng, destLat, destLng, apiKey, vehicleType)
             engine.contains("GraphHopper") -> fetchGraphHopperRoute(context, startLat, startLng, destLat, destLng, apiKey, vehicleType)
             engine.contains("Valhalla") -> fetchValhallaRoute(startLat, startLng, destLat, destLng, avoidHighways)
             else -> fetchOsrmRoute(startLat, startLng, destLat, destLng, avoidHighways)
@@ -224,6 +248,141 @@ class RoutingEngine(private val client: OkHttpClient) {
         }
     }
 
+    private suspend fun fetchGoongRoute(
+        startLat: Double, startLng: Double,
+        destLat: Double, destLng: Double,
+        apiKey: String?,
+        vehicleType: Int
+    ): List<RouteInfo>? {
+        val key = apiKey?.trim() ?: return null
+        if (key.isEmpty()) return null
+
+        val vehicle = if (vehicleType == 1) "bike" else "car"
+        val url = "https://rsapi.goong.io/Direction?origin=$startLat,$startLng&destination=$destLat,$destLng&vehicle=$vehicle&api_key=$key"
+        val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+
+        return try {
+            NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: return null
+                if (!response.isSuccessful) {
+                    android.util.Log.e("RoutingEngine", "Goong Error: ${response.code}")
+                    return null
+                }
+                parseGoongResponse(body)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RoutingEngine", "Goong Exception: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun parseGoongResponse(body: String): List<RouteInfo> = withContext(Dispatchers.Default) {
+        val json = JSONObject(body)
+        val routesJson = json.optJSONArray("routes") ?: return@withContext emptyList<RouteInfo>()
+        val result = mutableListOf<RouteInfo>()
+
+        for (i in 0 until routesJson.length()) {
+            val route = routesJson.getJSONObject(i)
+            val overviewPolyline = route.optJSONObject("overview_polyline")?.optString("points", "") ?: ""
+            val points = if (overviewPolyline.isNotEmpty()) {
+                PolylineDecoder.decode(overviewPolyline, 5).map { it.latitude to it.longitude }
+            } else {
+                emptyList()
+            }
+
+            val legs = route.optJSONArray("legs")
+            var totalDistance = 0.0
+            var totalDuration = 0.0
+            val steps = mutableListOf<com.example.tymap.repository.StepInfo>()
+
+            if (legs != null && legs.length() > 0) {
+                val leg = legs.getJSONObject(0)
+                totalDistance = leg.optJSONObject("distance")?.optDouble("value", 0.0) ?: 0.0
+                totalDuration = leg.optJSONObject("duration")?.optDouble("value", 0.0) ?: 0.0
+
+                val stepsJson = leg.optJSONArray("steps")
+                if (stepsJson != null) {
+                    for (j in 0 until stepsJson.length()) {
+                        val step = stepsJson.getJSONObject(j)
+                        val htmlInstr = step.optString("html_instructions", "Đi tiếp")
+                        val cleanInstr = android.text.Html.fromHtml(htmlInstr, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+                        val stepDist = step.optJSONObject("distance")?.optDouble("value", 0.0) ?: 0.0
+                        val stepDur = step.optJSONObject("duration")?.optDouble("value", 0.0) ?: 0.0
+                        val maneuverStr = step.optString("maneuver", "")
+                        val startLoc = step.optJSONObject("start_location")
+                        val stepLat = startLoc?.optDouble("lat", 0.0) ?: 0.0
+                        val stepLng = startLoc?.optDouble("lng", 0.0) ?: 0.0
+
+                        steps.add(com.example.tymap.repository.StepInfo(
+                            instruction = cleanInstr,
+                            distance = stepDist,
+                            duration = stepDur,
+                            maneuverIcon = mapGoongManeuverToIcon(maneuverStr),
+                            roadName = cleanInstr,
+                            location = stepLat to stepLng
+                        ))
+                    }
+                }
+            }
+
+            val (realisticDuration, realisticSteps) = calculateRealisticDuration(totalDuration, totalDistance, steps)
+            result.add(RouteInfo(
+                polyline = points,
+                distance = totalDistance,
+                duration = realisticDuration,
+                steps = realisticSteps,
+                isSelected = (i == 0),
+                engineName = "Goong (Việt Nam)"
+            ))
+        }
+        result
+    }
+
+    private fun mapGoongManeuverToIcon(maneuver: String): Int {
+        return when {
+            maneuver.contains("turn-slight-right") || maneuver.contains("fork-slight-right") -> 1
+            maneuver.contains("turn-sharp-right") -> 3
+            maneuver.contains("turn-right") || maneuver.contains("fork-right") -> 2
+            maneuver.contains("turn-slight-left") || maneuver.contains("fork-slight-left") -> 4
+            maneuver.contains("turn-sharp-left") -> 6
+            maneuver.contains("turn-left") || maneuver.contains("fork-left") -> 5
+            maneuver.contains("uturn") -> 7
+            maneuver.contains("roundabout") || maneuver.contains("rotary") -> 12
+            maneuver.contains("straight") || maneuver.contains("continue") -> 0
+            maneuver.contains("merge") -> 15
+            maneuver.contains("ramp") -> 17
+            else -> 0
+        }
+    }
+
+    private suspend fun fetchGraphHopperCloudRoute(
+        startLat: Double, startLng: Double,
+        destLat: Double, destLng: Double,
+        apiKey: String?,
+        vehicleType: Int
+    ): List<RouteInfo>? {
+        val key = apiKey?.trim() ?: return null
+        if (key.isEmpty()) return null
+
+        val cloudProfile = if (vehicleType == 1) "bike" else "car"
+        val url = "https://graphhopper.com/api/1/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$cloudProfile&locale=vi&key=$key&steps=true&points_encoded=true&algorithm=alternative_route"
+        val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+
+        return try {
+            NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: return null
+                if (!response.isSuccessful) {
+                    android.util.Log.e("RoutingEngine", "GraphHopper Cloud Error: ${response.code}")
+                    return null
+                }
+                parseGraphHopperResponse(body)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RoutingEngine", "GraphHopper Cloud Exception: ${e.message}")
+            null
+        }
+    }
+
     private suspend fun fetchGraphHopperRoute(
         context: Context,
         startLat: Double, startLng: Double,
@@ -232,39 +391,29 @@ class RoutingEngine(private val client: OkHttpClient) {
         vehicleType: Int
     ): List<RouteInfo>? {
         val key = apiKey?.trim() ?: ""
-        
-        // Cấu hình Profile Xe máy (scooter) hoặc Ô tô (car) theo vehicleType
         val profile = if (vehicleType == 1) "scooter" else "car"
-
-        // Đọc cài đặt Custom Weighting từ PrefsHelper
         val avoidTolls = PrefsHelper.getBoolean(context, "avoid_tolls", false)
         val avoidFerries = PrefsHelper.getBoolean(context, "avoid_ferries", false)
         
-        // Nếu không có API Key, tự động chuyển sang Server NAS tự dựng (192.168.1.114:8989)
-        if (key.isEmpty()) {
-            return fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries)
-        }
-
-        val url = "https://graphhopper.com/api/1/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&key=$key&steps=true&points_encoded=true&algorithm=alternative_route"
-        val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
-
-        return try {
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: return null
-                if (!response.isSuccessful) {
-                    android.util.Log.e("RoutingEngine", "GraphHopper Cloud Error: ${response.code}, falling back to NAS Server")
-                    return fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries)
-                }
-                parseGraphHopperResponse(body)
+        // 1. Kiểm tra NAS Circuit Breaker trước khi thử kết nối
+        if (NasConnectionManager.isNasPotentiallyAvailable(context)) {
+            val ghBaseUrl = NasConnectionManager.getGraphHopperBaseUrl(context)
+            val nasResult = fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries, ghBaseUrl)
+            if (!nasResult.isNullOrEmpty()) {
+                return nasResult
             }
-        } catch (e: Exception) {
-            android.util.Log.e("RoutingEngine", "GraphHopper Cloud Exception: ${e.message}, falling back to NAS Server")
-            fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries)
         }
+        
+        // 2. Fallback sang GraphHopper Cloud nếu có API key
+        if (key.isNotEmpty()) {
+            return fetchGraphHopperCloudRoute(startLat, startLng, destLat, destLng, key, vehicleType)
+        }
+
+        return null
     }
 
     /**
-     * Tự kết nối đến Server GraphHopper riêng trên NAS (192.168.1.114:8989)
+     * Tự kết nối đến Server GraphHopper riêng trên NAS (LAN hoặc DuckDNS HTTPS)
      * Trích xuất Tọa độ [Latitude, Longitude] & Hướng dẫn Turn-by-Turn tiếng Việt
      * Hỗ trợ Custom Weighting: Né trạm thu phí (avoid_tolls), Né phà/đò (avoid_ferries)
      */
@@ -274,50 +423,117 @@ class RoutingEngine(private val client: OkHttpClient) {
         profile: String = "scooter",
         avoidTolls: Boolean = false,
         avoidFerries: Boolean = false,
-        nasIp: String = "192.168.1.114"
+        baseUrl: String = "https://route.nas152.duckdns.org",
+        allowAlternatives: Boolean = true
     ): List<RouteInfo>? {
-        var url = "http://$nasIp:8989/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&points_encoded=false&instructions=true"
+        val candidateProfiles = when (profile) {
+            "scooter" -> listOf("scooter", "car")
+            else -> listOf("car", "scooter")
+        }
 
-        // Nếu bật Custom Weighting Né Trạm thu phí / Né Phà đò -> Thêm custom_model JSON và ch.disable=true
-        if (avoidTolls || avoidFerries) {
-            val priorityRules = JSONArray()
-            if (avoidTolls) {
-                val tollRule = JSONObject().apply {
-                    put("if", "toll != NO")
-                    put("multiply_by", "0.0")
+        for (p in candidateProfiles) {
+            val routes = tryFetchNasGraphHopperWithProfile(startLat, startLng, destLat, destLng, p, avoidTolls, avoidFerries, baseUrl, allowAlternatives)
+            if (!routes.isNullOrEmpty()) {
+                if (routes.size >= 3) {
+                    return routes
                 }
-                priorityRules.put(tollRule)
-            }
-            if (avoidFerries) {
-                val ferryRule = JSONObject().apply {
-                    put("if", "road_environment == FERRY")
-                    put("multiply_by", "0.0")
+                val combinedRoutes = routes.toMutableList()
+                for (fallbackProfile in candidateProfiles) {
+                    if (fallbackProfile == p || combinedRoutes.size >= 3) continue
+                    val extraRoutes = tryFetchNasGraphHopperWithProfile(startLat, startLng, destLat, destLng, fallbackProfile, avoidTolls, avoidFerries, baseUrl, allowAlternatives)
+                    if (!extraRoutes.isNullOrEmpty()) {
+                        for (extra in extraRoutes) {
+                            if (combinedRoutes.size < 3 && combinedRoutes.none { Math.abs(it.distance - extra.distance) < 50.0 }) {
+                                combinedRoutes.add(extra)
+                            }
+                        }
+                    }
                 }
-                priorityRules.put(ferryRule)
+                return combinedRoutes.mapIndexed { idx, r ->
+                    val title = when (idx) {
+                        0 -> "GraphHopper [Server Nhà] (Tối ưu)"
+                        1 -> "GraphHopper [Server Nhà] (Đường tránh)"
+                        2 -> "GraphHopper [Server Nhà] (Ngắn nhất)"
+                        else -> "GraphHopper [Server Nhà] (Tuyến ${idx + 1})"
+                    }
+                    r.copy(engineName = title, isSelected = (idx == 0))
+                }
             }
+        }
+        return null
+    }
+
+    private suspend fun tryFetchNasGraphHopperWithProfile(
+        startLat: Double, startLng: Double,
+        destLat: Double, destLng: Double,
+        profile: String,
+        avoidTolls: Boolean,
+        avoidFerries: Boolean,
+        baseUrl: String,
+        allowAlternatives: Boolean
+    ): List<RouteInfo>? {
+        val priorityRules = JSONArray()
+        if (avoidTolls) {
+            priorityRules.put(JSONObject().apply {
+                put("if", "toll != NO")
+                put("multiply_by", 0.0)
+            })
+        }
+        if (avoidFerries) {
+            priorityRules.put(JSONObject().apply {
+                put("if", "road_environment == FERRY")
+                put("multiply_by", 0.0)
+            })
+        }
+
+        var customModelParam = ""
+        if (priorityRules.length() > 0) {
             val customModelJson = JSONObject().apply {
                 put("priority", priorityRules)
             }.toString()
-
             val encodedCustomModel = java.net.URLEncoder.encode(customModelJson, "UTF-8")
-            url += "&custom_model=$encodedCustomModel&ch.disable=true"
+            customModelParam = "&custom_model=$encodedCustomModel"
         }
 
-        val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+        val cleanBaseUrl = if (baseUrl.startsWith("http://") || baseUrl.startsWith("https://")) baseUrl else "http://$baseUrl:8989"
+        val urlAttempts = mutableListOf<String>()
 
-        return try {
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: return null
-                if (!response.isSuccessful) {
-                    android.util.Log.e("RoutingEngine", "NAS GraphHopper Error: ${response.code}")
-                    return null
+        if (allowAlternatives) {
+            urlAttempts.add("$cleanBaseUrl/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&points_encoded=false&instructions=true&algorithm=alternative_route&alternative_route.max_paths=3&alternative_route.max_weight_factor=2.5&alternative_route.max_share_factor=0.95$customModelParam")
+            urlAttempts.add("$cleanBaseUrl/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&points_encoded=false&instructions=true&algorithm=alternative_route&alternative_route.max_paths=3$customModelParam")
+        }
+        if (customModelParam.isNotEmpty()) {
+            urlAttempts.add("$cleanBaseUrl/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&points_encoded=false&instructions=true$customModelParam")
+        }
+        urlAttempts.add("$cleanBaseUrl/route?point=$startLat,$startLng&point=$destLat,$destLng&profile=$profile&locale=vi&points_encoded=false&instructions=true")
+
+        val nasClient = NasConnectionManager.nasHttpClient
+
+        for (url in urlAttempts) {
+            try {
+                val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+                nasClient.newCall(request).execute().use { response ->
+                    val body = response.body?.string() ?: return@use
+                    if (response.isSuccessful) {
+                        val routes = parseNasGraphHopperResponse(body)
+                        if (routes.isNotEmpty()) {
+                            NasConnectionManager.markNasSuccess()
+                            return routes
+                        }
+                    } else {
+                        android.util.Log.w("RoutingEngine", "NAS GraphHopper attempt returned ${response.code} for URL: $url")
+                    }
                 }
-                parseNasGraphHopperResponse(body)
+            } catch (e: Exception) {
+                android.util.Log.w("RoutingEngine", "NAS GraphHopper attempt failed: ${e.message}")
+                if (NasConnectionManager.isConnectionFailure(e)) {
+                    NasConnectionManager.markNasFailed("NAS unreachable on $url: ${e.message}")
+                    // Fast-fail: Đứt kết nối NAS thì dừng ngay, KHÔNG loop tiếp các URL còn lại để tránh delay!
+                    break
+                }
             }
-        } catch (e: Exception) {
-            android.util.Log.e("RoutingEngine", "NAS GraphHopper Connection Failed: ${e.message}")
-            null
         }
+        return null
     }
 
     private suspend fun parseNasGraphHopperResponse(body: String): List<RouteInfo> = withContext(Dispatchers.Default) {
@@ -327,8 +543,8 @@ class RoutingEngine(private val client: OkHttpClient) {
 
         for (i in 0 until pathsJson.length()) {
             val path = pathsJson.getJSONObject(i)
-            val distance = path.getDouble("distance")
-            val duration = path.getLong("time") / 1000.0
+            val distance = path.optDouble("distance", 0.0)
+            val duration = path.optDouble("time", 0.0) / 1000.0
 
             // 1. Chuyển đổi geometry.coordinates [Longitude, Latitude] -> LatLng(Latitude, Longitude)
             val points = mutableListOf<Pair<Double, Double>>()
@@ -363,7 +579,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                     steps.add(com.example.tymap.repository.StepInfo(
                         instruction = instr.optString("text", "Đi tiếp"),
                         distance = instr.optDouble("distance", 0.0),
-                        duration = instr.optLong("time", 0L) / 1000.0,
+                        duration = instr.optDouble("time", 0.0) / 1000.0,
                         maneuverIcon = mapManeuverToIcon("GraphHopper", instr.optInt("sign", 0)),
                         roadName = instr.optString("street_name", ""),
                         location = stepLocation
@@ -371,13 +587,22 @@ class RoutingEngine(private val client: OkHttpClient) {
                 }
             }
 
+            val (realisticDuration, realisticSteps) = calculateRealisticDuration(duration, distance, steps)
+
+            val routeTitle = when (i) {
+                0 -> "GraphHopper [Server Nhà] (Tối ưu)"
+                1 -> "GraphHopper [Server Nhà] (Đường tránh)"
+                2 -> "GraphHopper [Server Nhà] (Ngắn nhất)"
+                else -> "GraphHopper [Server Nhà] (Tuyến ${i + 1})"
+            }
+
             result.add(RouteInfo(
                 polyline = points,
                 distance = distance,
-                duration = duration,
-                steps = steps,
+                duration = realisticDuration,
+                steps = realisticSteps,
                 isSelected = (i == 0),
-                engineName = "NAS GraphHopper"
+                engineName = routeTitle
             ))
         }
         result
@@ -482,7 +707,8 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0, "OSRM"))
+            val (realisticDuration, realisticSteps) = calculateRealisticDuration(duration, distance, steps)
+            result.add(RouteInfo(points, distance, realisticDuration, realisticSteps, i == 0, "OSRM"))
         }
         result
     }
@@ -517,7 +743,8 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0, "OpenRouteService"))
+            val (realisticDuration, realisticSteps) = calculateRealisticDuration(duration, distance, steps)
+            result.add(RouteInfo(points, distance, realisticDuration, realisticSteps, i == 0, "OpenRouteService"))
         }
         result
     }
@@ -561,7 +788,8 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0, "GraphHopper"))
+            val (realisticDuration, realisticSteps) = calculateRealisticDuration(duration, distance, steps)
+            result.add(RouteInfo(points, distance, realisticDuration, realisticSteps, i == 0, "GraphHopper"))
         }
         result
     }
@@ -594,7 +822,8 @@ class RoutingEngine(private val client: OkHttpClient) {
                     ))
                 }
             }
-            result.add(RouteInfo(points, distance, duration, steps, i == 0, "Valhalla"))
+            val (realisticDuration, realisticSteps) = calculateRealisticDuration(duration, distance, steps)
+            result.add(RouteInfo(points, distance, realisticDuration, realisticSteps, i == 0, "Valhalla"))
         }
         result
     }
@@ -680,5 +909,64 @@ class RoutingEngine(private val client: OkHttpClient) {
                 else -> 20
             }
         } catch (e: Exception) { 20 }
+    }
+
+    /**
+     * Thuật toán hiệu chỉnh thời gian di chuyển (ETA) thực tế cho giao thông xe máy tại Việt Nam:
+     * - Bù trừ vận tốc thực tế đô thị (18-22 km/h) so với vận tốc lý tưởng OSM (40-50 km/h)
+     * - Cộng thời gian phạt tại các ngã ba, ngã tư, đèn đỏ (Turn & Traffic Light Penalty: 18-22s / ngã rẽ)
+     * - Giúp ETA khớp với thực tế của Google Maps (khắc phục hoàn toàn độ lệch 21p vs 42p).
+     */
+    private fun calculateRealisticDuration(
+        rawDurationSeconds: Double,
+        distanceMeters: Double,
+        steps: List<com.example.tymap.repository.StepInfo>,
+        vehicleType: Int = 1 // 1=scooter, 0=car
+    ): Pair<Double, List<com.example.tymap.repository.StepInfo>> {
+        if (distanceMeters <= 0 || rawDurationSeconds <= 0) {
+            return rawDurationSeconds to steps
+        }
+
+        val distanceKm = distanceMeters / 1000.0
+
+        // 1. Phạt thời gian giao lộ & đèn tín hiệu (Turn Penalty)
+        var turnCount = 0
+        for (s in steps) {
+            if (s.maneuverIcon != 0 && s.maneuverIcon != 14 && s.maneuverIcon != 20) { // Các bước rẽ chuyển hướng
+                turnCount++
+            }
+        }
+        val turnPenaltySec = if (vehicleType == 1) turnCount * 22.0 else turnCount * 30.0
+
+        // 2. Vận tốc cơ sở thực tế theo chiều dài tuyến đường tại Việt Nam
+        val baseSpeedKmh = if (vehicleType == 1) {
+            when {
+                distanceKm < 3.0 -> 18.0   // Đô thị cự ly gần (nhiều đèn đỏ/ngõ hẻm): 18 km/h
+                distanceKm < 10.0 -> 21.0  // Đô thị trung bình: 21 km/h
+                distanceKm < 25.0 -> 28.0  // Hỗn hợp nội/ngoại thành: 28 km/h
+                else -> 36.0               // Đường dài / Quốc lộ: 36 km/h
+            }
+        } else {
+            when {
+                distanceKm < 3.0 -> 15.0   // Ô tô nội đô kẹt xe: 15 km/h
+                distanceKm < 10.0 -> 18.0  // Ô tô đường phố: 18 km/h
+                distanceKm < 25.0 -> 30.0  // Ô tô hỗn hợp: 30 km/h
+                else -> 45.0               // Ô tô quốc lộ: 45 km/h
+            }
+        }
+
+        val estimatedTravelSec = (distanceKm / baseSpeedKmh) * 3600.0
+        val realisticTotalSec = Math.max(estimatedTravelSec + turnPenaltySec, rawDurationSeconds * 1.85)
+
+        // 3. Phân bổ lại thời lượng cho từng step (tương thích mượt mà với TBT navigation)
+        val scaleFactor = realisticTotalSec / rawDurationSeconds
+        val adjustedSteps = steps.map { step ->
+            val isTurn = (step.maneuverIcon != 0 && step.maneuverIcon != 14 && step.maneuverIcon != 20)
+            val stepTurnBonus = if (isTurn) 15.0 else 0.0
+            val newStepDuration = (step.duration * scaleFactor * 0.85) + stepTurnBonus
+            step.copy(duration = newStepDuration)
+        }
+
+        return realisticTotalSec to adjustedSteps
     }
 }

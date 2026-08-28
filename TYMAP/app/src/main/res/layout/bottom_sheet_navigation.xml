@@ -6,7 +6,7 @@
     android:layout_height="wrap_content"
     android:background="@android:color/transparent"
     app:behavior_hideable="false"
-    app:behavior_peekHeight="120dp"
+    app:behavior_peekHeight="220dp"
     app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
     <com.google.android.material.card.MaterialCardView
@@ -89,6 +89,16 @@
                         android:textColor="@android:color/white"
                         app:icon="@drawable/ic_play"
                         app:iconTint="@android:color/white" />
+
+                    <ImageButton
+                        android:id="@+id/btnSavePlace"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_circle_button"
+                        android:src="@drawable/ic_favorite"
+                        app:tint="@color/speed_amber"
+                        android:contentDescription="Lưu địa điểm" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -351,11 +361,53 @@
                         android:textSize="12sp" />
                 </LinearLayout>
 
+                <!-- Action Button Row: [Bắt đầu] [Bước rẽ] (Prominent Upper Position) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:layout_marginBottom="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <!-- Big Start Navigation Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnStartFromPreview"
+                        android:layout_width="0dp"
+                        android:layout_height="50dp"
+                        android:layout_weight="1.6"
+                        android:layout_marginEnd="8dp"
+                        android:backgroundTint="@color/colorAccentCyan"
+                        android:text="Bắt đầu"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="@android:color/white"
+                        app:cornerRadius="25dp"
+                        app:icon="@drawable/ic_play"
+                        app:iconTint="@android:color/white" />
+
+                    <!-- Show Steps / Chi tiết bước rẽ Button -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnShowStepsPreview"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="50dp"
+                        android:layout_weight="1.0"
+                        android:backgroundTint="#1E293B"
+                        android:text="Bước rẽ"
+                        android:textSize="14sp"
+                        android:textColor="#E2E8F0"
+                        app:cornerRadius="25dp"
+                        app:icon="@drawable/ic_directions"
+                        app:iconTint="#94A3B8" />
+
+                </LinearLayout>
+
                 <!-- Alternatives Route List Header -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="8dp"
                     android:text="CÁC TUYẾN ĐƯỜNG GỢI Ý (ƯU TIÊN NAS)"
                     android:textColor="@color/colorAccentCyan"
                     android:textSize="11sp"
@@ -369,63 +421,194 @@
                     android:maxHeight="160dp"
                     android:visibility="visible" />
 
-                <!-- Action Button Row: [Bắt đầu] [Chạy thử] [Bước rẽ] -->
+                <!-- Custom Weighting Options (Avoid Tolls / Ferries) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:gravity="center_vertical"
+                    android:layout_marginTop="8dp"
                     android:orientation="horizontal">
 
-                    <!-- Big Start Navigation Button -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnStartFromPreview"
+                    <CheckBox
+                        android:id="@+id/cbAvoidTolls"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1.1"
-                        android:layout_marginEnd="6dp"
-                        android:backgroundTint="@color/colorAccentCyan"
-                        android:text="Bắt đầu"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@android:color/white"
-                        app:cornerRadius="24dp"
-                        app:icon="@drawable/ic_play"
-                        app:iconTint="@android:color/white" />
-
-                    <!-- Simulation / Chạy thử tuyến đường Button -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnSimulateRoute"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1.1"
-                        android:layout_marginEnd="6dp"
-                        android:backgroundTint="#0284C7"
-                        android:text="Chạy thử"
-                        android:textSize="13sp"
-                        android:textStyle="bold"
-                        android:textColor="@android:color/white"
-                        app:cornerRadius="24dp"
-                        app:icon="@drawable/ic_directions"
-                        app:iconTint="@android:color/white" />
-
-                    <!-- Show Steps / Chi tiết bước rẽ Button -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnShowStepsPreview"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1.0"
-                        android:backgroundTint="#1E293B"
-                        android:text="Bước rẽ"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Né trạm thu phí"
+                        android:textColor="#CBD5E1"
                         android:textSize="12sp"
-                        android:textColor="#E2E8F0"
-                        app:cornerRadius="24dp"
-                        app:icon="@drawable/ic_directions"
-                        app:iconTint="#94A3B8" />
+                        android:buttonTint="@color/colorAccentCyan" />
 
+                    <CheckBox
+                        android:id="@+id/cbAvoidFerries"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Né phà / đò"
+                        android:textColor="#CBD5E1"
+                        android:textSize="12sp"
+                        android:buttonTint="@color/colorAccentCyan" />
                 </LinearLayout>
+
+                <!-- Detailed Weather ETA Card (3 checkpoints: Start, ETA, ETA+1h matching NAS Dashboard) -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardWeatherEta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:cardBackgroundColor="#0D1527"
+                    app:cardCornerRadius="14dp"
+                    app:strokeColor="#1E293B"
+                    app:strokeWidth="1.2dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <!-- Header Row: Title & ETA badge -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/tvWeatherEtaTitle"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="🕒 CHI TIẾT TUYẾN &amp; DỰ BÁO MƯA (ETA)"
+                                android:textColor="@color/colorAccentCyan"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvWeatherEtaBadge"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="ETA: --:-- (+--m)"
+                                android:textColor="#FDE047"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Step 1 Instruction preview -->
+                        <TextView
+                            android:id="@+id/tvWeatherFirstStep"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="📍 Bước 1: Tiếp tục"
+                            android:textColor="#CBD5E1"
+                            android:textSize="12sp" />
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginVertical="8dp"
+                            android:background="#1E293B" />
+
+                        <!-- Row 1: Start Time Weather -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingVertical="3dp">
+
+                            <TextView
+                                android:id="@+id/tvWeatherStartLabel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="🚩 Hiện tại xuất phát (--:--): ☀️ 28°C"
+                                android:textColor="#E2E8F0"
+                                android:textSize="12sp" />
+
+                            <TextView
+                                android:id="@+id/tvWeatherStartStatus"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_circle_button"
+                                android:backgroundTint="#064E3B"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="2dp"
+                                android:text="Tạnh ráo"
+                                android:textColor="#34D399"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Row 2: ETA Time Weather (Highlighted) -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:background="#162032"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:padding="6dp">
+
+                            <TextView
+                                android:id="@+id/tvWeatherEtaLabel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="🏁 Khi đến nơi (--:--): 🌦️ 28°C"
+                                android:textColor="#38BDF8"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvWeatherEtaStatus"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_circle_button"
+                                android:backgroundTint="#064E3B"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="2dp"
+                                android:text="Tạnh ráo"
+                                android:textColor="#34D399"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Row 3: ETA + 1 Hour Weather -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingVertical="3dp">
+
+                            <TextView
+                                android:id="@+id/tvWeatherEtaPlus1Label"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="⏳ 1 Giờ sau đó (--:--): ⛅ 27°C"
+                                android:textColor="#94A3B8"
+                                android:textSize="12sp" />
+
+                            <TextView
+                                android:id="@+id/tvWeatherEtaPlus1Status"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/bg_circle_button"
+                                android:backgroundTint="#064E3B"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="2dp"
+                                android:text="Tạnh ráo"
+                                android:textColor="#34D399"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
             </LinearLayout>
 
             <!-- 3. Navigation State (Active) -->

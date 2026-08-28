@@ -43,6 +43,7 @@ import com.example.tymap.MainActivity
 import com.example.tymap.databinding.FragmentSettingsBinding
 import com.example.tymap.repository.NavigationRepository
 import com.example.tymap.service.NavigationService
+import com.example.tymap.utils.NasConnectionManager
 import com.example.tymap.utils.PrefsHelper
 import com.example.tymap.utils.UpdateManager
 import com.example.tymap.utils.UpdateCheckResult
@@ -431,32 +432,18 @@ class SettingsFragment : Fragment() {
     // ----------------------------------------------------
     private fun setupApiHealthDashboard() {
         val context = requireContext()
-        val orsKey = PrefsHelper.getSecureString(context, "api_key_ors", "")
-        val ghKey = PrefsHelper.getSecureString(context, "api_key_gh", "")
-        val stadiaKey = PrefsHelper.getSecureString(context, "api_key_stadia", "")
-        val owmKey = PrefsHelper.getSecureString(context, "api_key_owm", "")
         val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "")
-        val hereKey = PrefsHelper.getSecureString(context, "api_key_here", "")
-        val tomtomKey = PrefsHelper.getSecureString(context, "api_key_tomtom", "")
 
         apiServicesList.clear()
         apiServicesList.addAll(listOf(
+            ApiService("nas_routing", "GraphHopper NAS (Primary)", "Máy chủ định tuyến xe máy & ô tô tốc độ cao (8989 / DuckDNS).", NasConnectionManager.getGraphHopperBaseUrl(context), false, status = ServiceStatus.FREE),
+            ApiService("nas_traffic", "Fusion Engine NAS (Primary)", "Trạm cảnh báo camera phạt nguội & tốc độ siêu tốc (8088 / DuckDNS).", NasConnectionManager.getFusionEngineBaseUrl(context), false, status = ServiceStatus.FREE),
+            ApiService("nas_geo", "Nominatim & Photon NAS (Primary)", "Tìm kiếm & giải mã tọa độ Việt Nam từ NAS (8081 / DuckDNS).", NasConnectionManager.getNominatimBaseUrl(context), false, status = ServiceStatus.FREE),
             ApiService("goong", "Goong.io API (Việt Nam)", "Cảnh báo biển báo, camera phạt nguội & dẫn đường Việt Nam.", "https://account.goong.io/", true, apiKey = goongKey, status = if (goongKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
-            ApiService("overpass", "Overpass API (OSM Traffic)", "Cảnh báo camera & tốc độ miễn phí từ OpenStreetMap.", "https://overpass-api.de/", false, status = ServiceStatus.FREE),
-            ApiService("here", "HERE Location Services", "Cung cấp giới hạn tốc độ & bản đồ nâng cao từ HERE.", "https://developer.here.com/", true, apiKey = hereKey, status = if (hereKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
-            ApiService("tomtom", "TomTom API Services", "Cung cấp tốc độ giới hạn & bản đồ TomTom chuyên sâu.", "https://developer.tomtom.com/", true, apiKey = tomtomKey, status = if (tomtomKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
-            ApiService("osrm", "OSRM Backend Engine", "Dẫn đường cực nhanh (Tự host / Demo miễn phí).", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
-            ApiService("valhalla", "Valhalla Routing Engine", "Dẫn đường đa phương tiện / tránh đường cao tốc.", "https://valhalla.opentripplanner.org/", false, status = ServiceStatus.FREE),
-            ApiService("ors", "OpenRouteService (ORS)", "Dẫn đường chuyên sâu, yêu cầu API key.", "https://openrouteservice.org/dev/#/signup", true, apiKey = orsKey, status = if (orsKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
-            ApiService("gh", "GraphHopper Routing", "Dẫn đường tối ưu xe máy, yêu cầu API key.", "https://www.graphhopper.com/", true, apiKey = ghKey, status = if (ghKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
-            ApiService("photon", "Photon Autocomplete (Komoot)", "Tìm kiếm địa chỉ nhanh của Komoot, miễn phí.", "https://photon.komoot.io/", false, status = ServiceStatus.FREE),
-            ApiService("pelias", "Pelias Geocoder", "Tìm kiếm địa chỉ nguồn mở (Geocode Earth).", "https://pelias.io/", false, status = ServiceStatus.FREE),
-            ApiService("nominatim", "Nominatim Geocoder (OSM)", "Tìm kiếm vị trí mặc định từ OpenStreetMap.", "https://nominatim.org/", false, status = ServiceStatus.FREE),
-            ApiService("open_meteo", "Open-Meteo Weather", "Dự báo thời tiết 10.000 req/ngày miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
-            ApiService("openweathermap", "OpenWeatherMap API", "Cung cấp thời tiết chính xác, yêu cầu API key.", "https://home.openweathermap.org/users/sign_up", true, apiKey = owmKey, status = if (owmKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
-            ApiService("esri", "Esri World Canvas", "Bản đồ nền mượt OLED, miễn phí vô hạn.", "https://www.esri.com/", false, status = ServiceStatus.FREE),
-            ApiService("stadia", "Stadia Alidade Smooth Dark", "Bản đồ tối mượt Alidade Smooth Dark cho OLED.", "https://stadiamaps.com/", true, apiKey = stadiaKey, status = if (stadiaKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
-            ApiService("carto", "CartoDB Basemap", "Cung cấp bản đồ nền MapCN (Positron / Dark Matter / Voyager).", "https://carto.com/signup/", false, status = ServiceStatus.FREE)
+            ApiService("osrm", "OSRM Backend Engine (Cloud)", "Dẫn đường dự phòng cực nhanh miễn phí.", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
+            ApiService("valhalla", "Valhalla Routing Engine (Cloud)", "Dẫn đường đa phương tiện dự phòng đám mây.", "https://valhalla.opentripplanner.org/", false, status = ServiceStatus.FREE),
+            ApiService("open_meteo", "Open-Meteo Weather (ETA)", "Dự báo thời tiết & khả năng mưa lúc đến nơi miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
+            ApiService("photon", "Photon & Nominatim (OSM Cloud)", "Tìm kiếm địa chỉ dự phòng toàn cầu miễn phí.", "https://photon.komoot.io/", false, status = ServiceStatus.FREE)
         ))
 
         apiServiceAdapter = ApiServiceAdapter(
@@ -484,12 +471,6 @@ class SettingsFragment : Fragment() {
         val context = context ?: return
         val keyName = when(serviceId) {
             "goong" -> "api_key_goong"
-            "ors" -> "api_key_ors"
-            "gh" -> "api_key_gh"
-            "stadia" -> "api_key_stadia"
-            "openweathermap" -> "api_key_owm"
-            "here" -> "api_key_here"
-            "tomtom" -> "api_key_tomtom"
             else -> null
         }
         keyName?.let { 
@@ -505,19 +486,14 @@ class SettingsFragment : Fragment() {
         
         lifecycleScope.launch(Dispatchers.IO) {
             val success = when(service.id) {
+                "nas_routing" -> testNasGraphhopper()
+                "nas_traffic" -> testNasFusionEngine()
+                "nas_geo" -> testNasNominatim()
                 "goong" -> testGoongKey(service.apiKey)
-                "overpass" -> testOverpass()
-                "here" -> testHereKey(service.apiKey)
-                "tomtom" -> testTomTomKey(service.apiKey)
                 "osrm" -> testOsrm()
-                "ors" -> testOrsKey(service.apiKey)
-                "gh" -> testGhKey(service.apiKey)
-                "stadia" -> testStadiaKey(service.apiKey)
-                "openweathermap" -> testOwmKey(service.apiKey)
+                "valhalla" -> testValhalla()
                 "open_meteo" -> testOpenMeteo()
                 "photon" -> testPhoton()
-                "pelias" -> testPelias()
-                "esri" -> testEsri()
                 else -> true
             }
             
@@ -528,7 +504,7 @@ class SettingsFragment : Fragment() {
                 } else ServiceStatus.ERROR
                 apiServiceAdapter.notifyDataSetChanged()
                 
-                val msg = if (success) "Kiểm tra thành công! Đã kết nối & lưu API Key." else "Kiểm tra thất bại. Vui lòng kiểm tra lại API Key hoặc mạng."
+                val msg = if (success) "Kiểm tra thành công! Dịch vụ ${service.name} đã sẵn sàng." else "Kiểm tra thất bại. Vui lòng kiểm tra lại mạng hoặc máy chủ."
                 Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
             }
         }
@@ -596,8 +572,9 @@ class SettingsFragment : Fragment() {
         val body = okhttp3.FormBody.Builder()
             .add("data", "[out:json][timeout:15];node[\"highway\"=\"speed_camera\"](around:1000,10.762622,106.660172);out body;")
             .build()
+        val fusionUrl = NasConnectionManager.getFusionEngineBaseUrl(requireContext()) + "/api/interpreter"
         val endpoints = listOf(
-            "http://192.168.1.114:8088/api/interpreter",
+            fusionUrl,
             "https://overpass-api.de/api/interpreter",
             "https://overpass.kumi.systems/api/interpreter",
             "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
@@ -624,48 +601,15 @@ class SettingsFragment : Fragment() {
         return try { OkHttpClient().newCall(Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
-    private fun testOrsKey(key: String): Boolean {
-        if (key.isEmpty()) return false
-        val url = "https://api.openrouteservice.org/v2/directions/driving-car?api_key=$key&start=106.660172,10.762622&end=106.670172,10.772622"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
-    }
-
-    private fun testGhKey(key: String): Boolean {
-        // Kiểm tra NAS GraphHopper trước (nếu không nhập API key hoặc test máy chủ riêng)
-        val nasUrl = "http://192.168.1.114:8989/health"
-        val client = OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build()
-        try {
-            val resp = client.newCall(Request.Builder().url(nasUrl).header("User-Agent", "TYMAP/1.0").build()).execute()
-            val nasOk = resp.isSuccessful
-            resp.close()
-            if (nasOk) return true
-        } catch (e: Exception) {}
-
-        if (key.isEmpty()) return false
-        val url = "https://graphhopper.com/api/1/route?point=10.762622,106.660172&point=10.772622,106.670172&profile=car&locale=vi&key=$key"
-        val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
-        return try { client.newCall(request).execute().use { it.isSuccessful } } catch (e: Exception) { false }
-    }
-
-    private fun testStadiaKey(key: String): Boolean {
-        val url = "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/0/0/0.png" + if (key.isNotEmpty()) "?api_key=$key" else ""
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
-    }
-
-    private fun testOwmKey(key: String): Boolean {
-        if (key.isEmpty()) return false
-        val url = "https://api.openweathermap.org/data/2.5/weather?lat=10.762622&lon=106.660172&appid=$key"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
-    }
-
     private fun testOpenMeteo(): Boolean {
         val url = "https://api.open-meteo.com/v1/forecast?latitude=10.762622&longitude=106.660172&current_weather=true"
         return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
     private fun testPhoton(): Boolean {
+        val nasPhotonUrl = NasConnectionManager.getPhotonBaseUrl(requireContext()) + "/api/?q=Ho+Chi+Minh&limit=1"
         val endpoints = listOf(
-            "http://192.168.1.114:2322/api/?q=Ho+Chi+Minh&limit=1",
+            nasPhotonUrl,
             "https://photon.komoot.io/api/?q=Ho+Chi+Minh&limit=1"
         )
         val client = OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build()
@@ -680,14 +624,24 @@ class SettingsFragment : Fragment() {
         return false
     }
 
-    private fun testPelias(): Boolean {
-        val url = "https://api.geocode.earth/v1/autocomplete?text=Ho+Chi+Minh&size=1"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful || it.code == 401 } } catch (e: Exception) { false }
+    private fun testNasGraphhopper(): Boolean {
+        val url = NasConnectionManager.getGraphHopperBaseUrl(requireContext()) + "/health"
+        return try { OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
-    private fun testEsri(): Boolean {
-        val url = "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/0/0/0"
-        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    private fun testNasFusionEngine(): Boolean {
+        val url = NasConnectionManager.getFusionEngineBaseUrl(requireContext()) + "/health"
+        return try { OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testNasNominatim(): Boolean {
+        val url = NasConnectionManager.getNominatimBaseUrl(requireContext()) + "/status?format=json"
+        return try { OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+    }
+
+    private fun testValhalla(): Boolean {
+        val url = "https://valhalla.opentripplanner.org/status"
+        return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful || it.code == 404 } } catch (e: Exception) { false }
     }
 
     // ----------------------------------------------------
@@ -1193,7 +1147,7 @@ class SettingsFragment : Fragment() {
         if (savedUrl.isNotEmpty()) {
             binding.etGithubUpdateUrl.setText(savedUrl)
         } else {
-            binding.etGithubUpdateUrl.setText("https://raw.githubusercontent.com/phamn/TYMAP/main/version.json")
+            binding.etGithubUpdateUrl.setText("https://git.nas152.duckdns.org/nas152/TYMAP/raw/branch/main/version.json")
         }
 
         binding.etGithubUpdateUrl.addTextChangedListener {
@@ -1206,7 +1160,7 @@ class SettingsFragment : Fragment() {
 
         binding.btnCheckUpdate.setOnClickListener {
             val ctx = context ?: return@setOnClickListener
-            binding.tvUpdateStatus.text = "Đang kiểm tra máy chủ GitHub..."
+            binding.tvUpdateStatus.text = "Đang kiểm tra máy chủ cập nhật (Gitea NAS / Fusion Engine / GitHub)..."
             binding.progressUpdate.visibility = View.VISIBLE
             binding.btnCheckUpdate.isEnabled = false
 

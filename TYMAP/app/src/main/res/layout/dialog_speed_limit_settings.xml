@@ -281,7 +281,7 @@
             android:id="@+id/tvAutoSpeedTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Tự động lấy giới hạn tốc độ từ API (OSM/HERE/TomTom)"
+            android:text="Tự động lấy tốc độ từ Overpass API (NAS / OSM / HERE / TomTom)"
             android:textColor="#F8FAFC"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -292,7 +292,7 @@
             android:layout_below="@id/tvAutoSpeedTitle"
             android:layout_toStartOf="@id/swAutoSpeedLimit"
             android:layout_alignParentStart="true"
-            android:text="Tự đổi biển báo theo đoạn đường. Khi vào hẻm/đường chưa có API sẽ giữ mức thủ công."
+            android:text="Ưu tiên Overpass NAS (Port 8088) siêu tốc, tự đổi biển theo đoạn đường. Khi vào hẻm/chưa có API sẽ giữ mức thủ công."
             android:textColor="#94A3B8"
             android:textSize="11sp" />
 

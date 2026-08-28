@@ -5,14 +5,16 @@ import android.location.Location
 import android.util.Log
 import com.example.tymap.ble.MyBleManager
 import com.example.tymap.repository.NavigationRepository
+import com.example.tymap.utils.NasConnectionManager
 import com.example.tymap.utils.PrefsHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.CopyOnWriteArrayList
@@ -34,22 +36,19 @@ data class TrafficWarningPoint(
     val type: Byte,          // Loại cảnh báo (0x01: Camera, 0x02: Speed limit)
     val speedLimit: Int,     // Giới hạn tốc độ (km/h), = 0 nếu chỉ là Camera
     val lat: Double,         // Vĩ độ
-    val lon: Double          // Kinh độ
+    val lon: Double,         // Kinh độ
+    val description: String = "" // Mô tả / tên đường
 )
 
 /**
- * Quản lý Cảnh báo Giao thông (Hybrid Goong.io + Overpass API)
- * - Tối ưu API Request qua cơ chế Caching trên RAM.
- * - Kiểm tra vị trí Offline mỗi giây bằng thuật toán tính khoảng cách Haversine / Location.distanceBetween.
+ * Quản lý Cảnh báo Giao thông (Fusion Engine Node.js & Overpass Cloud Fallback)
+ * - Tải dữ liệu lọc theo Polyline từ Fusion Engine trên NAS (Port 8088).
+ * - Tự động Fallback sang cụm Overpass API công cộng khi mất kết nối NAS hoặc ngoài đường (4G).
+ * - Lưu toàn bộ mảng cảnh báo vào RAM Cache trên điện thoại.
+ * - Kiểm tra vị trí Offline mỗi giây bằng thuật toán tính khoảng cách Haversine / Location.distanceBetween (không phụ thuộc 4G).
  */
 object TrafficWarningManager {
     private const val TAG = "TrafficWarningManager"
-
-    // OkHttpClient tái sử dụng từ hệ thống
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
 
     // Scope coroutine ngầm cho công việc tải dữ liệu
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -57,7 +56,7 @@ object TrafficWarningManager {
     // Danh sách lưu trữ mảng tọa độ cảnh báo trong RAM (An toàn đa luồng)
     private val warningCache = CopyOnWriteArrayList<TrafficWarningPoint>()
 
-    // Vị trí tâm quét API Overpass gần nhất (dùng cho Spatial Cache)
+    // Vị trí tâm quét API gần nhất (dùng cho Spatial Cache)
     private var lastQueryCenter: Location? = null
 
     // Đang trong quá trình tải dữ liệu API ngầm hay không
@@ -70,49 +69,150 @@ object TrafficWarningManager {
     // Ngưỡng khoảng cách phát cảnh báo (200m)
     private const val WARNING_DISTANCE_METERS = 200f
 
-    // Ngưỡng khoảng cách di chuyển để quét lại Overpass (1.5km = 1500m)
+    // Ngưỡng khoảng cách di chuyển để quét lại (1.5km = 1500m)
     private const val SPATIAL_REQUERY_THRESHOLD_METERS = 1500f
 
     // Thời gian Cooldown giữa 2 lần cảnh báo cùng 1 điểm (15 giây)
     private const val WARNING_COOLDOWN_MS = 15000L
 
     /**
-     * BƯỚC 1 (PRIMARY): Tải dữ liệu cảnh báo từ Overpass API (NAS Server hoặc Public) khi bắt đầu lộ trình mới.
-     * Hàm này chỉ gọi ĐÚNG 1 LẦN duy nhất khi khởi tạo lộ trình.
+     * BƯỚC 1 (PRIMARY): Tải dữ liệu cảnh báo từ NAS Fusion Engine khi bắt đầu lộ trình mới.
+     * Tự động Fallback sang Overpass công cộng khi mất kết nối NAS.
      */
     fun fetchRouteWarningsFromGoong(context: Context, routePolyline: List<Pair<Double, Double>>) {
+        fetchRouteWarnings(context, routePolyline)
+    }
+
+    fun fetchRouteWarnings(context: Context, routePolyline: List<Pair<Double, Double>>) {
         if (routePolyline.isEmpty()) return
 
         scope.launch {
-            try {
-                Log.d(TAG, "==> [Overpass API] Đang tải dữ liệu cảnh báo cho toàn bộ lộ trình...")
-                val newPoints = mutableListOf<TrafficWarningPoint>()
+            var loaded = false
 
-                // Gọi Overpass cho Polyline (ưu tiên NAS Overpass port 8088, fallback sang Overpass public)
-                fetchOverpassForPolyline(context, routePolyline, newPoints)
+            // 1. Thử NAS Fusion Engine (Port 8088 hoặc https://alert.domain) nếu NAS online
+            if (NasConnectionManager.isNasPotentiallyAvailable(context)) {
+                try {
+                    Log.d(TAG, "==> [Fusion Engine] Đang tải dữ liệu cảnh báo dọc lộ trình từ NAS...")
+                    val fusionBaseUrl = NasConnectionManager.getFusionEngineBaseUrl(context)
 
-                // Cập nhật RAM Cache an toàn
-                warningCache.clear()
-                warningCache.addAll(newPoints)
-                Log.d(TAG, "==> [Overpass] Đã nạp thành công ${warningCache.size} điểm cảnh báo vào RAM Cache")
+                    val polyArray = JSONArray()
+                    for (pt in routePolyline) {
+                        val coord = JSONArray()
+                        coord.put(pt.first)
+                        coord.put(pt.second)
+                        polyArray.put(coord)
+                    }
+                    val requestJson = JSONObject().apply {
+                        put("polyline", polyArray)
+                        put("bufferMeters", 50)
+                    }
 
-            } catch (e: Exception) {
-                Log.e(TAG, "Lỗi tải cảnh báo Overpass: ${e.message}", e)
+                    val body = requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+                    val url = "$fusionBaseUrl/api/warnings/route"
+                    val request = Request.Builder()
+                        .url(url)
+                        .post(body)
+                        .header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)")
+                        .build()
+
+                    val response = NasConnectionManager.nasHttpClient.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val jsonStr = response.body?.string()
+                        if (!jsonStr.isNullOrEmpty()) {
+                            val parsedPoints = parseFusionEngineJson(jsonStr)
+                            if (parsedPoints.isNotEmpty()) {
+                                warningCache.clear()
+                                warningCache.addAll(parsedPoints)
+                                NavigationRepository.updateTrafficWarningPoints(warningCache.toList())
+                                NasConnectionManager.markNasSuccess()
+                                loaded = true
+                                Log.d(TAG, "==> [Fusion Engine] Đã nạp thành công ${warningCache.size} điểm cảnh báo vào RAM Cache")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (NasConnectionManager.isConnectionFailure(e)) {
+                        NasConnectionManager.markNasFailed(e.message)
+                    }
+                    Log.w(TAG, "Lỗi kết nối Fusion Engine NAS: ${e.message}")
+                }
+            }
+
+            // 2. Fallback sang Overpass API công cộng dọc lộ trình nếu NAS offline hoặc không có dữ liệu
+            if (!loaded && routePolyline.isNotEmpty()) {
+                fetchRouteWarningsFromPublicOverpass(routePolyline)
             }
         }
     }
 
     /**
-     * BƯỚC 2 (FALLBACK / FREE ROAMING): Truy vấn Overpass API theo bán kính 2km.
-     * Áp dụng cơ chế SPATIAL CACHING: Chỉ quét lại khi di chuyển > 1.5km so với tâm quét cũ.
+     * Quét cảnh báo Overpass API công cộng dọc theo lộ trình
      */
-    fun checkAndFetchSpatialOverpass(location: Location) {
-        // Kiểm tra xem đã di chuyển quá 1.5km so với vị trí quét cũ chưa
+    private fun fetchRouteWarningsFromPublicOverpass(routePolyline: List<Pair<Double, Double>>) {
+        try {
+            // Lấy các điểm mấu chốt dọc tuyến (đầu, giữa, cuối) để quét bán kính 3000m
+            val sampledPoints = mutableListOf<Pair<Double, Double>>()
+            val step = (routePolyline.size / 4).coerceAtLeast(1)
+            for (i in routePolyline.indices step step) {
+                sampledPoints.add(routePolyline[i])
+                if (sampledPoints.size >= 5) break
+            }
+            if (!sampledPoints.contains(routePolyline.last())) {
+                sampledPoints.add(routePolyline.last())
+            }
+
+            val queryBuilder = StringBuilder("[out:json][timeout:8];(")
+            for (pt in sampledPoints) {
+                queryBuilder.append("node[\"highway\"=\"speed_camera\"](around:3000,${pt.first},${pt.second});")
+                queryBuilder.append("node[\"maxspeed\"](around:3000,${pt.first},${pt.second});")
+            }
+            queryBuilder.append(");out body;")
+
+            val endpoints = listOf(
+                "https://overpass-api.de/api/interpreter",
+                "https://overpass.kumi.systems/api/interpreter",
+                "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+            )
+
+            for (endpoint in endpoints) {
+                try {
+                    val formBody = okhttp3.FormBody.Builder().add("data", queryBuilder.toString()).build()
+                    val request = Request.Builder().url(endpoint).post(formBody).header("User-Agent", "TYMAP-Android/1.0").build()
+                    NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val bodyStr = response.body?.string() ?: return@use
+                            val json = JSONObject(bodyStr)
+                            val elements = json.optJSONArray("elements")
+                            if (elements != null && elements.length() > 0) {
+                                val parsed = parseOverpassElements(elements)
+                                if (parsed.isNotEmpty()) {
+                                    warningCache.clear()
+                                    warningCache.addAll(parsed)
+                                    NavigationRepository.updateTrafficWarningPoints(warningCache.toList())
+                                    Log.d(TAG, "==> [Overpass Cloud] Đã tải ${parsed.size} điểm cảnh báo dọc tuyến từ $endpoint")
+                                    return
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Overpass fallback $endpoint failed: ${e.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Lỗi fetchRouteWarningsFromPublicOverpass: ${e.message}")
+        }
+    }
+
+    /**
+     * BƯỚC 2 (FREE ROAMING): Quét bán kính xung quanh khi xe di chuyển tự do.
+     * Chỉ gửi request khi đã di chuyển > 1.5km so với tâm cũ.
+     */
+    fun checkAndFetchSpatialOverpass(context: Context, location: Location) {
         val lastCenter = lastQueryCenter
         if (lastCenter != null) {
             val distFromLastCenter = location.distanceTo(lastCenter)
             if (distFromLastCenter < SPATIAL_REQUERY_THRESHOLD_METERS) {
-                // Chưa vượt ngưỡng 1.5km -> Bỏ qua API Request, dùng lại RAM Cache
                 return
             }
         }
@@ -122,52 +222,77 @@ object TrafficWarningManager {
 
         scope.launch {
             try {
-                Log.d(TAG, "==> [Overpass API] Xe đã di chuyển > 1.5km -> Quét lại bán kính 2km xung quanh Lat: ${location.latitude}, Lon: ${location.longitude}")
-                
+                var loaded = false
                 val lat = location.latitude
                 val lon = location.longitude
-                
-                // Overpass QL Query: Lấy node camera và way/node giới hạn tốc độ trong bán kính 2000m
-                val overpassQuery = """
-                    [out:json][timeout:15];
-                    (
-                      node["highway"="speed_camera"](around:2000,$lat,$lon);
-                      node["maxspeed"](around:2000,$lat,$lon);
-                      way["maxspeed"](around:2000,$lat,$lon);
-                    );
-                    out body;
-                    >;
-                    out skel qt;
-                """.trimIndent()
 
-                val url = "https://overpass-api.de/api/interpreter?data=" + java.net.URLEncoder.encode(overpassQuery, "UTF-8")
-                val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0 (Android Motorcycle Navigation)").build()
-                
-                var response = try { httpClient.newCall(request).execute() } catch (e: Exception) { null }
-                if (response == null || !response.isSuccessful) {
-                    val fallbackUrl = "https://overpass.kumi.systems/api/interpreter?data=" + java.net.URLEncoder.encode(overpassQuery, "UTF-8")
-                    val fallbackRequest = Request.Builder().url(fallbackUrl).header("User-Agent", "TYMAP/1.0 (Android Motorcycle Navigation)").build()
-                    response = try { httpClient.newCall(fallbackRequest).execute() } catch (e: Exception) { null }
+                // 1. Thử NAS Fusion Engine trước nếu NAS online
+                if (NasConnectionManager.isNasPotentiallyAvailable(context)) {
+                    val fusionBaseUrl = NasConnectionManager.getFusionEngineBaseUrl(context)
+                    val url = "$fusionBaseUrl/api/warnings/nearby?lat=$lat&lon=$lon&radius=2000"
+                    try {
+                        val request = Request.Builder()
+                            .url(url)
+                            .header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)")
+                            .build()
+
+                        val response = NasConnectionManager.nasHttpClient.newCall(request).execute()
+                        if (response.isSuccessful) {
+                            val jsonStr = response.body?.string()
+                            if (!jsonStr.isNullOrEmpty()) {
+                                val parsedPoints = parseFusionEngineJson(jsonStr)
+                                if (parsedPoints.isNotEmpty()) {
+                                    warningCache.clear()
+                                    warningCache.addAll(parsedPoints)
+                                    NavigationRepository.updateTrafficWarningPoints(warningCache.toList())
+                                    lastQueryCenter = Location(location)
+                                    NasConnectionManager.markNasSuccess()
+                                    loaded = true
+                                    Log.d(TAG, "==> [Fusion Engine Nearby] Đã cập nhật ${warningCache.size} điểm cảnh báo vào RAM Cache")
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (NasConnectionManager.isConnectionFailure(e)) {
+                            NasConnectionManager.markNasFailed(e.message)
+                        }
+                    }
                 }
 
-                if (response != null && response.isSuccessful) {
-                    val jsonStr = response.body?.string()
-                    if (!jsonStr.isNullOrEmpty()) {
-                        val parsedPoints = parseOverpassJson(jsonStr)
-                        
-                        // Cập nhật RAM Cache
-                        warningCache.clear()
-                        warningCache.addAll(parsedPoints)
-                        
-                        // Đánh dấu vị trí tâm quét mới
-                        lastQueryCenter = Location(location)
-                        Log.d(TAG, "==> [Overpass API] Đã cập nhật ${warningCache.size} điểm cảnh báo mới vào RAM Cache")
+                // 2. Fallback sang Overpass Cloud nếu NAS offline
+                if (!loaded) {
+                    val query = "[out:json][timeout:8];(node[\"highway\"=\"speed_camera\"](around:2500,$lat,$lon);node[\"maxspeed\"](around:2500,$lat,$lon););out body;"
+                    val endpoints = listOf(
+                        "https://overpass-api.de/api/interpreter",
+                        "https://overpass.kumi.systems/api/interpreter"
+                    )
+
+                    for (endpoint in endpoints) {
+                        try {
+                            val formBody = okhttp3.FormBody.Builder().add("data", query).build()
+                            val request = Request.Builder().url(endpoint).post(formBody).header("User-Agent", "TYMAP-Android/1.0").build()
+                            NasConnectionManager.publicHttpClient.newCall(request).execute().use { response ->
+                                if (response.isSuccessful) {
+                                    val bodyStr = response.body?.string() ?: return@use
+                                    val json = JSONObject(bodyStr)
+                                    val elements = json.optJSONArray("elements")
+                                    if (elements != null && elements.length() > 0) {
+                                        val parsed = parseOverpassElements(elements)
+                                        warningCache.clear()
+                                        warningCache.addAll(parsed)
+                                        NavigationRepository.updateTrafficWarningPoints(warningCache.toList())
+                                        lastQueryCenter = Location(location)
+                                        loaded = true
+                                        Log.d(TAG, "==> [Overpass Nearby Cloud] Đã nạp ${parsed.size} điểm cảnh báo lân cận")
+                                        return@launch
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {}
                     }
-                } else {
-                    Log.w(TAG, "Overpass API trả về mã lỗi HTTP: ${response?.code ?: "Unknown"}")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Lỗi quét Overpass API: ${e.message}")
+                Log.w(TAG, "Lỗi quét cảnh báo lân cận: ${e.message}")
             } finally {
                 isFetchingApi = false
             }
@@ -176,14 +301,14 @@ object TrafficWarningManager {
 
     /**
      * BƯỚC 3 (OFFLINE CHECK): Quét mảng RAM Cache mỗi khi có tọa độ GPS mới (mỗi giây).
-     * Thuật toán tính khoảng cách hoàn toàn Offline (Location.distanceBetween).
+     * Thuật toán tính khoảng cách hoàn toàn Offline (Location.distanceBetween) không phụ thuộc mạng 4G.
      */
     fun checkGpsLocation(context: Context, location: Location, bleManager: MyBleManager?) {
         val isNavigating = NavigationRepository.navigationState.value
 
-        // Nếu không trong chế độ dẫn đường (Chạy xe tự do), kích hoạt kiểm tra Spatial Overpass
+        // Nếu không trong chế độ dẫn đường (Chạy xe tự do), kích hoạt kiểm tra lân cận
         if (!isNavigating) {
-            checkAndFetchSpatialOverpass(location)
+            checkAndFetchSpatialOverpass(context, location)
         }
 
         if (warningCache.isEmpty()) return
@@ -202,7 +327,7 @@ object TrafficWarningManager {
 
             val distanceMeters = results[0]
 
-            // Nếu khoảng cách < 200m
+            // Nếu khoảng cách <= 200m
             if (distanceMeters <= WARNING_DISTANCE_METERS) {
                 val lastTriggered = lastTriggeredTimeMap[point.id] ?: 0L
 
@@ -210,13 +335,25 @@ object TrafficWarningManager {
                 if (now - lastTriggered > WARNING_COOLDOWN_MS) {
                     lastTriggeredTimeMap[point.id] = now
 
-                    Log.i(TAG, "🚨 [CẢNH BÁO GIAO THÔNG] Loại: ${if (point.type == WarningType.CAMERA) "Camera Phạt Nguội" else "Biển Tốc Độ ${point.speedLimit}km/h"}, Khoảng cách: ${distanceMeters.toInt()}m")
+                    val alertName = if (point.type == WarningType.CAMERA) {
+                        "Camera Phạt Nguội"
+                    } else {
+                        "Biển Tốc Độ ${point.speedLimit}km/h"
+                    }
+                    Log.i(TAG, "🚨 [CẢNH BÁO GIAO THÔNG] Loại: $alertName, Khoảng cách: ${distanceMeters.toInt()}m")
                     
-                    // Ghi log lên repository
-                    val logMsg = if (point.type == WarningType.CAMERA) "Camera phạt nguội (${distanceMeters.toInt()}m)" else "Biển giới hạn tốc độ ${point.speedLimit}km/h (${distanceMeters.toInt()}m)"
+                    val logMsg = "$alertName (${distanceMeters.toInt()}m)"
                     NavigationRepository.addLog("🚨 Alert: $logMsg")
+                    NavigationRepository.triggerTrafficAlert(
+                        NavigationRepository.TrafficAlert(
+                            type = point.type,
+                            speedLimit = point.speedLimit,
+                            distanceMeters = distanceMeters.toInt(),
+                            message = logMsg
+                        )
+                    )
 
-                    // Gửi tín hiệu BLE tới ESP32
+                    // Gửi tín hiệu BLE Hex nhị phân tới ESP32
                     if (bleManager != null && bleManager.isConnected) {
                         bleManager.sendTrafficWarning(point.type, point.speedLimit.toByte())
                     }
@@ -229,127 +366,67 @@ object TrafficWarningManager {
     }
 
     /**
-     * Hàm phân tích dữ liệu JSON trả về từ Overpass API
+     * Phân tích JSON trả về từ Fusion Engine
      */
-    private fun parseOverpassJson(jsonStr: String): List<TrafficWarningPoint> {
+    private fun parseFusionEngineJson(jsonStr: String): List<TrafficWarningPoint> {
         val points = mutableListOf<TrafficWarningPoint>()
         try {
-            val rootObj = JSONObject(jsonStr)
-            val elements: JSONArray = rootObj.optJSONArray("elements") ?: return points
+            val root = JSONObject(jsonStr)
+            val array = root.optJSONArray("points") ?: return points
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val id = obj.optString("id", "pt_$i")
+                val typeInt = obj.optInt("type", 1)
+                val typeByte = if (typeInt == 2) WarningType.SPEED_LIMIT else WarningType.CAMERA
+                val speedLimit = obj.optInt("speedLimit", 0)
+                val lat = obj.optDouble("lat", 0.0)
+                val lon = obj.optDouble("lon", 0.0)
+                val desc = obj.optString("description", "")
 
-            for (i in 0 until elements.length()) {
-                val elem = elements.getJSONObject(i)
-                val typeStr = elem.optString("type")
-                val id = elem.optLong("id").toString()
-
-                if (typeStr == "node") {
-                    val lat = elem.optDouble("lat", 0.0)
-                    val lon = elem.optDouble("lon", 0.0)
-                    val tags = elem.optJSONObject("tags")
-
-                    if (tags != null) {
-                        // 1. Kiểm tra Camera phạt nguội
-                        if (tags.optString("highway") == "speed_camera") {
-                            points.add(TrafficWarningPoint(
-                                id = "cam_$id",
-                                type = WarningType.CAMERA,
-                                speedLimit = 0,
-                                lat = lat,
-                                lon = lon
-                            ))
-                        }
-
-                        // 2. Kiểm tra Biển giới hạn tốc độ
-                        if (tags.has("maxspeed")) {
-                            val maxSpeedRaw = tags.optString("maxspeed")
-                            val speedVal = parseSpeedLimitValue(maxSpeedRaw)
-                            if (speedVal > 0) {
-                                points.add(TrafficWarningPoint(
-                                    id = "speed_$id",
-                                    type = WarningType.SPEED_LIMIT,
-                                    speedLimit = speedVal,
-                                    lat = lat,
-                                    lon = lon
-                                ))
-                            }
-                        }
-                    }
+                if (lat != 0.0 && lon != 0.0) {
+                    points.add(TrafficWarningPoint(
+                        id = id,
+                        type = typeByte,
+                        speedLimit = speedLimit,
+                        lat = lat,
+                        lon = lon,
+                        description = desc
+                    ))
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Lỗi parse JSON Overpass: ${e.message}")
+            Log.e(TAG, "Lỗi parse JSON Fusion Engine: ${e.message}")
         }
         return points
     }
 
     /**
-     * Phân tích chuỗi maxspeed (Ví dụ: "50", "60 km/h", "VN:urban" -> 50)
+     * Phân tích JSON trả về từ Overpass API sang TrafficWarningPoint
      */
-    private fun parseSpeedLimitValue(rawSpeed: String): Int {
-        val digits = rawSpeed.replace("[^0-9]".toRegex(), "")
-        return digits.toIntOrNull() ?: when {
-            rawSpeed.contains("urban", ignoreCase = true) -> 50
-            rawSpeed.contains("rural", ignoreCase = true) -> 80
-            rawSpeed.contains("motorway", ignoreCase = true) -> 120
-            else -> 0
-        }
-    }
+    private fun parseOverpassElements(elements: JSONArray): List<TrafficWarningPoint> {
+        val points = mutableListOf<TrafficWarningPoint>()
+        for (i in 0 until elements.length()) {
+            val node = elements.getJSONObject(i)
+            val lat = node.optDouble("lat", 0.0)
+            val lon = node.optDouble("lon", 0.0)
+            val tags = node.optJSONObject("tags") ?: JSONObject()
+            val isCam = tags.optString("highway") == "speed_camera" || tags.optString("traffic_signals") == "camera"
+            val maxspeedStr = tags.optString("maxspeed", "")
+            val speedLimit = SpeedLimitEngine.parseSpeedString(maxspeedStr)
 
-    /**
-     * Fallback phân tích dữ liệu Goong
-     */
-    private fun parseGoongResponseBody(jsonStr: String, outList: MutableList<TrafficWarningPoint>) {
-        try {
-            val root = JSONObject(jsonStr)
-            // Parse Goong structure if present
-        } catch (e: Exception) {
-            Log.e(TAG, "Lỗi parse Goong JSON: ${e.message}")
-        }
-    }
-
-    /**
-     * Phân tích Overpass cho danh sách điểm lộ trình Polyline
-     */
-    private fun fetchOverpassForPolyline(context: Context, polyline: List<Pair<Double, Double>>, outList: MutableList<TrafficWarningPoint>) {
-        if (polyline.isEmpty()) return
-        // Lấy tâm trung bình của polyline để query bán kính bao phủ
-        val midPt = polyline[polyline.size / 2]
-        val lat = midPt.first
-        val lon = midPt.second
-
-        val query = """
-            [out:json][timeout:15];
-            (
-              node["highway"="speed_camera"](around:5000,$lat,$lon);
-              node["maxspeed"](around:5000,$lat,$lon);
-            );
-            out body;
-        """.trimIndent()
-
-        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-        val nasIp = PrefsHelper.getString(context, "nas_ip", "192.168.1.114").ifEmpty { "192.168.1.114" }
-
-        val urls = listOf(
-            "http://$nasIp:8088/api/interpreter?data=$encodedQuery",
-            "https://overpass-api.de/api/interpreter?data=$encodedQuery",
-            "https://overpass.kumi.systems/api/interpreter?data=$encodedQuery"
-        )
-
-        for (url in urls) {
-            try {
-                val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0 (Android Motorcycle Navigation)").build()
-                val response = httpClient.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val jsonStr = response.body?.string()
-                    if (!jsonStr.isNullOrEmpty()) {
-                        outList.addAll(parseOverpassJson(jsonStr))
-                        Log.d(TAG, "Lấy thành công dữ liệu Overpass từ: $url")
-                        break
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Thất bại kết nối Overpass URL ($url): ${e.message}")
+            if (lat != 0.0 && lon != 0.0) {
+                val type = if (isCam) WarningType.CAMERA else WarningType.SPEED_LIMIT
+                val desc = if (isCam) "Camera Phạt Nguội" else "Biển $speedLimit km/h"
+                points.add(TrafficWarningPoint(
+                    id = "osm_${node.optLong("id", i.toLong())}",
+                    type = type,
+                    speedLimit = speedLimit,
+                    lat = lat,
+                    lon = lon,
+                    description = desc
+                ))
             }
         }
+        return points
     }
 }
