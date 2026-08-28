@@ -2054,7 +2054,7 @@
                         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="URL Cấu hình Version JSON (GitHub Raw)"
+                        android:hint="URL Cấu hình Version JSON (Gitea NAS / GitHub)"
                         android:layout_marginTop="8dp"
                         android:layout_marginBottom="8dp">
                         <com.google.android.material.textfield.TextInputEditText
@@ -2068,7 +2068,7 @@
                         android:id="@+id/tvUpdateStatus"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Nhấn kiểm tra để tra cứu bản cập nhật mới nhất từ GitHub."
+                        android:text="Nhấn kiểm tra để tra cứu bản cập nhật mới nhất từ Gitea NAS &amp; GitHub."
                         android:textSize="13sp"
                         android:textColor="?attr/colorOnSurfaceVariant"
                         android:layout_marginBottom="8dp" />

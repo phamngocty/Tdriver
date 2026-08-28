@@ -1236,46 +1236,62 @@ class SettingsFragment : Fragment() {
             val info = currentUpdateInfo ?: return@setOnClickListener
             val bleManager = NavigationService.bleManager
             if (bleManager == null || NavigationRepository.bleConnectionState.value != NavigationRepository.BleConnectionState.Ready) {
-                Toast.makeText(ctx, "Vui lòng kết nối BLE tới ESP32 trước khi nạp OTA!", Toast.LENGTH_LONG).show()
+                Toast.makeText(ctx, "Vui lòng kết nối Bluetooth BLE tới ESP32 trước khi nạp OTA!", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
 
-            binding.btnApplyFwUpdate.isEnabled = false
-            binding.progressUpdate.visibility = View.VISIBLE
-            binding.tvUpdateStatus.text = "Đang tải firmware.bin v${info.firmwareVersionName} từ GitHub..."
-
-            lifecycleScope.launch {
-                val binData = UpdateManager.downloadFirmwareBin(info.firmwareBinUrl)
-                if (binData == null || binData.isEmpty()) {
-                    if (_binding != null) {
-                        binding.progressUpdate.visibility = View.GONE
-                        binding.btnApplyFwUpdate.isEnabled = true
-                        binding.tvUpdateStatus.text = "❌ Lỗi tải file firmware.bin!"
-                    }
-                    return@launch
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(ctx)
+                .setTitle("Cập nhật Firmware ESP32 OTA")
+                .setMessage("Chuẩn bị nạp Firmware v${info.firmwareVersionName} (Code: ${info.firmwareVersionCode}) không dây qua Bluetooth BLE vào đồng hồ ESP32.\n\n⚠️ Lưu ý:\n• Giữ điện thoại gần đồng hồ xe máy.\n• Không tắt khóa xe trong khi đang truyền dữ liệu.")
+                .setPositiveButton("Bắt đầu nạp") { _, _ ->
+                    startFirmwareOtaFlash(ctx, info, bleManager)
                 }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
 
+    private fun startFirmwareOtaFlash(ctx: Context, info: UpdateInfo, bleManager: com.example.tymap.ble.MyBleManager) {
+        binding.btnApplyFwUpdate.isEnabled = false
+        binding.progressUpdate.visibility = View.VISIBLE
+        binding.progressUpdate.progress = 0
+        binding.tvUpdateStatus.text = "Đang tải firmware.bin v${info.firmwareVersionName} từ máy chủ NAS / Gitea..."
+
+        lifecycleScope.launch {
+            val binData = UpdateManager.downloadFirmwareBin(info.firmwareBinUrl)
+            if (binData == null || binData.isEmpty()) {
                 if (_binding != null) {
-                    binding.tvUpdateStatus.text = "Đang nạp không dây qua BLE sang ESP32 (0%)..."
+                    binding.progressUpdate.visibility = View.GONE
+                    binding.btnApplyFwUpdate.isEnabled = true
+                    binding.tvUpdateStatus.text = "❌ Lỗi tải file firmware.bin từ máy chủ!"
                 }
-                val ok = bleManager.writeEsp32FirmwareOta(binData) { progress ->
-                    if (_binding != null) {
-                        binding.progressUpdate.progress = progress
-                        binding.tvUpdateStatus.text = "Đang nạp Firmware sang ESP32 qua BLE: $progress%"
-                    }
-                }
+                return@launch
+            }
 
-                if (_binding == null) return@launch
-                binding.progressUpdate.visibility = View.GONE
-                binding.btnApplyFwUpdate.isEnabled = true
+            val totalKb = binData.size / 1024
+            if (_binding != null) {
+                binding.tvUpdateStatus.text = "Bắt đầu truyền Firmware qua Bluetooth BLE ($totalKb KB)..."
+            }
 
-                if (ok) {
-                    PrefsHelper.putInt(ctx, "esp32_fw_version_code", info.firmwareVersionCode)
-                    binding.tvUpdateStatus.text = "✅ Đã hoàn tất nạp Firmware v${info.firmwareVersionName}! ESP32 đang khởi động lại..."
-                    binding.btnApplyFwUpdate.visibility = View.GONE
-                } else {
-                    binding.tvUpdateStatus.text = "❌ Thất bại khi truyền Firmware BLE sang ESP32!"
+            val ok = bleManager.writeEsp32FirmwareOta(binData) { progress ->
+                if (_binding != null) {
+                    binding.progressUpdate.progress = progress
+                    val currentKb = (binData.size * progress) / (100 * 1024)
+                    binding.tvUpdateStatus.text = "Đang nạp Firmware sang ESP32 qua BLE: $progress% ($currentKb / $totalKb KB)"
                 }
+            }
+
+            if (_binding == null) return@launch
+            binding.progressUpdate.visibility = View.GONE
+            binding.btnApplyFwUpdate.isEnabled = true
+
+            if (ok) {
+                PrefsHelper.putInt(ctx, "esp32_fw_version_code", info.firmwareVersionCode)
+                binding.tvUpdateStatus.text = "✅ Đã nạp thành công Firmware v${info.firmwareVersionName}! Đồng hồ ESP32 đang tự khởi động lại..."
+                binding.btnApplyFwUpdate.visibility = View.GONE
+                Toast.makeText(ctx, "Đã nạp Firmware ESP32 thành công!", Toast.LENGTH_LONG).show()
+            } else {
+                binding.tvUpdateStatus.text = "❌ Thất bại khi truyền Firmware BLE sang ESP32! Vui lòng thử lại gần xe hơn."
             }
         }
     }
