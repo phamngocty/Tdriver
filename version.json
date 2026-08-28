@@ -1,14 +1,14 @@
 {
   "app": {
-    "versionCode": 5,
+    "versionCode": 1,
     "versionName": "1.0.5",
-    "apkUrl": "https://git.nas152.duckdns.org/nas152/Tdriver/releases/download/v1.0.5/app-debug.apk",
-    "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n• Đã có Update OTA"
+    "apkUrl": "",
+    "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n\nDÃ CÓ UPDATEOTA"
   },
   "firmware": {
-    "versionCode": 5,
+    "versionCode": 1,
     "versionName": "1.0.5",
-    "binUrl": "https://git.nas152.duckdns.org/nas152/Tdriver/releases/download/v1.0.5/firmware.bin",
-    "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n• Đã có Update OTA"
+    "binUrl": "",
+    "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n\nDÃ CÓ UPDATEOTA"
   }
 }
