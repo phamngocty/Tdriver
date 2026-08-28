@@ -106,6 +106,10 @@ object UpdateManager {
                         fwBinUrl = "$baseUrl/${fwBinUrl.removePrefix("./")}"
                     }
 
+                    val currentAppVerName = try {
+                        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+                    } catch (e: Exception) { "1.0.0" }
+
                     val currentAppVerCode = try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                             context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
@@ -115,10 +119,11 @@ object UpdateManager {
                         }
                     } catch (e: Exception) { 1 }
 
-                    val hasAppUpdate = appVerCode > currentAppVerCode && appApkUrl.isNotEmpty()
+                    val hasAppUpdate = (appVerCode > currentAppVerCode || isVersionHigher(appVerName, currentAppVerName)) && appApkUrl.isNotEmpty()
 
                     val currentFwVerCode = PrefsHelper.getInt(context, "esp32_fw_version_code", 0)
-                    val hasFirmwareUpdate = fwVerCode > currentFwVerCode && fwBinUrl.isNotEmpty()
+                    val currentFwVerName = PrefsHelper.getString(context, "esp32_fw_version_name", "1.0.0")
+                    val hasFirmwareUpdate = (fwVerCode > currentFwVerCode || isVersionHigher(fwVerName, currentFwVerName)) && fwBinUrl.isNotEmpty()
 
                     val info = UpdateInfo(
                         hasAppUpdate = hasAppUpdate,
@@ -141,6 +146,22 @@ object UpdateManager {
         }
 
         UpdateCheckResult.Error(lastError)
+    }
+
+    private fun isVersionHigher(remoteVer: String, currentVer: String): Boolean {
+        if (remoteVer.isEmpty()) return false
+        val cleanRemote = remoteVer.removePrefix("v").trim()
+        val cleanCurrent = currentVer.removePrefix("v").trim()
+        val remoteParts = cleanRemote.split(".").mapNotNull { it.toIntOrNull() }
+        val currentParts = cleanCurrent.split(".").mapNotNull { it.toIntOrNull() }
+        val maxLen = maxOf(remoteParts.size, currentParts.size)
+        for (i in 0 until maxLen) {
+            val r = remoteParts.getOrElse(i) { 0 }
+            val c = currentParts.getOrElse(i) { 0 }
+            if (r > c) return true
+            if (r < c) return false
+        }
+        return false
     }
 
     private fun clientNewCall(request: Request) = httpClient.newBuilder()
