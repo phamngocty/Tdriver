@@ -1144,14 +1144,31 @@ class SettingsFragment : Fragment() {
     private fun setupOtaUpdateUI() {
         var currentUpdateInfo: UpdateInfo? = null
 
+        val ctx = context
+        if (ctx != null) {
+            val appVerName = try {
+                ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "1.0.2"
+            } catch (e: Exception) { "1.0.2" }
+            val appVerCode = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toInt()
+                } else {
+                    @Suppress("DEPRECATION")
+                    ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionCode
+                }
+            } catch (e: Exception) { 2 }
+            val fwVerName = PrefsHelper.getString(ctx, "esp32_fw_version_name", "1.0.2")
+            binding.tvVersion.text = "Phiên bản App: v$appVerName (Build $appVerCode) • Firmware ESP32: v$fwVerName\n(Nhấp 5 lần để mở Tab Render)"
+        }
+
         binding.btnCheckUpdate.setOnClickListener {
-            val ctx = context ?: return@setOnClickListener
+            val currentCtx = context ?: return@setOnClickListener
             binding.tvUpdateStatus.text = "Đang kiểm tra máy chủ cập nhật (Gitea NAS / Fusion Engine / GitHub)..."
             binding.progressUpdate.visibility = View.VISIBLE
             binding.btnCheckUpdate.isEnabled = false
 
             lifecycleScope.launch {
-                val result = UpdateManager.checkUpdate(ctx)
+                val result = UpdateManager.checkUpdate(currentCtx)
                 if (_binding == null) return@launch
                 binding.progressUpdate.visibility = View.GONE
                 binding.btnCheckUpdate.isEnabled = true
