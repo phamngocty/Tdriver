@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 """
 TYMAP & Tdriver — Automated Release & OTA Distribution Tool
-Tự động build APK, đóng gói Firmware, upload lên Gitea NAS Releases, cập nhật version.json và sync NAS Fusion Engine.
+Tự động đồng bộ version vào build.gradle.kts, build APK, đóng gói Firmware, upload lên Gitea NAS Releases, cập nhật version.json và sync NAS Fusion Engine.
 """
 
 import os
 import sys
 import json
+import re
 import subprocess
 import urllib.request
 import urllib.parse
@@ -26,6 +27,7 @@ TYMAP_DIR = ROOT_DIR / "TYMAP"
 APK_PATH = TYMAP_DIR / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
 BIN_PATH = TYMAP_DIR / "firmware" / "esp32_s3_gc9a01" / ".pio" / "build" / "esp32-s3-devkitc-1" / "firmware.bin"
 VERSION_FILE = ROOT_DIR / "version.json"
+GRADLE_FILE = TYMAP_DIR / "app" / "build.gradle.kts"
 
 GITEA_SERVER = "http://192.168.1.114:3002"
 GITEA_PUBLIC_URL = "https://git.nas152.duckdns.org"
@@ -59,13 +61,31 @@ def get_current_version():
         "firmware": {"versionCode": 1, "versionName": "1.0.0", "binUrl": "", "changelog": ""}
     }
 
+def update_gradle_version(ver_code, ver_name):
+    """Tự động ghi đè versionCode và versionName vào app/build.gradle.kts"""
+    if GRADLE_FILE.exists():
+        content = GRADLE_FILE.read_text(encoding="utf-8")
+        content = re.sub(r'versionCode\s*=\s*\d+', f'versionCode = {ver_code}', content)
+        content = re.sub(r'versionName\s*=\s*"[^"]+"', f'versionName = "{ver_name}"', content)
+        GRADLE_FILE.write_text(content, encoding="utf-8")
+        print(f"✅ Đã đồng bộ build.gradle.kts: versionCode = {ver_code}, versionName = \"{ver_name}\"")
+
+def build_android_apk():
+    print("\n📦 Đang Build lại Android APK (assembleDebug)...")
+    gradle_cmd = ".\\gradlew.bat assembleDebug" if sys.platform == "win32" else "./gradlew assembleDebug"
+    ok, _ = run_cmd(gradle_cmd, cwd=TYMAP_DIR)
+    if ok and APK_PATH.exists():
+        size_mb = APK_PATH.stat().st_size / (1024 * 1024)
+        print(f"✅ Build APK thành công! ({size_mb:.2f} MB)")
+        return True
+    return False
+
 def create_gitea_release_and_upload(tag_name, release_name, changelog):
     """Tự động gọi API Gitea tạo Release và upload APK + BIN đính kèm."""
     print("\n📦 [2/4] Đang tạo Release & Upload File APK + Firmware BIN lên Gitea NAS...")
     try:
         import requests
     except ImportError:
-        # Tự cài requests nếu thiếu
         subprocess.run([sys.executable, "-m", "pip", "install", "requests"], check=False)
         import requests
 
@@ -99,12 +119,20 @@ def create_gitea_release_and_upload(tag_name, release_name, changelog):
     apk_url = f"{GITEA_PUBLIC_URL}/{GITEA_OWNER}/{GITEA_REPO}/releases/download/{tag_name}/app-debug.apk"
     bin_url = f"{GITEA_PUBLIC_URL}/{GITEA_OWNER}/{GITEA_REPO}/releases/download/{tag_name}/firmware.bin"
 
+    # Xóa file cũ đính kèm nếu đã có để upload file mới nhất
+    try:
+        old_assets = requests.get(f"{GITEA_SERVER}/api/v1/repos/{GITEA_OWNER}/{GITEA_REPO}/releases/{rel_id}/assets", auth=auth, timeout=15).json()
+        for a in old_assets:
+            requests.delete(f"{GITEA_SERVER}/api/v1/repos/{GITEA_OWNER}/{GITEA_REPO}/releases/{rel_id}/assets/{a.get('id')}", auth=auth, timeout=10)
+    except Exception:
+        pass
+
     # 2. Upload APK
     if APK_PATH.exists():
         print(f"📤 Đang upload APK ({APK_PATH.stat().st_size / (1024*1024):.1f} MB)...")
         try:
             with open(APK_PATH, "rb") as f:
-                up_resp = requests.post(f"{GITEA_SERVER}/api/v1/repos/{GITEA_OWNER}/{GITEA_REPO}/releases/{rel_id}/assets", auth=auth, files={"attachment": ("app-debug.apk", f, "application/octet-stream")}, timeout=180)
+                up_resp = requests.post(f"{GITEA_SERVER}/api/v1/repos/{GITEA_OWNER}/{GITEA_REPO}/releases/{rel_id}/assets?name=app-debug.apk", auth=auth, files={"attachment": ("app-debug.apk", f, "application/octet-stream")}, timeout=180)
                 if up_resp.status_code in (200, 201):
                     print("✅ Upload APK lên Gitea thành công!")
                 else:
@@ -119,7 +147,7 @@ def create_gitea_release_and_upload(tag_name, release_name, changelog):
         print(f"📤 Đang upload Firmware BIN ({BIN_PATH.stat().st_size / 1024:.1f} KB)...")
         try:
             with open(BIN_PATH, "rb") as f:
-                up_resp = requests.post(f"{GITEA_SERVER}/api/v1/repos/{GITEA_OWNER}/{GITEA_REPO}/releases/{rel_id}/assets", auth=auth, files={"attachment": ("firmware.bin", f, "application/octet-stream")}, timeout=180)
+                up_resp = requests.post(f"{GITEA_SERVER}/api/v1/repos/{GITEA_OWNER}/{GITEA_REPO}/releases/{rel_id}/assets?name=firmware.bin", auth=auth, files={"attachment": ("firmware.bin", f, "application/octet-stream")}, timeout=180)
                 if up_resp.status_code in (200, 201):
                     print("✅ Upload Firmware BIN lên Gitea thành công!")
                 else:
@@ -134,22 +162,17 @@ def create_gitea_release_and_upload(tag_name, release_name, changelog):
 def sync_version_to_nas(version_data):
     print("\n📡 [4/4] Đồng bộ trực tiếp version.json sang trạm NAS Fusion Engine...")
     try:
-        import requests
-        # Post directly to fusion engine or SSH
-        try:
-            import paramiko
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect("192.168.1.114", username="nas152", password="271000", timeout=5)
-            sftp = ssh.open_sftp()
-            v_temp = ROOT_DIR / "version.json"
-            sftp.put(str(v_temp), "/home/nas152/tymap_data/cameras/version.json")
-            sftp.close()
-            ssh.exec_command("docker restart tymap_fusion_engine")
-            ssh.close()
-            print("✅ Đã đồng bộ version.json sang máy chủ NAS (https://alert.nas152.duckdns.org/version.json)!")
-        except Exception:
-            pass
+        import paramiko
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect("192.168.1.114", username="nas152", password="271000", timeout=5)
+        sftp = ssh.open_sftp()
+        v_temp = ROOT_DIR / "version.json"
+        sftp.put(str(v_temp), "/home/nas152/tymap_data/cameras/version.json")
+        sftp.close()
+        ssh.exec_command("docker restart tymap_fusion_engine")
+        ssh.close()
+        print("✅ Đã đồng bộ version.json sang máy chủ NAS (https://alert.nas152.duckdns.org/version.json)!")
     except Exception as e:
         print(f"⚠️ Cảnh báo đồng bộ NAS: {e}")
 
@@ -181,7 +204,11 @@ def main():
     changelog_input = input("Changelog [Cập nhật cải tiến tính năng & sửa lỗi]: ").strip()
     changelog = changelog_input if changelog_input else "Cập nhật cải tiến tính năng & sửa lỗi."
 
-    # 1. Commit Git & Tạo Tag
+    # 1. Tự động đồng bộ vào app/build.gradle.kts & Build lại APK
+    update_gradle_version(ver_code, ver_name)
+    build_android_apk()
+
+    # 2. Commit Git & Tạo Tag
     print("\n🚀 [1/4] Commit Git & Tạo Tag...")
     run_cmd("git add .")
     run_cmd(f'git commit -m "release({tag_name}): publish update v{ver_name}"')
@@ -190,14 +217,14 @@ def main():
     run_cmd("git push origin main")
     run_cmd(f"git push origin {tag_name}")
 
-    # 2. Upload APK & BIN lên Gitea Releases
+    # 3. Upload APK & BIN lên Gitea Releases
     apk_url, bin_url = create_gitea_release_and_upload(tag_name, tag_name, changelog)
     if not apk_url:
         apk_url = f"{GITEA_PUBLIC_URL}/{GITEA_OWNER}/{GITEA_REPO}/releases/download/{tag_name}/app-debug.apk"
     if not bin_url:
         bin_url = f"{GITEA_PUBLIC_URL}/{GITEA_OWNER}/{GITEA_REPO}/releases/download/{tag_name}/firmware.bin"
 
-    # 3. Ghi file version.json & push
+    # 4. Ghi file version.json & push
     print("\n📝 [3/4] Cập nhật version.json...")
     new_version_data = {
         "app": {
@@ -222,7 +249,7 @@ def main():
     run_cmd("git push origin master")
     run_cmd("git push origin main")
 
-    # 4. Sync to NAS
+    # 5. Sync to NAS
     sync_version_to_nas(new_version_data)
 
     print("\n" + "=" * 65)
