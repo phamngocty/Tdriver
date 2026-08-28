@@ -52,10 +52,13 @@ object UpdateManager {
         if (customUrl.isNotEmpty()) {
             list.add(customUrl)
         }
+        list.add("https://git.nas152.duckdns.org/nas152/Tdriver/raw/branch/master/version.json")
+        list.add("http://192.168.1.114:3002/nas152/Tdriver/raw/branch/master/version.json")
+        list.add("https://git.nas152.duckdns.org/nas152/Tdriver/raw/branch/main/version.json")
+        list.add("http://192.168.1.114:3002/nas152/Tdriver/raw/branch/main/version.json")
+        list.add("https://alert.nas152.duckdns.org/version.json")
         list.add("https://git.nas152.duckdns.org/nas152/TYMAP/raw/branch/main/version.json")
         list.add("http://192.168.1.114:3002/nas152/TYMAP/raw/branch/main/version.json")
-        list.add("https://alert.nas152.duckdns.org/version.json")
-        list.add("http://192.168.1.114:8088/version.json")
         list.add("https://raw.githubusercontent.com/phamn/TYMAP/main/version.json")
         return list
     }

@@ -16,16 +16,21 @@ import java.io.ByteArrayOutputStream
 
 class RoadsOnlyMapRenderer(private val context: Context) {
 
-    private val darkNoLabelsTileSource = XYTileSource(
-        "DarkNoLabels",
-        1, 20, 256, ".png",
-        arrayOf(
-            "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
-            "https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
-            "https://c.basemaps.cartocdn.com/rastertiles/dark_nolabels/"
-        ),
-        "© OpenStreetMap contributors, © CARTO"
-    )
+    private val darkNoLabelsTileSource = object : XYTileSource(
+        "GoogleDarkNoLabels",
+        1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=m"),
+        "© Google"
+    ) {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            val style = "s.t:1|s.e:g|p.c:#ff121820,s.t:3|s.e:g.f|p.c:#ff121820,s.t:4|s.e:g.f|p.c:#ff182028,s.t:5|s.e:g.f|p.c:#ff283442,s.t:5|s.e:g.s|p.c:#ff182028,s.t:6|s.e:g.f|p.c:#ff00e5ff,s.t:81|s.e:g.f|p.c:#ff0a0e14,s.t:82|s.e:g.f|p.c:#ff0f151d,s.t:2|s.e:l|p.v:off,s.t:3|s.e:l|p.v:off,s.t:5|s.e:l|p.v:off"
+            val encodedStyle = android.net.Uri.encode(style)
+            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z&apistyle=$encodedStyle"
+        }
+    }
 
     suspend fun render(
         headlessMapView: MapView?,

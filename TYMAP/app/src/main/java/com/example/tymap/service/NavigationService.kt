@@ -562,9 +562,9 @@ class NavigationService : Service() {
                 if (msg.what == org.osmdroid.tileprovider.MapTileProviderBase.MAPTILE_FAIL_ID) {
                     val currentSource = headlessMapView?.tileProvider?.tileSource
                     if (currentSource != null && currentSource.name() == "Satellite (ESRI)") {
-                        headlessMapView?.setTileSource(mapCnPositron)
+                        headlessMapView?.setTileSource(googleMapsDark)
                         PrefsHelper.putInt(this@NavigationService, "tile_source", 0)
-                        android.util.Log.w("NavigationService", "Satellite tile loading failed, falling back to CartoDB Positron")
+                        android.util.Log.w("NavigationService", "Satellite tile loading failed, falling back to Google Maps Dark")
                     }
                 }
             }
@@ -1144,29 +1144,7 @@ class NavigationService : Service() {
         }
     }
 
-    private val mapCnPositron = XYTileSource("CartoDB Positron", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/light_all/", "https://b.basemaps.cartocdn.com/light_all/", "https://c.basemaps.cartocdn.com/light_all/"),
-        "© OpenStreetMap contributors, © CARTO")
-
-    private val mapCnDark = XYTileSource("CartoDB Dark Matter", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/dark_all/", "https://b.basemaps.cartocdn.com/dark_all/", "https://c.basemaps.cartocdn.com/dark_all/"),
-        "© OpenStreetMap contributors, © CARTO")
-
-    private val mapCnVoyager = XYTileSource("CartoDB Voyager", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/", "https://b.basemaps.cartocdn.com/rastertiles/voyager/", "https://c.basemaps.cartocdn.com/rastertiles/voyager/"),
-        "© OpenStreetMap contributors, © CARTO")
-
-    private val googleMaps = object : XYTileSource("Google Maps", 1, 20, 256, "",
-        arrayOf("https://mt1.google.com/vt/lyrs=m"),
-        "© Google") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
-            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
-            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z"
-        }
-    }
-
+    // Map Sources (Clean & Free, Zero Watermarks)
     private val googleMapsDark = object : XYTileSource("Google Maps Dark", 1, 20, 256, "",
         arrayOf("https://mt1.google.com/vt/lyrs=m"),
         "© Google") {
@@ -1177,6 +1155,17 @@ class NavigationService : Service() {
             val style = "s.t:1|s.e:g|p.c:#ff242f3e,s.t:1|s.e:l.t.f|p.c:#ff746855,s.t:1|s.e:l.t.s|p.c:#ff242f3e,s.t:3|s.e:g.f|p.c:#ff242f3e,s.t:3|s.e:l.t.f|p.c:#ff746855,s.t:4|s.e:g.f|p.c:#ff212a37,s.t:5|s.e:g.f|p.c:#ff38414e,s.t:5|s.e:g.s|p.c:#ff212a37,s.t:5|s.e:l.t.f|p.c:#ff9ca5b3,s.t:6|s.e:g.f|p.c:#ff746855,s.t:6|s.e:g.s|p.c:#ff242f3e,s.t:6|s.e:l.t.f|p.c:#ffd59563,s.t:81|s.e:g.f|p.c:#ff17263c,s.t:82|s.e:g.f|p.c:#ff1f2835,s.t:82|s.e:l.t.f|p.c:#ff515c6d,s.t:82|s.e:l.t.s|p.c:#ff1f2835"
             val encodedStyle = android.net.Uri.encode(style)
             return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z&apistyle=$encodedStyle"
+        }
+    }
+
+    private val googleMaps = object : XYTileSource("Google Maps", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=m"),
+        "© Google") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z"
         }
     }
 
@@ -1202,16 +1191,22 @@ class NavigationService : Service() {
         }
     }
 
+    private val osmStandard = XYTileSource("OpenStreetMap", 1, 19, 256, ".png",
+        arrayOf("https://tile.openstreetmap.org/"),
+        "© OpenStreetMap contributors")
+
+    private val osmHot = XYTileSource("OSM HOT", 1, 19, 256, ".png",
+        arrayOf("https://a.tile.openstreetmap.fr/hot/", "https://b.tile.openstreetmap.fr/hot/"),
+        "© OpenStreetMap contributors, HOT")
+
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
-        list.add(mapCnPositron)
-        list.add(mapCnDark)
-        list.add(mapCnVoyager)
-        list.add(googleMaps)
-        list.add(googleMapsDark)
-        list.add(googleMaps) // For Invert colors at index 5
-        list.add(googleMapsSatellite)
-        list.add(googleMapsHybrid)
+        list.add(googleMapsDark)      // 0: Google Maps Dark (Mặc định)
+        list.add(googleMaps)          // 1: Google Maps Chuẩn
+        list.add(googleMapsSatellite) // 2: Google Maps Vệ Tinh
+        list.add(googleMapsHybrid)    // 3: Google Maps Vệ Tinh Lai
+        list.add(osmStandard)         // 4: OpenStreetMap Chuẩn
+        list.add(osmHot)              // 5: OpenStreetMap HOT
 
         val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {
@@ -1220,10 +1215,10 @@ class NavigationService : Service() {
                 val ext = "." + customUrl.substringAfterLast(".")
                 list.add(XYTileSource("Tùy chỉnh", 1, 20, 256, ext, arrayOf(baseUrl), "Custom"))
             } catch (e: Exception) {
-                list.add(XYTileSource("Tùy chỉnh (Lỗi URL)", 1, 20, 256, ".png", arrayOf("https://a.basemaps.cartocdn.com/light_all/"), "Custom"))
+                list.add(osmStandard)
             }
         } else {
-            list.add(XYTileSource("Tùy chỉnh (Chưa cấu hình)", 1, 20, 256, ".png", arrayOf("https://a.basemaps.cartocdn.com/light_all/"), "Custom"))
+            list.add(XYTileSource("Tùy chỉnh (Chưa cấu hình)", 1, 20, 256, ".png", arrayOf("https://tile.openstreetmap.org/"), "Custom"))
         }
         return list
     }

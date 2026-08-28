@@ -284,27 +284,29 @@ class OfflineDownloadService : Service() {
     private fun getTileUrlTemplate(index: Int): String {
         return when (index) {
             0 -> {
-                // CartoDB Positron
-                val subdomains = arrayOf("a", "b", "c")
-                "https://${subdomains.random()}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                // Google Maps Dark (MT)
+                val encodedStyle = "s.t:1|s.e:g|p.c:#ff242f3e,s.t:1|s.e:l.t.f|p.c:#ff746855,s.t:1|s.e:l.t.s|p.c:#ff242f3e,s.t:3|s.e:g.f|p.c:#ff242f3e,s.t:3|s.e:l.t.f|p.c:#ff746855,s.t:4|s.e:g.f|p.c:#ff212a37,s.t:5|s.e:g.f|p.c:#ff38414e,s.t:5|s.e:g.s|p.c:#ff212a37,s.t:5|s.e:l.t.f|p.c:#ff9ca5b3,s.t:6|s.e:g.f|p.c:#ff746855,s.t:6|s.e:g.s|p.c:#ff242f3e,s.t:6|s.e:l.t.f|p.c:#ffd59563,s.t:81|s.e:g.f|p.c:#ff17263c,s.t:82|s.e:g.f|p.c:#ff1f2835,s.t:82|s.e:l.t.f|p.c:#ff515c6d,s.t:82|s.e:l.t.s|p.c:#ff1f2835"
+                "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&apistyle=$encodedStyle"
             }
             1 -> {
+                // Google Maps Standard (MT)
+                "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+            }
+            2 -> {
+                // Google Maps Satellite
+                "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+            }
+            3 -> {
+                // Google Maps Hybrid
+                "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+            }
+            4 -> {
                 // OSM Mapnik
                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             }
-            2 -> {
-                // CartoDB Dark Matter
-                val subdomains = arrayOf("a", "b", "c")
-                "https://${subdomains.random()}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-            }
-            3 -> {
-                // CartoDB Voyager
-                val subdomains = arrayOf("a", "b", "c")
-                "https://${subdomains.random()}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
-            }
-            4 -> {
-                // ESRI Satellite
-                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            5 -> {
+                // OSM HOT
+                "https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
             }
             else -> {
                 val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
