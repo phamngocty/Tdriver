@@ -2,13 +2,13 @@
   "app": {
     "versionCode": 1,
     "versionName": "1.0.5",
-    "apkUrl": "",
+    "apkUrl": "http://192.168.1.114:3002/attachments/2e8dafc6-2392-48d5-acf9-71c18e680d19",
     "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n\nDÃ CÓ UPDATEOTA"
   },
   "firmware": {
     "versionCode": 1,
     "versionName": "1.0.5",
-    "binUrl": "",
+    "binUrl": "http://192.168.1.114:3002/attachments/293f0139-14dd-432d-bcdf-a55e6aa7c2c1",
     "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n\nDÃ CÓ UPDATEOTA"
   }
 }
