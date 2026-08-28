@@ -2,13 +2,13 @@
   "app": {
     "versionCode": 2,
     "versionName": "1.0.2",
-    "apkUrl": "",
-    "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định."
+    "apkUrl": "https://git.nas152.duckdns.org/nas152/Tdriver/releases/download/v1.0.2/app-debug.apk",
+    "changelog": "• Cập nhật giao diện OTA nạp Firmware ESP32\n• Tinh gọn tab Cài đặt API\n• Hỗ trợ Gitea NAS Release"
   },
   "firmware": {
     "versionCode": 2,
     "versionName": "1.0.2",
-    "binUrl": "",
-    "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định."
+    "binUrl": "https://git.nas152.duckdns.org/nas152/Tdriver/releases/download/v1.0.2/firmware.bin",
+    "changelog": "• Bổ sung màn hình hiển thị tiến trình nạp Firmware OTA tròn\n• Tối ưu hóa BLE OTA Update"
   }
 }
