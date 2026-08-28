@@ -7,7 +7,7 @@ cls
 echo =================================================================
 echo        🚀 TYMAP & TDRIVER — QUẢN LÝ PHÁT HÀNH & CẬP NHẬT OTA
 echo =================================================================
-echo  [1] 🚀 Phát hành Bản mới Tự động (Build APK + Tag + NAS Sync)
+echo  [1] 🚀 Phát hành Bản mới Tự động (Tự tìm APK/BIN + NAS Sync)
 echo  [2] 📱 Chỉ Build Android APK (assembleDebug)
 echo  [3] 🖥️ Mở Công Cụ Quản Trị Git Smart Manager (GSM UI)
 echo  [4] 📡 Đồng bộ nhanh version.json sang NAS Fusion Engine
@@ -26,14 +26,17 @@ goto MENU
 
 :AUTO_RELEASE
 cls
-python "%~dp0release_ota.py"
+python "%~dp0..\release_ota.py"
+if %ERRORLEVEL% NEQ 0 (
+    python "%~dp0release_ota.py"
+)
 pause
 goto MENU
 
 :BUILD_APK
 cls
 echo 📦 Đang tiến hành Build Android APK...
-cd /d "%~dp0TYMAP"
+cd /d "%~dp0..\TYMAP"
 call gradlew.bat assembleDebug
 cd /d "%~dp0"
 echo.
@@ -44,7 +47,7 @@ goto MENU
 :LAUNCH_GSM
 cls
 echo 🌐 Đang khởi chạy Git Smart Manager (GSM)...
-start "" "%~dp0gsm\GSM.bat"
+start "" "%~dp0GSM.bat"
 goto MENU
 
 :SYNC_NAS
@@ -56,7 +59,8 @@ ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 ssh.connect('192.168.1.114', username='nas152', password='271000', timeout=5)
 sftp = ssh.open_sftp()
-sftp.put(r'%~dp0version.json', '/home/nas152/tymap_data/cameras/version.json')
+v_path = r'%~dp0..\version.json' if os.path.exists(r'%~dp0..\version.json') else r'%~dp0version.json'
+sftp.put(v_path, '/home/nas152/tymap_data/cameras/version.json')
 sftp.close()
 ssh.exec_command('docker restart tymap_fusion_engine')
 ssh.close()
