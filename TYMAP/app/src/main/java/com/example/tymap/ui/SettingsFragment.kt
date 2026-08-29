@@ -379,14 +379,7 @@ class SettingsFragment : Fragment() {
             notificationAccessLauncher.launch(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
 
-        // 4. Screen Capture CheckBox
-        val isCaptureActive = PrefsHelper.getInt(context, "map_capture_mode", 0) != 0
-        setPermissionCheckBox(binding.cbPermScreenCapture, false) {
-            val mpm = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            screenCaptureLauncher.launch(mpm.createScreenCaptureIntent())
-        }
-
-        // 5. Battery Optimization Exemption CheckBox
+        // 4. Battery Optimization Exemption CheckBox
         val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val batteryIgnored = pm.isIgnoringBatteryOptimizations(context.packageName)
         setPermissionCheckBox(binding.cbPermBatteryOpt, batteryIgnored) {
@@ -396,14 +389,9 @@ class SettingsFragment : Fragment() {
             startActivity(intent)
         }
 
-        // 6. Draw Overlay CheckBox
-        val overlayGranted = Settings.canDrawOverlays(context)
-        setPermissionCheckBox(binding.cbPermOverlay, overlayGranted) {
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                data = Uri.parse("package:${context.packageName}")
-            }
-            overlayLauncher.launch(intent)
-        }
+        // Hide obsolete permissions UI
+        binding.cbPermScreenCapture.visibility = View.GONE
+        binding.cbPermOverlay.visibility = View.GONE
     }
 
     private fun setPermissionCheckBox(

@@ -629,9 +629,6 @@ class NavigationService : Service() {
         }
 
         val captureMode = PrefsHelper.getInt(this, "map_capture_mode", 0)
-        if (captureMode == 1 || captureMode == 2 || intent?.action == "ACTION_START_CAPTURE") {
-            foregroundServiceType = foregroundServiceType or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-        }
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
