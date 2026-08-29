@@ -490,53 +490,8 @@ void setup()
     u8g2.begin();
     u8g2.setContrast(200);
 
-    // Màn hình Splash Logo khởi động kèm Thanh Loading 3 Giây (3000ms)
-    unsigned long bootStartTime = millis();
-    unsigned long introDuration = 3000; // 3 giây
-    while (millis() - bootStartTime < introDuration)
-    {
-        drawLogoSplash(millis(), bootStartTime, introDuration);
-        delay(20);
-    }
-
-    // Cấu hình Nút bấm
-    btnMode.attachClick([]() {
-        if (currentMode == STATUS_MODE) currentMode = HUD_MODE;
-        else if (currentMode == HUD_MODE) currentMode = MAP_MODE;
-        else if (currentMode == MAP_MODE) currentMode = INFO_MODE;
-        else currentMode = STATUS_MODE;
-        screenNeedsRedraw = true;
-    });
-
-    // Double click nút Mode: Chuyển đổi nhanh 4 kiểu HUD (H1, H2, H3, H4)
-    btnMode.attachDoubleClick([]() {
-        hudStyle = (hudStyle + 1) % 4;
-        screenNeedsRedraw = true;
-    });
-
-    btnMode.attachLongPressStart([]() {
-        // Đảo ngược màu hoặc Reset về STATUS
-        currentMode = STATUS_MODE;
-        screenNeedsRedraw = true;
-    });
-
-    btnZoom.attachClick([]() {
-        if (notifCount > 0) {
-            notifViewIndex = (notifViewIndex + 1) % notifCount;
-            currentMode = NOTIF_MODE;
-            screenNeedsRedraw = true;
-        }
-    });
-
-    // Double click nút Zoom: Chuyển đổi kiểu HUD
-    btnZoom.attachDoubleClick([]() {
-        hudStyle = (hudStyle + 1) % 4;
-        screenNeedsRedraw = true;
-    });
-
-    // Khởi tạo NimBLE Server
+    // 1. Khởi tạo NimBLE Server ngay từ đầu để phát Bluetooth tức thì khi cấp nguồn
     NimBLEDevice::init("TYMAP-SH1106");
-    NimBLEDevice::setPower(ESP_PWR_LVL_P9);
     NimBLEServer *pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(new MyServerCallbacks());
 
@@ -598,7 +553,59 @@ void setup()
     pDeviceStatusChar = pService->createCharacteristic(CHA_DEVICE_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
     pService->start();
-    NimBLEDevice::getAdvertising()->start();
+
+    NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(SERVICE_UUID);
+    pAdvertising->setScanResponse(true);
+    pAdvertising->setMinPreferred(0x06);
+    pAdvertising->setMinPreferred(0x12);
+    NimBLEDevice::startAdvertising();
+
+    Serial.println("BLE Advertising Started: TYMAP-SH1106");
+
+    // 2. Màn hình Splash Logo khởi động kèm Thanh Loading 3 Giây (3000ms)
+    unsigned long bootStartTime = millis();
+    unsigned long introDuration = 3000; // 3 giây
+    while (millis() - bootStartTime < introDuration)
+    {
+        drawLogoSplash(millis(), bootStartTime, introDuration);
+        delay(20);
+    }
+
+    // 3. Cấu hình Nút bấm
+    btnMode.attachClick([]() {
+        if (currentMode == STATUS_MODE) currentMode = HUD_MODE;
+        else if (currentMode == HUD_MODE) currentMode = MAP_MODE;
+        else if (currentMode == MAP_MODE) currentMode = INFO_MODE;
+        else currentMode = STATUS_MODE;
+        screenNeedsRedraw = true;
+    });
+
+    // Double click nút Mode: Chuyển đổi nhanh 4 kiểu HUD (H1, H2, H3, H4)
+    btnMode.attachDoubleClick([]() {
+        hudStyle = (hudStyle + 1) % 4;
+        screenNeedsRedraw = true;
+    });
+
+    btnMode.attachLongPressStart([]() {
+        // Đảo ngược màu hoặc Reset về STATUS
+        currentMode = STATUS_MODE;
+        screenNeedsRedraw = true;
+    });
+
+    btnZoom.attachClick([]() {
+        if (notifCount > 0) {
+            notifViewIndex = (notifViewIndex + 1) % notifCount;
+            currentMode = NOTIF_MODE;
+            screenNeedsRedraw = true;
+        }
+    });
+
+    // Double click nút Zoom: Chuyển đổi kiểu HUD
+    btnZoom.attachDoubleClick([]() {
+        hudStyle = (hudStyle + 1) % 4;
+        screenNeedsRedraw = true;
+    });
 
     updateBatteryVoltage();
 }
