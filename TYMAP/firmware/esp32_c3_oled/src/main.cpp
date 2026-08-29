@@ -125,7 +125,7 @@ void sendDeviceStatus() {
     
     int rssi = -55 - (random() % 15);
     
-    snprintf(buffer, sizeof(buffer), "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=OLED128x64\nver=1.0.8\nfw_code=8", 
+    snprintf(buffer, sizeof(buffer), "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=OLED128x64\nver=1.0.9\nfw_code=9", 
              modeStr.c_str(), batteryVoltage, rssi);
     pDeviceStatusChar->setValue(buffer);
     pDeviceStatusChar->notify();
