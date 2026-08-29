@@ -43,6 +43,9 @@ const char *CHA_NOTIFICATION_UUID = "c1d2e3f4-a5b6-4789-c012-3456789abcde";
 const char *CHA_PHONE_BATTERY_UUID = "e5f6a7b8-c9d0-4123-e456-789012cdef01";
 const char *CHA_WARNING_UUID = "e4f5a6b7-c8d9-4012-e345-678901bcdef0";
 const char *CHA_OTA_UUID = "f0a1b2c3-d4e5-4f60-a012-bcdef0123456";
+const char *CHA_MAP_TILE_UUID = "d1e2f3a4-b5c6-4789-d012-3456789abcde";
+const char *CHA_MAP_CTRL_UUID = "e2f3a4b5-c6d7-4890-e123-456789abcdef";
+const char *CHA_MAP_STATUS_UUID = "f3a4b5c6-d7e8-4901-f234-567890abcdef";
 
 // Khởi tạo phần cứng U8g2 SH1106 I2C 128x64
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
@@ -584,14 +587,21 @@ void setup()
     NimBLECharacteristic *pOtaChar = pService->createCharacteristic(CHA_OTA_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pOtaChar->setCallbacks(new OtaCallback());
 
+    NimBLECharacteristic *pMapTileChar = pService->createCharacteristic(CHA_MAP_TILE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pMapTileChar->setCallbacks(new OledImageCallback());
+
+    NimBLECharacteristic *pMapCtrlChar = pService->createCharacteristic(CHA_MAP_CTRL_UUID, NIMBLE_PROPERTY::WRITE);
+    pMapCtrlChar->setCallbacks(new RemoteCmdCallback());
+
+    NimBLECharacteristic *pMapStatusChar = pService->createCharacteristic(CHA_MAP_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+
     pDeviceStatusChar = pService->createCharacteristic(CHA_DEVICE_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
     pService->start();
 
-    NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
-    pAdvertising->addServiceUUID(SERVICE_UUID);
-    pAdvertising->setScanResponse(true);
-    pAdvertising->start();
+    NimBLEDevice::getAdvertising()->setName("TYMAP-SH1106");
+    NimBLEDevice::getAdvertising()->setScanResponse(true);
+    NimBLEDevice::getAdvertising()->start();
 
     updateBatteryVoltage();
 }
