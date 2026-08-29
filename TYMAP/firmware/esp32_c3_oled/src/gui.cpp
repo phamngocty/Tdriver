@@ -35,69 +35,145 @@ void drawCustomIcon(const uint8_t *bitmap, int xOffset, int yOffset, int scale)
     }
 }
 
+uint8_t statusStyle = 0; // 0=S1 Classic Digital, 1=S2 Dual Gauges, 2=S3 Minimalist, 3=S4 Sport Telemetry
+uint8_t hudStyle = 0;    // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar, 4=H5 Banner, 5=H6 Dual Pill
+
 // -------------------------------------------------------------
-// 1. MÀN HÌNH STATUS (ĐỒNG HỒ & THÔNG SỐ XE)
+// 1. MÀN HÌNH STATUS (ĐỒNG HỒ & THÔNG SỐ XE - 4 KIỂU PHONG CÁCH)
 // -------------------------------------------------------------
 void drawSTATUS()
 {
     u8g2.clearBuffer();
 
-    // 1. Header trên cùng (y: 0 - 10)
-    // Icon BLE / Trạng thái
-    if (bleConnected) {
-        u8g2.setDrawColor(1);
-        u8g2.drawDisc(4, 5, 2);
-    } else {
-        u8g2.drawCircle(4, 5, 2);
-    }
-
-    // Ngày tháng tiếng Việt
-    String dateStr = rtc.getTime("%d/%m");
-    myFont.set_font(vietnamtimes12);
-    myFont.print(12, 0, dateStr.c_str(), 1, 0);
-
-    // Thời tiết
-    if (weatherTemp > -50.0f) {
-        char wBuf[16];
-        snprintf(wBuf, sizeof(wBuf), "%.0f°C", weatherTemp);
-        uint16_t wLen = myFont.getLength(wBuf);
-        myFont.print(128 - wLen, 0, wBuf, 1, 0);
-    }
-
-    // Đường kẻ phân cách header
-    u8g2.drawHLine(0, 12, 128);
-
-    // 2. Đồng hồ trung tâm lớn
     String timeStr = rtc.getTime("%H:%M");
-    myFont.set_font(FONT_CLOCK);
-    uint16_t timeLen = myFont.getLength(timeStr.c_str());
-    int timeX = (128 - timeLen) / 2;
-    if (timeX < 0) timeX = 0;
-    myFont.print(timeX, 15, timeStr.c_str(), 1, 0);
+    String dateStr = rtc.getTime("%d/%m");
 
-    // 3. Footer dưới cùng (y: 50 - 64)
-    u8g2.drawHLine(0, 50, 128);
-    myFont.set_font(vietnamtimes12);
+    if (statusStyle == 0) {
+        // ================= S1: CLASSIC DIGITAL DASH =================
+        // Header
+        if (bleConnected) {
+            u8g2.setDrawColor(1);
+            u8g2.drawDisc(4, 5, 2);
+        } else {
+            u8g2.drawCircle(4, 5, 2);
+        }
 
-    // Điện áp xe (XE: 12.4V)
-    char vBuf[16];
-    snprintf(vBuf, sizeof(vBuf), "XE:%.1fV", batteryVoltage);
-    myFont.print(0, 52, vBuf, 1, 0);
+        myFont.set_font(vietnamtimes12);
+        myFont.print(12, 0, dateStr.c_str(), 1, 0);
 
-    // Pin điện thoại (ĐT: 85%)
-    char pBuf[16];
-    int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
-    snprintf(pBuf, sizeof(pBuf), "ĐT:%d%%%s", pBat, phoneBatteryCharging ? "+" : "");
-    uint16_t pLen = myFont.getLength(pBuf);
-    myFont.print(128 - pLen, 52, pBuf, 1, 0);
+        if (weatherTemp > -50.0f) {
+            char wBuf[16];
+            snprintf(wBuf, sizeof(wBuf), "%.0f°C", weatherTemp);
+            uint16_t wLen = myFont.getLength(wBuf);
+            myFont.print(128 - wLen, 0, wBuf, 1, 0);
+        }
+
+        u8g2.drawHLine(0, 12, 128);
+
+        // Đồng hồ trung tâm lớn
+        myFont.set_font(FONT_CLOCK);
+        uint16_t timeLen = myFont.getLength(timeStr.c_str());
+        int timeX = (128 - timeLen) / 2;
+        if (timeX < 0) timeX = 0;
+        myFont.print(timeX, 15, timeStr.c_str(), 1, 0);
+
+        // Footer
+        u8g2.drawHLine(0, 50, 128);
+        myFont.set_font(vietnamtimes12);
+
+        char vBuf[16];
+        snprintf(vBuf, sizeof(vBuf), "XE:%.1fV", batteryVoltage);
+        myFont.print(0, 52, vBuf, 1, 0);
+
+        char pBuf[16];
+        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
+        snprintf(pBuf, sizeof(pBuf), "ĐT:%d%%%s", pBat, phoneBatteryCharging ? "+" : "");
+        uint16_t pLen = myFont.getLength(pBuf);
+        myFont.print(128 - pLen, 52, pBuf, 1, 0);
+
+    } else if (statusStyle == 1) {
+        // ================= S2: DUAL GAUGES (GIỜ & TỐC ĐỘ XE) =================
+        // Cột trái: Đồng hồ số
+        myFont.set_font(FONT_CLOCK);
+        uint16_t tLen = myFont.getLength(timeStr.c_str());
+        myFont.print((64 - tLen) / 2, 4, timeStr.c_str(), 1, 0);
+
+        myFont.set_font(vietnamtimes12);
+        char dBuf[16];
+        snprintf(dBuf, sizeof(dBuf), "%s • %.0f°C", dateStr.c_str(), weatherTemp > -50.0f ? weatherTemp : 28.0f);
+        uint16_t dLen = myFont.getLength(dBuf);
+        myFont.print((64 - dLen) / 2, 44, dBuf, 1, 0);
+
+        // Đường phân cách giữa
+        u8g2.drawVLine(64, 0, 64);
+
+        // Cột phải: Tốc độ xe & Vạch tốc độ
+        char sBuf[16];
+        snprintf(sBuf, sizeof(sBuf), "%d", gpsSpeed);
+        myFont.set_font(FONT_CLOCK);
+        uint16_t sLen = myFont.getLength(sBuf);
+        myFont.print(64 + (64 - sLen) / 2, 4, sBuf, 1, 0);
+
+        myFont.set_font(vietnamtimes12x2b);
+        myFont.print(82, 38, "KM/H", 1, 0);
+
+        u8g2.drawFrame(68, 52, 56, 6);
+        int barW = (gpsSpeed * 56) / 120;
+        if (barW > 56) barW = 56;
+        if (barW > 0) u8g2.drawBox(68, 52, barW, 6);
+
+    } else if (statusStyle == 2) {
+        // ================= S3: ELEGANT MINIMALIST =================
+        myFont.set_font(FONT_CLOCK);
+        uint16_t timeLen = myFont.getLength(timeStr.c_str());
+        myFont.print((128 - timeLen) / 2, 2, timeStr.c_str(), 1, 0);
+
+        myFont.set_font(vietnamtimes12);
+        char dBuf[32];
+        snprintf(dBuf, sizeof(dBuf), "%s | %.0f°C", rtc.getTime("%A, %d/%m").c_str(), weatherTemp > -50.0f ? weatherTemp : 28.0f);
+        uint16_t dLen = myFont.getLength(dBuf);
+        myFont.print((128 - dLen) / 2, 36, dBuf, 1, 0);
+
+        u8g2.drawHLine(10, 50, 108);
+        char vBuf[32];
+        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
+        snprintf(vBuf, sizeof(vBuf), "XE: %.1fV  |  ĐT: %d%%", batteryVoltage, pBat);
+        uint16_t vLen = myFont.getLength(vBuf);
+        myFont.print((128 - vLen) / 2, 52, vBuf, 1, 0);
+
+    } else {
+        // ================= S4: SPORT ACTIVITY TELEMETRY =================
+        myFont.set_font(vietnamtimes12);
+        char topBuf[32];
+        snprintf(topBuf, sizeof(topBuf), "%s   %.0f°C", timeStr.c_str(), weatherTemp > -50.0f ? weatherTemp : 28.0f);
+        myFont.print(4, 0, topBuf, 1, 0);
+
+        char vBuf[16];
+        snprintf(vBuf, sizeof(vBuf), "%.1fV", batteryVoltage);
+        uint16_t vLen = myFont.getLength(vBuf);
+        myFont.print(124 - vLen, 0, vBuf, 1, 0);
+
+        u8g2.drawHLine(0, 12, 128);
+
+        char sBuf[16];
+        snprintf(sBuf, sizeof(sBuf), "%d", gpsSpeed);
+        myFont.set_font(FONT_CLOCK);
+        myFont.print(36, 15, sBuf, 1, 0);
+
+        myFont.set_font(vietnamtimes12x2b);
+        myFont.print(84, 28, "KM/H", 1, 0);
+
+        u8g2.drawFrame(0, 54, 128, 8);
+        int barW = (gpsSpeed * 128) / 120;
+        if (barW > 128) barW = 128;
+        if (barW > 0) u8g2.drawBox(0, 54, barW, 8);
+    }
 
     // Vẽ Overlay Cảnh báo giao thông (nếu có)
     drawTrafficWarningOverlay();
 
     u8g2.sendBuffer();
 }
-
-uint8_t hudStyle = 0; // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar
 
 void drawVectorTurnIcon(int dirIdx, int xOffset, int yOffset)
 {

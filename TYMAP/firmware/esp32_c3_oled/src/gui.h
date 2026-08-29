@@ -78,7 +78,8 @@ extern bool isMenuOpen;
 extern unsigned long menuStartTime;
 extern int menuSelectedIndex;
 extern int brightness;
-extern uint8_t hudStyle; // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar
+extern uint8_t hudStyle;    // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar, 4=H5 Banner, 5=H6 Dual Pill
+extern uint8_t statusStyle; // 0=S1 Classic Digital, 1=S2 Dual Gauges, 2=S3 Minimalist, 3=S4 Sport Telemetry
 
 // Trạng thái Cập nhật Firmware BLE OTA
 extern bool isOtaMode;

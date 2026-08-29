@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TYMAP Display Studio Pro - Bộ Phác Thảo & Hiệu Chỉnh HUD OLED 128x64</title>
+  <title>TYMAP Display Studio Pro - Bộ Phác Thảo Toàn Diện Màn Hình OLED 128x64</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
@@ -19,9 +19,6 @@
       --warn-red: #ef4444;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
-      --oled-glow: 0 0 12px rgba(255, 255, 255, 0.7);
-      --oled-pixel-on: #ffffff;
-      --oled-pixel-off: #0b111e;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -86,32 +83,44 @@
       text-transform: uppercase;
     }
 
-    .nav-tabs {
+    /* Screen Mode Category Tabs */
+    .category-bar {
       display: flex;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 4px;
-      border-radius: 10px;
+      flex-wrap: wrap;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 6px;
+      border-radius: 12px;
       border: 1px solid var(--border-card);
-      gap: 4px;
+      gap: 6px;
+      justify-content: center;
+      margin: 16px 24px 0 24px;
     }
 
-    .nav-btn {
+    .cat-pill {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      padding: 6px 14px;
-      border-radius: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    .nav-btn.active {
+    .cat-pill:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .cat-pill.active {
       background: var(--primary-cyan);
       color: #000;
       font-weight: 800;
-      box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
     }
 
     /* Main Container */
@@ -132,11 +141,10 @@
       }
     }
 
-    /* Left Stage */
     .stage-panel {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 24px;
     }
 
     /* Big Focus Display Card */
@@ -149,8 +157,6 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      position: relative;
-      overflow: hidden;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
     }
 
@@ -159,7 +165,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
 
     .card-title {
@@ -236,7 +242,7 @@
       font-weight: 700;
     }
 
-    /* Grid Gallery of All HUD Styles */
+    /* Gallery Grid */
     .gallery-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -265,12 +271,12 @@
 
     .style-card.active {
       border: 2px solid var(--primary-cyan);
-      background: rgba(0, 229, 255, 0.05);
+      background: rgba(0, 229, 255, 0.06);
       box-shadow: 0 0 25px rgba(0, 229, 255, 0.25);
     }
 
     .style-card.active::after {
-      content: "ĐANG CHỌN";
+      content: "ĐANG XEM";
       position: absolute;
       top: 12px;
       right: 12px;
@@ -280,7 +286,6 @@
       font-weight: 900;
       padding: 2px 6px;
       border-radius: 4px;
-      letter-spacing: 0.5px;
     }
 
     .style-card-header {
@@ -379,7 +384,7 @@
       border-radius: 4px;
     }
 
-    input[type="text"], select {
+    input[type="text"], select, textarea {
       background: rgba(0, 0, 0, 0.6);
       border: 1px solid var(--border-card);
       color: #fff;
@@ -391,7 +396,7 @@
       outline: none;
     }
 
-    input[type="text"]:focus, select:focus {
+    input[type="text"]:focus, select:focus, textarea:focus {
       border-color: var(--primary-cyan);
       box-shadow: 0 0 10px rgba(0, 229, 255, 0.25);
     }
@@ -413,13 +418,6 @@
       background: var(--primary-cyan);
       cursor: pointer;
       box-shadow: 0 0 10px var(--primary-cyan);
-    }
-
-    /* 2 Column sub-grid for inspector coordinates */
-    .coord-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
     }
 
     .btn-action {
@@ -465,14 +463,20 @@
       <div>
         <div class="brand-title">TYMAP Display Studio Pro</div>
       </div>
-      <div class="brand-badge">OLED 128x64 Master Visualizer</div>
-    </div>
-
-    <div class="nav-tabs">
-      <button class="nav-btn active" onclick="setViewTab('hud')">🧭 Phác Thảo Tất Cả Kiểu HUD</button>
-      <button class="nav-btn" onclick="setViewTab('tuner')">🛠️ Bộ Tinh Chỉnh Tọa Độ (Inspector)</button>
+      <div class="brand-badge">SH1106 OLED (128x64) Master Studio</div>
     </div>
   </header>
+
+  <!-- Screen Category Navigation Bar -->
+  <div class="category-bar">
+    <button class="cat-pill active" onclick="setCategory('STATUS')">🕒 Mặt Đồng Hồ (STATUS)</button>
+    <button class="cat-pill" onclick="setCategory('HUD')">🧭 Dẫn Đường (HUD)</button>
+    <button class="cat-pill" onclick="setCategory('NOTIF')">💬 Thông Báo (NOTIF)</button>
+    <button class="cat-pill" onclick="setCategory('MAP')">🗺️ Bản Đồ (MAP)</button>
+    <button class="cat-pill" onclick="setCategory('INFO')">ℹ️ Thông Tin (INFO)</button>
+    <button class="cat-pill" onclick="setCategory('WARN')">⚠️ Cảnh Báo (WARNING)</button>
+    <button class="cat-pill" onclick="setCategory('SPLASH')">🚀 Logo Khởi Động</button>
+  </div>
 
   <div class="studio-container">
     
@@ -482,8 +486,8 @@
       <!-- Big Focus Display (Màn hình chi tiết phóng to) -->
       <div class="focus-card">
         <div class="card-header">
-          <div class="card-title" id="focusTitle">H1: Classic Boxed (Phác thảo chuẩn gốc)</div>
-          <div class="brand-badge" id="hudBadge">HUD STYLE 0</div>
+          <div class="card-title" id="focusTitle">Màn hình đang chọn</div>
+          <div class="brand-badge" id="focusBadge">VARIANT 1</div>
         </div>
 
         <div class="oled-hardware-frame">
@@ -500,98 +504,20 @@
         </div>
       </div>
 
-      <!-- Gallery of All HUD Styles (Tất cả các bản phác thảo cạnh nhau) -->
-      <div class="card-title"><span>📐</span> Bộ Sưu Tập 6 Bản Phác Thảo HUD OLED 128x64</div>
+      <!-- Gallery Grid of all Variations for Selected Category -->
+      <div class="card-title" id="galleryTitle"><span>📐</span> Danh Sách Các Bản Phác Thảo</div>
 
-      <div class="gallery-grid">
-        
-        <!-- H1: Classic Boxed -->
-        <div class="style-card active" id="card-0" onclick="selectStyle(0)">
-          <div class="style-card-header">
-            <span class="style-badge">H1</span> Classic Boxed Turn
-          </div>
-          <div class="style-preview-frame">
-            <canvas class="style-preview-canvas" id="canvas-h0" width="128" height="64"></canvas>
-          </div>
-          <div class="style-desc">
-            Bản phác thảo gốc: Khung hộp viền chữ nhật chứa tên đường tiếng Việt bên phải, icon rẽ trái, hàng dưới là <b>200M</b> và <b>70 KM/H</b>.
-          </div>
-        </div>
-
-        <!-- H2: Split Dashboard -->
-        <div class="style-card" id="card-1" onclick="selectStyle(1)">
-          <div class="style-card-header">
-            <span class="style-badge">H2</span> Split Cyber Dash
-          </div>
-          <div class="style-preview-frame">
-            <canvas class="style-preview-canvas" id="canvas-h1" width="128" height="64"></canvas>
-          </div>
-          <div class="style-desc">
-            Chia đôi đối xứng: Cột trái hiển thị Tốc độ <b>70 KM/H</b> siêu lớn + vạch tốc độ. Cột phải là Icon rẽ + khoảng cách + tên đường.
-          </div>
-        </div>
-
-        <!-- H3: Big Arrow Focus -->
-        <div class="style-card" id="card-2" onclick="selectStyle(2)">
-          <div class="style-card-header">
-            <span class="style-badge">H3</span> Big Arrow Focus
-          </div>
-          <div class="style-preview-frame">
-            <canvas class="style-preview-canvas" id="canvas-h2" width="128" height="64"></canvas>
-          </div>
-          <div class="style-desc">
-            Mũi tên rẽ cực lớn 48px + Khoảng cách ngay chân mũi tên. Cột phải hiển thị Tên đường in đậm, Thanh tiến trình và Giờ đến ETA.
-          </div>
-        </div>
-
-        <!-- H4: Racing Telemetry -->
-        <div class="style-card" id="card-3" onclick="selectStyle(3)">
-          <div class="style-card-header">
-            <span class="style-badge">H4</span> Racing Telemetry Bar
-          </div>
-          <div class="style-preview-frame">
-            <canvas class="style-preview-canvas" id="canvas-h3" width="128" height="64"></canvas>
-          </div>
-          <div class="style-desc">
-            Phong cách đua xe thể thao: Thanh vạch RPM tốc độ nằm ngang trên cùng, Icon rẽ và tên đường ở giữa, Footer điện áp <b>12.6V</b>.
-          </div>
-        </div>
-
-        <!-- H5: Compact Banner -->
-        <div class="style-card" id="card-4" onclick="selectStyle(4)">
-          <div class="style-card-header">
-            <span class="style-badge">H5</span> Top Street Banner
-          </div>
-          <div class="style-preview-frame">
-            <canvas class="style-preview-canvas" id="canvas-h4" width="128" height="64"></canvas>
-          </div>
-          <div class="style-desc">
-            Dải băng tiêu đề: Tên đường chạy nổi bật trên dải đen viền trên cùng, bên dưới là Icon rẽ lớn, khoảng cách <b>200m</b> và Tốc độ <b>70 km/h</b>.
-          </div>
-        </div>
-
-        <!-- H6: Minimalist Dual Pill -->
-        <div class="style-card" id="card-5" onclick="selectStyle(5)">
-          <div class="style-card-header">
-            <span class="style-badge">H6</span> Minimalist Dual Pill
-          </div>
-          <div class="style-preview-frame">
-            <canvas class="style-preview-canvas" id="canvas-h5" width="128" height="64"></canvas>
-          </div>
-          <div class="style-desc">
-            Hai khối thẻ bo góc đối xứng: Khối trái chứa Icon rẽ + khoảng cách, khối phải chứa Tốc độ + Tên đường tiếng Việt.
-          </div>
-        </div>
-
+      <div class="gallery-grid" id="galleryContainer">
+        <!-- Dynamic injected cards -->
       </div>
 
     </div>
 
-    <!-- Right Sidebar Controls (Bộ Công Cụ Hiệu Chỉnh) -->
+    <!-- Right Sidebar Controls -->
     <div class="sidebar-panel">
       
-      <!-- Input Data Controls -->
-      <div class="section-title"><span>🧭</span> Thông Số Mô Phỏng Thực Tế</div>
+      <!-- Live Parameters -->
+      <div class="section-title"><span>⚙️</span> Thông Số Điều Chỉnh</div>
 
       <div class="control-group">
         <div class="control-label">Tốc độ xe GPS <span class="val-tag" id="speedTag">70 km/h</span></div>
@@ -599,7 +525,17 @@
       </div>
 
       <div class="control-group">
-        <label class="control-label">Khoảng cách rẽ</label>
+        <div class="control-label">Điện áp ắc quy xe <span class="val-tag" id="voltageTag">12.6 V</span></div>
+        <input type="range" id="voltageInput" min="100" max="148" value="126" oninput="refreshAll()">
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">Mức pin điện thoại <span class="val-tag" id="phoneBatTag">85%</span></div>
+        <input type="range" id="phoneBatInput" min="0" max="100" value="85" oninput="refreshAll()">
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">Khoảng cách rẽ (m / km)</label>
         <input type="text" id="distInput" value="200M" oninput="refreshAll()">
       </div>
 
@@ -621,49 +557,31 @@
       </div>
 
       <div class="control-group">
-        <label class="control-label">Giờ đến dự kiến (ETA)</label>
-        <input type="text" id="etaInput" value="18:35" oninput="refreshAll()">
+        <label class="control-label">Nhiệt độ thời tiết</label>
+        <input type="text" id="tempInput" value="29°C" oninput="refreshAll()">
       </div>
 
-      <!-- Layout Inspector & Coordinates Tuner -->
-      <div class="section-title"><span>🛠️</span> Tinh Chỉnh Tọa Độ (Inspector)</div>
-      
+      <!-- Notification Parameters -->
+      <div class="section-title"><span>💬</span> Nội Dung Thông Báo</div>
+
       <div class="control-group">
-        <div class="control-label">Vị trí Khung Tên Đường (X, Y)</div>
-        <div class="coord-grid">
-          <input type="text" id="boxX" value="48" placeholder="X" oninput="refreshAll()">
-          <input type="text" id="boxY" value="0" placeholder="Y" oninput="refreshAll()">
-        </div>
+        <label class="control-label">Ứng dụng</label>
+        <input type="text" id="notifAppInput" value="ZALO" oninput="refreshAll()">
       </div>
 
       <div class="control-group">
-        <div class="control-label">Kích thước Khung (W, H)</div>
-        <div class="coord-grid">
-          <input type="text" id="boxW" value="79" placeholder="Rộng" oninput="refreshAll()">
-          <input type="text" id="boxH" value="44" placeholder="Cao" oninput="refreshAll()">
-        </div>
+        <label class="control-label">Người gửi / Tiêu đề</label>
+        <input type="text" id="notifTitleInput" value="Nguyễn Văn A" oninput="refreshAll()">
       </div>
 
       <div class="control-group">
-        <div class="control-label">Tọa độ Icon Rẽ (X, Y)</div>
-        <div class="coord-grid">
-          <input type="text" id="iconX" value="22" placeholder="X" oninput="refreshAll()">
-          <input type="text" id="iconY" value="22" placeholder="Y" oninput="refreshAll()">
-        </div>
+        <label class="control-label">Nội dung tin nhắn</label>
+        <textarea id="notifMsgInput" rows="2" oninput="refreshAll()">Alo bạn ơi, khoảng 15 phút nữa mình gặp nhau ở quán nhé!</textarea>
       </div>
 
-      <div class="control-group">
-        <div class="control-label">Cỡ Font Khoảng Cách / Tốc Độ</div>
-        <select id="fontSizeSelect" onchange="refreshAll()">
-          <option value="14" selected>Lớn (14px - Orbitron/h_to2)</option>
-          <option value="16">Rất lớn (16px - FONT_HUD_DIST)</option>
-          <option value="12">Vừa vặn (12px - vietnamtimes12x2b)</option>
-        </select>
-      </div>
-
-      <!-- C++ Code Exporter -->
-      <div class="section-title"><span>💾</span> Xuất Mã C++ Firmware</div>
-      <div class="code-box" id="cppCodeBox">// Mã C++ u8g2 tự động sinh theo tọa độ...</div>
+      <!-- Code Exporter -->
+      <div class="section-title"><span>💾</span> Mã C++ Firmware Sinh Tự Động</div>
+      <div class="code-box" id="cppCodeBox">// Mã C++ u8g2 tự động cập nhật...</div>
 
       <button class="btn-action" onclick="copyCppCode()">📋 Sao Chép Mã C++</button>
 
@@ -671,65 +589,136 @@
   </div>
 
   <script>
-    let currentStyle = 0;
+    let currentCategory = 'STATUS';
+    let currentVariantIndex = 0;
 
     const focusCanvas = document.getElementById('focusOledCanvas');
     const ctxFocus = focusCanvas.getContext('2d');
 
-    const styleTitles = [
-      "H1: Classic Boxed (Phác thảo chuẩn gốc)",
-      "H2: Split Cyber Dashboard (Chia đôi tốc độ lớn)",
-      "H3: Big Arrow Focus (Mũi tên rẽ lớn 48px)",
-      "H4: Racing Telemetry Bar (Thanh RPM thể thao)",
-      "H5: Top Street Banner (Dải băng tiêu đề)",
-      "H6: Minimalist Dual Pill (Khối thẻ bo góc)"
-    ];
+    // Dữ liệu định nghĩa các bản phác thảo cho từng Category
+    const screenData = {
+      STATUS: [
+        { id: 0, badge: 'S1', title: 'S1: Classic Digital Dash', desc: 'Mặc định: Đồng hồ số siêu to ở giữa, Header ngày tháng + thời tiết, Footer pin xe và pin điện thoại.' },
+        { id: 1, badge: 'S2', title: 'S2: Dual Gauges (Giờ & Tốc độ)', desc: 'Chia đôi màn hình: Cột trái đồng hồ số, cột phải tốc độ xe kèm thanh vạch đo năng lượng.' },
+        { id: 2, badge: 'S3', title: 'S3: Elegant Minimalist', desc: 'Thanh lịch: Đồng hồ lớn chính giữa, Thứ & Ngày tháng tiếng Việt đầy đủ, thanh pin ngang dưới đáy.' },
+        { id: 3, badge: 'S4', title: 'S4: Sport Activity Telemetry', desc: 'Phong cách thể thao: Giờ nhỏ trên cùng, Tốc độ 70 KM/H số to trung tâm kèm vạch tốc độ đồ họa.' }
+      ],
+      HUD: [
+        { id: 0, badge: 'H1', title: 'H1: Classic Boxed Turn', desc: 'Bản phác thảo gốc: Khung viền tên đường tiếng Việt bên phải, icon rẽ trái, hàng dưới 200M và 70 KM/H.' },
+        { id: 1, badge: 'H2', title: 'H2: Split Cyber Dash', desc: 'Cột trái tốc độ 70 KM/H siêu lớn. Cột phải Icon rẽ + khoảng cách + tên đường tiếng Việt.' },
+        { id: 2, badge: 'H3', title: 'H3: Big Arrow Focus', desc: 'Mũi tên rẽ cực lớn 48px + khoảng cách dưới chân. Cột phải tên đường in đậm + Progress bar + ETA.' },
+        { id: 3, badge: 'H4', title: 'H4: Racing Telemetry Bar', desc: 'Thanh RPM tốc độ nằm ngang trên cùng, Icon rẽ và tên đường ở giữa, Footer điện áp 12.6V.' },
+        { id: 4, badge: 'H5', title: 'H5: Top Street Banner', desc: 'Tên đường dải băng đen viền trên cùng, bên dưới là Icon rẽ và khoảng cách + tốc độ lớn.' },
+        { id: 5, badge: 'H6', title: 'H6: Minimalist Dual Pill', desc: 'Hai khối thẻ bo góc đối xứng: Khối trái Icon rẽ + khoảng cách, khối phải Tốc độ + Tên đường.' }
+      ],
+      NOTIF: [
+        { id: 0, badge: 'N1', title: 'N1: Rounded Focus Card', desc: 'Thẻ thông báo bo góc: Header nhãn ZALO, Tiêu đề người gửi, nội dung tin nhắn tự xuống dòng 2 lớp.' },
+        { id: 1, badge: 'N2', title: 'N2: Split App Icon Focus', desc: 'Cột trái biểu tượng ứng dụng lớn 32x32, cột phải hiển thị người gửi và nội dung tin nhắn.' },
+        { id: 2, badge: 'N3', title: 'N3: Top Navigation Banner', desc: 'Thông báo dạng dải băng 1/2 màn hình trên, giúp người lái xe vẫn quan sát được chỉ đường bên dưới.' }
+      ],
+      MAP: [
+        { id: 0, badge: 'M1', title: 'M1: Fullscreen 1bpp Map', desc: 'Toàn bộ màn hình hiển thị ảnh bản đồ 1bpp 128x64 truyền từ ứng dụng qua Bluetooth.' },
+        { id: 1, badge: 'M2', title: 'M2: Map with Speed HUD', desc: 'Bản đồ 1bpp kết hợp hộp hiển thị tốc độ GPS mini ở góc trái dưới.' },
+        { id: 2, badge: 'M3', title: 'M3: Split Map & Direction', desc: 'Nửa trái là bản đồ thu nhỏ, nửa phải là icon hướng rẽ và khoảng cách đến khúc cua tiếp theo.' }
+      ],
+      INFO: [
+        { id: 0, badge: 'I1', title: 'I1: System Hardware Metrics', desc: 'Khung thông tin: Phiên bản TYMAP v1.0.9, RAM Heap khả dụng, Điện áp xe, Pin ĐT, Uptime.' },
+        { id: 1, badge: 'I2', title: 'I2: Connection & Health Bars', desc: 'Biểu đồ thanh vạch kiểm tra pin xe, tín hiệu Bluetooth RSSI và trạng thái bộ nhớ.' }
+      ],
+      WARN: [
+        { id: 0, badge: 'W1', title: 'W1: Speed Limit Warning (MAX 60)', desc: 'Hộp viền nhấp nháy góc trên cảnh báo vượt quá tốc độ giới hạn của đoạn đường.' },
+        { id: 1, badge: 'W2', title: 'W2: Camera Penalty Warning', desc: 'Biểu tượng Camera phạt nguội nhấp nháy cảnh báo camera giám sát phía trước.' }
+      ],
+      SPLASH: [
+        { id: 0, badge: 'L1', title: 'L1: Centered 64x64 Logo', desc: 'Logo bitmap 64x64 căn chính giữa màn hình khi khởi động thiết bị.' },
+        { id: 1, badge: 'L2', title: 'L2: Logo with Loading Bar', desc: 'Logo chữ TYMAP với thanh tiến trình tải hệ thống ở bên dưới.' }
+      ]
+    };
 
-    function selectStyle(idx) {
-      currentStyle = idx;
+    function setCategory(cat) {
+      currentCategory = cat;
+      currentVariantIndex = 0;
+
+      document.querySelectorAll('.cat-pill').forEach(el => {
+        el.classList.toggle('active', el.innerText.includes(cat));
+      });
+
+      renderGalleryCards();
+      refreshAll();
+    }
+
+    function renderGalleryCards() {
+      const container = document.getElementById('galleryContainer');
+      container.innerHTML = '';
+
+      const variants = screenData[currentCategory] || [];
+      variants.forEach((v, idx) => {
+        const card = document.createElement('div');
+        card.className = 'style-card' + (idx === currentVariantIndex ? ' active' : '');
+        card.onclick = () => selectVariant(idx);
+
+        card.innerHTML = `
+          <div class="style-card-header">
+            <span class="style-badge">${v.badge}</span> ${v.title}
+          </div>
+          <div class="style-preview-frame">
+            <canvas class="style-preview-canvas" id="canvas-card-${idx}" width="128" height="64"></canvas>
+          </div>
+          <div class="style-desc">${v.desc}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function selectVariant(idx) {
+      currentVariantIndex = idx;
       document.querySelectorAll('.style-card').forEach((c, i) => {
         c.classList.toggle('active', i === idx);
       });
-      document.getElementById('focusTitle').innerText = styleTitles[idx];
-      document.getElementById('hudBadge').innerText = 'HUD STYLE ' + idx;
       refreshAll();
     }
 
     function refreshAll() {
       const speed = parseInt(document.getElementById('speedInput').value);
+      const voltage = (parseInt(document.getElementById('voltageInput').value) / 10).toFixed(1);
+      const phoneBat = parseInt(document.getElementById('phoneBatInput').value);
       const dist = document.getElementById('distInput').value;
       const street = document.getElementById('streetInput').value;
       const turn = document.getElementById('turnSelect').value;
-      const eta = document.getElementById('etaInput').value;
-      const fontSize = parseInt(document.getElementById('fontSizeSelect').value);
+      const temp = document.getElementById('tempInput').value;
+      const notifApp = document.getElementById('notifAppInput').value;
+      const notifTitle = document.getElementById('notifTitleInput').value;
+      const notifMsg = document.getElementById('notifMsgInput').value;
 
       document.getElementById('speedTag').innerText = speed + ' km/h';
+      document.getElementById('voltageTag').innerText = voltage + ' V';
+      document.getElementById('phoneBatTag').innerText = phoneBat + '%';
 
-      // Custom coordinates from inspector
-      const boxX = parseInt(document.getElementById('boxX').value) || 48;
-      const boxY = parseInt(document.getElementById('boxY').value) || 0;
-      const boxW = parseInt(document.getElementById('boxW').value) || 79;
-      const boxH = parseInt(document.getElementById('boxH').value) || 44;
-      const iconX = parseInt(document.getElementById('iconX').value) || 22;
-      const iconY = parseInt(document.getElementById('iconY').value) || 22;
+      const variants = screenData[currentCategory] || [];
+      const curr = variants[currentVariantIndex] || { badge: '', title: '' };
+      document.getElementById('focusTitle').innerText = curr.title;
+      document.getElementById('focusBadge').innerText = curr.badge;
 
       // 1. Render Focus Canvas
-      renderHUD(ctxFocus, currentStyle, speed, dist, street, turn, eta, boxX, boxY, boxW, boxH, iconX, iconY, fontSize);
+      drawScreen(ctxFocus, currentCategory, currentVariantIndex, speed, voltage, phoneBat, dist, street, turn, temp, notifApp, notifTitle, notifMsg);
 
-      // 2. Render all 6 preview gallery canvases
-      for (let i = 0; i < 6; i++) {
-        const c = document.getElementById('canvas-h' + i);
+      // 2. Render all cards in gallery
+      variants.forEach((v, idx) => {
+        const c = document.getElementById('canvas-card-' + idx);
         if (c) {
           const ctx = c.getContext('2d');
-          renderHUD(ctx, i, speed, dist, street, turn, eta, 48, 0, 79, 44, 22, 22, 14);
+          drawScreen(ctx, currentCategory, idx, speed, voltage, phoneBat, dist, street, turn, temp, notifApp, notifTitle, notifMsg);
         }
-      }
+      });
 
-      // 3. Generate C++ snippet
-      generateCppCode(currentStyle, boxX, boxY, boxW, boxH, iconX, iconY);
+      // 3. Generate C++
+      generateCppSnippet(currentCategory, currentVariantIndex);
     }
 
-    function renderHUD(ctx, style, speed, dist, street, turn, eta, bx, by, bw, bh, ix, iy, fSize) {
+    // =========================================================================
+    // HÀM VẼ TỔNG HỢP CHO TẤT CẢ CÁC MÀN HÌNH
+    // =========================================================================
+    function drawScreen(ctx, category, variant, speed, voltage, phoneBat, dist, street, turn, temp, nApp, nTitle, nMsg) {
       ctx.clearRect(0, 0, 128, 64);
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, 128, 64);
@@ -737,130 +726,275 @@
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#ffffff';
 
-      if (style === 0) {
-        // ================= H1: CLASSIC BOXED =================
-        drawTurnIcon(ctx, turn, ix, iy);
+      const now = new Date();
+      const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
 
-        // Khung tên đường
-        ctx.strokeRect(bx, by, bw, bh);
-        ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
-        ctx.textAlign = 'left';
-        wrapText(ctx, street, bx + 4, by + 14, bw - 8, 12, 'left');
+      if (category === 'STATUS') {
+        if (variant === 0) {
+          // S1: Classic Digital Dash
+          ctx.beginPath(); ctx.arc(4, 5, 2, 0, Math.PI * 2); ctx.fill();
+          ctx.font = '10px "Plus Jakarta Sans", sans-serif';
+          ctx.fillText(now.getDate() + '/' + (now.getMonth() + 1), 10, 8);
+          ctx.textAlign = 'right'; ctx.fillText(temp, 126, 8);
 
-        // Hàng dưới: Khoảng cách & Tốc độ
-        ctx.font = '900 ' + fSize + 'px "Orbitron", sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(dist.toUpperCase(), 0, 60);
+          ctx.beginPath(); ctx.moveTo(0, 11); ctx.lineTo(128, 11); ctx.stroke();
 
-        ctx.textAlign = 'right';
-        ctx.fillText(speed + ' KM/H', 128, 60);
+          ctx.font = '900 28px "Orbitron", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(timeStr, 64, 40);
 
-      } else if (style === 1) {
-        // ================= H2: SPLIT CYBER DASH =================
-        // Cột trái: Tốc độ lớn
-        ctx.font = '900 26px "Orbitron", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(speed, 28, 30);
+          ctx.beginPath(); ctx.moveTo(0, 48); ctx.lineTo(128, 48); ctx.stroke();
+          ctx.font = '9px "Plus Jakarta Sans", sans-serif';
+          ctx.textAlign = 'left'; ctx.fillText('XE:' + voltage + 'V', 2, 58);
+          ctx.textAlign = 'right'; ctx.fillText('ĐT:' + phoneBat + '%', 126, 58);
 
-        ctx.font = '700 10px "Orbitron", sans-serif';
-        ctx.fillText('KM/H', 28, 44);
+        } else if (variant === 1) {
+          // S2: Dual Gauges (Giờ & Tốc độ)
+          ctx.font = '900 22px "Orbitron", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(timeStr, 32, 28);
+          ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
+          ctx.fillText(now.getDate() + '/' + (now.getMonth() + 1) + ' • ' + temp, 32, 44);
 
-        ctx.strokeRect(4, 50, 48, 6);
-        ctx.fillRect(4, 50, Math.min((speed / 120) * 48, 48), 6);
+          ctx.beginPath(); ctx.moveTo(64, 0); ctx.lineTo(64, 64); ctx.stroke();
 
-        // Vạch phân cách giữa
-        ctx.beginPath(); ctx.moveTo(56, 0); ctx.lineTo(56, 64); ctx.stroke();
+          ctx.font = '900 22px "Orbitron", sans-serif';
+          ctx.fillText(speed, 96, 28);
+          ctx.font = '700 9px "Orbitron", sans-serif';
+          ctx.fillText('KM/H', 96, 42);
 
-        // Cột phải: Icon rẽ + khoảng cách + tên đường
-        drawTurnIcon(ctx, turn, 72, 16);
-        ctx.font = '900 14px "Orbitron", sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(dist.toUpperCase(), 90, 20);
+          ctx.strokeRect(68, 50, 56, 6);
+          ctx.fillRect(68, 50, Math.min((speed / 120) * 56, 56), 6);
 
-        ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
-        wrapText(ctx, street, 60, 40, 66, 11, 'left');
+        } else if (variant === 2) {
+          // S3: Elegant Minimalist
+          ctx.font = '900 32px "Orbitron", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(timeStr, 64, 32);
 
-      } else if (style === 2) {
-        // ================= H3: BIG ARROW FOCUS =================
-        drawTurnIcon(ctx, turn, 22, 24);
-        ctx.font = '900 12px "Orbitron", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(dist.toUpperCase(), 22, 58);
+          ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
+          ctx.fillText('T.Bảy, ' + now.getDate() + ' Thg ' + (now.getMonth() + 1), 64, 46);
 
-        // Cột phải
-        ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(street.length > 13 ? street.substring(0, 11) + '..' : street, 48, 14);
+          ctx.beginPath(); ctx.moveTo(10, 52); ctx.lineTo(118, 52); ctx.stroke();
+          ctx.font = '9px "Plus Jakarta Sans", sans-serif';
+          ctx.fillText('XE: ' + voltage + 'V  |  ĐT: ' + phoneBat + '%', 64, 61);
 
-        ctx.strokeRect(48, 22, 78, 6);
-        ctx.fillRect(48, 22, 52, 6);
+        } else {
+          // S4: Sport Activity Telemetry
+          ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText(timeStr + '  ' + temp, 4, 10);
+          ctx.textAlign = 'right';
+          ctx.fillText(voltage + 'V', 124, 10);
 
-        ctx.font = '900 14px "Orbitron", sans-serif';
-        ctx.fillText(speed + 'k', 48, 50);
+          ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(128, 14); ctx.stroke();
 
-        ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText('Đến ' + eta, 126, 50);
+          ctx.font = '900 28px "Orbitron", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(speed, 54, 44);
+          ctx.font = '800 12px "Orbitron", sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText('KM/H', 84, 42);
 
-      } else if (style === 3) {
-        // ================= H4: RACING TELEMETRY =================
-        ctx.strokeRect(0, 0, 85, 10);
-        ctx.fillRect(0, 0, Math.min((speed / 120) * 85, 85), 10);
+          ctx.strokeRect(0, 54, 128, 8);
+          ctx.fillRect(0, 54, Math.min((speed / 120) * 128, 128), 8);
+        }
 
-        ctx.font = '900 11px "Orbitron", sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(speed + ' KM/H', 128, 10);
+      } else if (category === 'HUD') {
+        if (variant === 0) {
+          // H1: Classic Boxed
+          drawTurnIcon(ctx, turn, 22, 22);
+          ctx.strokeRect(48, 0, 79, 44);
+          ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
+          wrapText(ctx, street, 52, 16, 72, 13, 'left');
 
-        drawTurnIcon(ctx, turn, 18, 30);
-        ctx.font = '900 15px "Orbitron", sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(dist.toUpperCase(), 38, 28);
+          ctx.font = '900 14px "Orbitron", sans-serif';
+          ctx.textAlign = 'left'; ctx.fillText(dist.toUpperCase(), 0, 60);
+          ctx.textAlign = 'right'; ctx.fillText(speed + ' KM/H', 128, 60);
 
-        ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
-        ctx.fillText(street.length > 15 ? street.substring(0, 13) + '..' : street, 38, 44);
+        } else if (variant === 1) {
+          // H2: Split Cyber Dash
+          ctx.font = '900 26px "Orbitron", sans-serif';
+          ctx.textAlign = 'center'; ctx.fillText(speed, 28, 30);
+          ctx.font = '700 10px "Orbitron", sans-serif'; ctx.fillText('KM/H', 28, 44);
+          ctx.strokeRect(4, 50, 48, 6); ctx.fillRect(4, 50, Math.min((speed / 120) * 48, 48), 6);
 
-        ctx.beginPath(); ctx.moveTo(0, 50); ctx.lineTo(128, 50); ctx.stroke();
-        ctx.font = '9px "Plus Jakarta Sans", sans-serif';
-        ctx.fillText('XE: 12.6V', 2, 60);
-        ctx.textAlign = 'right';
-        ctx.fillText('Đến: ' + eta, 126, 60);
+          ctx.beginPath(); ctx.moveTo(56, 0); ctx.lineTo(56, 64); ctx.stroke();
+          drawTurnIcon(ctx, turn, 72, 16);
+          ctx.font = '900 14px "Orbitron", sans-serif';
+          ctx.textAlign = 'left'; ctx.fillText(dist.toUpperCase(), 90, 20);
+          ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
+          wrapText(ctx, street, 60, 40, 66, 11, 'left');
 
-      } else if (style === 4) {
-        // ================= H5: TOP STREET BANNER =================
-        // Dải tiêu đề trên cùng
-        ctx.fillRect(0, 0, 128, 14);
-        ctx.fillStyle = '#000000';
-        ctx.font = '900 10px "Plus Jakarta Sans", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(street.length > 18 ? street.substring(0, 16) + '..' : street, 64, 11);
+        } else if (variant === 2) {
+          // H3: Big Arrow Focus
+          drawTurnIcon(ctx, turn, 22, 24);
+          ctx.font = '900 12px "Orbitron", sans-serif';
+          ctx.textAlign = 'center'; ctx.fillText(dist.toUpperCase(), 22, 58);
 
-        ctx.fillStyle = '#ffffff';
-        drawTurnIcon(ctx, turn, 20, 36);
+          ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
+          ctx.textAlign = 'left'; ctx.fillText(street.length > 13 ? street.substring(0, 11) + '..' : street, 48, 14);
+          ctx.strokeRect(48, 22, 78, 6); ctx.fillRect(48, 22, 52, 6);
+          ctx.font = '900 14px "Orbitron", sans-serif'; ctx.fillText(speed + 'k', 48, 50);
+          ctx.font = '700 10px "Plus Jakarta Sans", sans-serif'; ctx.textAlign = 'right'; ctx.fillText('Đến 18:35', 126, 50);
 
-        ctx.font = '900 16px "Orbitron", sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(dist.toUpperCase(), 44, 34);
+        } else if (variant === 3) {
+          // H4: Racing Telemetry
+          ctx.strokeRect(0, 0, 85, 10); ctx.fillRect(0, 0, Math.min((speed / 120) * 85, 85), 10);
+          ctx.font = '900 11px "Orbitron", sans-serif'; ctx.textAlign = 'right'; ctx.fillText(speed + ' KM/H', 128, 10);
 
-        ctx.font = '900 16px "Orbitron", sans-serif';
-        ctx.fillText(speed + ' KM/H', 44, 56);
+          drawTurnIcon(ctx, turn, 18, 30);
+          ctx.font = '900 15px "Orbitron", sans-serif'; ctx.textAlign = 'left'; ctx.fillText(dist.toUpperCase(), 38, 28);
+          ctx.font = '700 10px "Plus Jakarta Sans", sans-serif'; ctx.fillText(street.length > 15 ? street.substring(0, 13) + '..' : street, 38, 44);
 
-      } else if (style === 5) {
-        // ================= H6: MINIMALIST DUAL PILL =================
-        // Thẻ trái
-        ctx.strokeRect(0, 0, 58, 63);
-        drawTurnIcon(ctx, turn, 29, 22);
-        ctx.font = '900 12px "Orbitron", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(dist.toUpperCase(), 29, 54);
+          ctx.beginPath(); ctx.moveTo(0, 50); ctx.lineTo(128, 50); ctx.stroke();
+          ctx.font = '9px "Plus Jakarta Sans", sans-serif'; ctx.fillText('XE: ' + voltage + 'V', 2, 60);
+          ctx.textAlign = 'right'; ctx.fillText('Đến 18:35', 126, 60);
 
-        // Thẻ phải
-        ctx.strokeRect(62, 0, 65, 63);
-        ctx.font = '900 16px "Orbitron", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(speed + 'k', 94, 24);
+        } else if (variant === 4) {
+          // H5: Top Street Banner
+          ctx.fillRect(0, 0, 128, 14);
+          ctx.fillStyle = '#000000';
+          ctx.font = '900 10px "Plus Jakarta Sans", sans-serif';
+          ctx.textAlign = 'center'; ctx.fillText(street.length > 18 ? street.substring(0, 16) + '..' : street, 64, 11);
 
-        ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
-        wrapText(ctx, street, 66, 40, 58, 11, 'left');
+          ctx.fillStyle = '#ffffff';
+          drawTurnIcon(ctx, turn, 20, 36);
+          ctx.font = '900 16px "Orbitron", sans-serif'; ctx.textAlign = 'left'; ctx.fillText(dist.toUpperCase(), 44, 34);
+          ctx.font = '900 16px "Orbitron", sans-serif'; ctx.fillText(speed + ' KM/H', 44, 56);
+
+        } else {
+          // H6: Minimalist Dual Pill
+          ctx.strokeRect(0, 0, 58, 63);
+          drawTurnIcon(ctx, turn, 29, 22);
+          ctx.font = '900 12px "Orbitron", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(dist.toUpperCase(), 29, 54);
+
+          ctx.strokeRect(62, 0, 65, 63);
+          ctx.font = '900 16px "Orbitron", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(speed + 'k', 94, 24);
+          ctx.font = '700 9px "Plus Jakarta Sans", sans-serif'; wrapText(ctx, street, 66, 40, 58, 11, 'left');
+        }
+
+      } else if (category === 'NOTIF') {
+        if (variant === 0) {
+          // N1: Rounded Focus Card
+          ctx.strokeRect(0, 0, 127, 63);
+          ctx.font = '700 9px "Orbitron", sans-serif'; ctx.textAlign = 'left'; ctx.fillText(nApp.toUpperCase(), 4, 10);
+          ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(128, 14); ctx.stroke();
+          ctx.font = '700 10px "Plus Jakarta Sans", sans-serif'; ctx.fillText(nTitle.length > 16 ? nTitle.substring(0, 14) + '..' : nTitle, 4, 26);
+          ctx.font = '9px "Plus Jakarta Sans", sans-serif'; wrapText(ctx, nMsg, 4, 38, 120, 12, 'left');
+
+        } else if (variant === 1) {
+          // N2: Split App Icon Focus
+          ctx.strokeRect(4, 12, 36, 40);
+          ctx.font = '900 12px "Orbitron", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('MSG', 22, 36);
+
+          ctx.font = '800 11px "Plus Jakarta Sans", sans-serif'; ctx.textAlign = 'left';
+          ctx.fillText(nTitle.length > 13 ? nTitle.substring(0, 11) + '..' : nTitle, 46, 16);
+          ctx.font = '9px "Plus Jakarta Sans", sans-serif';
+          wrapText(ctx, nMsg, 46, 30, 78, 11, 'left');
+
+        } else {
+          // N3: Top Navigation Banner (Popup)
+          ctx.fillRect(0, 0, 128, 28);
+          ctx.fillStyle = '#000000';
+          ctx.font = '900 10px "Plus Jakarta Sans", sans-serif'; ctx.textAlign = 'left';
+          ctx.fillText(nApp + ': ' + nTitle, 4, 11);
+          ctx.font = '9px "Plus Jakarta Sans", sans-serif';
+          ctx.fillText(nMsg.length > 22 ? nMsg.substring(0, 20) + '..' : nMsg, 4, 23);
+
+          // Dưới vẫn hiển thị HUD
+          ctx.fillStyle = '#ffffff';
+          drawTurnIcon(ctx, turn, 14, 46);
+          ctx.font = '900 14px "Orbitron", sans-serif'; ctx.fillText(dist, 32, 52);
+          ctx.textAlign = 'right'; ctx.fillText(speed + ' KM/H', 126, 52);
+        }
+
+      } else if (category === 'MAP') {
+        if (variant === 0) {
+          // M1: Fullscreen 1bpp Map
+          ctx.strokeRect(0, 0, 127, 63);
+          ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(10, 50); ctx.quadraticCurveTo(64, 20, 118, 15); ctx.stroke();
+          ctx.fillRect(40, 30, 6, 6);
+        } else if (variant === 1) {
+          // M2: Map with Speed HUD
+          ctx.strokeRect(0, 0, 127, 63);
+          ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(10, 50); ctx.quadraticCurveTo(64, 20, 118, 15); ctx.stroke();
+          ctx.fillRect(40, 30, 6, 6);
+
+          ctx.fillRect(0, 46, 48, 18);
+          ctx.fillStyle = '#000000';
+          ctx.font = '900 11px "Orbitron", sans-serif'; ctx.textAlign = 'center'; ctx.fillText(speed + 'k', 24, 60);
+        } else {
+          // M3: Split Map & Direction
+          ctx.strokeRect(0, 0, 60, 63);
+          ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(6, 45); ctx.lineTo(54, 20); ctx.stroke();
+          ctx.fillRect(28, 30, 5, 5);
+
+          drawTurnIcon(ctx, turn, 80, 20);
+          ctx.font = '900 14px "Orbitron", sans-serif'; ctx.textAlign = 'left'; ctx.fillText(dist, 98, 24);
+          ctx.font = '700 10px "Plus Jakarta Sans", sans-serif'; ctx.fillText(street.length > 10 ? street.substring(0, 8) + '..' : street, 66, 44);
+          ctx.font = '900 12px "Orbitron", sans-serif'; ctx.fillText(speed + ' km/h', 66, 58);
+        }
+
+      } else if (category === 'INFO') {
+        if (variant === 0) {
+          // I1: System Hardware Metrics
+          ctx.strokeRect(0, 0, 127, 63);
+          ctx.font = '700 9px "Orbitron", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TYMAP v1.0.9 OLED', 64, 10);
+          ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(128, 14); ctx.stroke();
+
+          ctx.font = '9px "Plus Jakarta Sans", sans-serif'; ctx.textAlign = 'left';
+          ctx.fillText('Heap: 182 KB Free', 4, 26);
+          ctx.fillText('Ắc quy: ' + voltage + 'V | ĐT: ' + phoneBat + '%', 4, 39);
+          ctx.fillText('Uptime: 01:25:30', 4, 52);
+        } else {
+          // I2: Graphic Bars
+          ctx.font = '700 9px "Orbitron", sans-serif'; ctx.textAlign = 'left'; ctx.fillText('HARDWARE HEALTH', 4, 10);
+          ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(128, 14); ctx.stroke();
+
+          ctx.font = '8px "Plus Jakarta Sans", sans-serif';
+          ctx.fillText('PIN XE: ' + voltage + 'V', 4, 25);
+          ctx.strokeRect(60, 17, 64, 8); ctx.fillRect(60, 17, (voltage / 14.5) * 64, 8);
+
+          ctx.fillText('PIN ĐT: ' + phoneBat + '%', 4, 40);
+          ctx.strokeRect(60, 32, 64, 8); ctx.fillRect(60, 32, (phoneBat / 100) * 64, 8);
+
+          ctx.fillText('BLE RSSI: -58dBm', 4, 55);
+          ctx.strokeRect(60, 47, 64, 8); ctx.fillRect(60, 47, 50, 8);
+        }
+
+      } else if (category === 'WARN') {
+        if (variant === 0) {
+          // W1: Speed Limit Circle
+          ctx.strokeRect(10, 6, 108, 52);
+          ctx.beginPath(); ctx.arc(36, 32, 20, 0, Math.PI * 2); ctx.stroke();
+          ctx.font = '900 16px "Orbitron", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('60', 36, 38);
+
+          ctx.font = '800 12px "Plus Jakarta Sans", sans-serif'; ctx.textAlign = 'left';
+          ctx.fillText('QUÁ TỐC ĐỘ!', 62, 28);
+          ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
+          ctx.fillText('Giảm ga ngay', 62, 44);
+        } else {
+          // W2: Camera Penalty
+          ctx.strokeRect(10, 6, 108, 52);
+          ctx.font = '900 18px "Plus Jakarta Sans", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('📷 CAM', 36, 38);
+          ctx.font = '800 11px "Plus Jakarta Sans", sans-serif'; ctx.textAlign = 'left';
+          ctx.fillText('CAMERA PHẠT', 62, 26);
+          ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
+          ctx.fillText('Cách 250m', 62, 42);
+        }
+
+      } else if (category === 'SPLASH') {
+        if (variant === 0) {
+          // L1: Centered Logo
+          ctx.strokeRect(32, 0, 64, 64);
+          ctx.font = '900 16px "Orbitron", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TYMAP', 64, 36);
+        } else {
+          // L2: Logo with Loading Bar
+          ctx.font = '900 20px "Orbitron", sans-serif'; ctx.textAlign = 'center'; ctx.fillText('TYMAP', 64, 28);
+          ctx.font = '700 9px "Plus Jakarta Sans", sans-serif'; ctx.fillText('ESP32-C3 OLED SH1106', 64, 42);
+          ctx.strokeRect(20, 48, 88, 6); ctx.fillRect(20, 48, 60, 6);
+        }
       }
     }
 
@@ -869,52 +1003,27 @@
       if (type === 'LEFT') {
         ctx.fillRect(cx + 6, cy - 10, 4, 24);
         ctx.fillRect(cx - 8, cy - 10, 14, 4);
-        ctx.beginPath();
-        ctx.moveTo(cx - 14, cy - 8);
-        ctx.lineTo(cx - 6, cy - 16);
-        ctx.lineTo(cx - 6, cy);
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx - 14, cy - 8); ctx.lineTo(cx - 6, cy - 16); ctx.lineTo(cx - 6, cy); ctx.fill();
       } else if (type === 'RIGHT') {
         ctx.fillRect(cx - 10, cy - 10, 4, 24);
         ctx.fillRect(cx - 10, cy - 10, 14, 4);
-        ctx.beginPath();
-        ctx.moveTo(cx + 14, cy - 8);
-        ctx.lineTo(cx + 6, cy - 16);
-        ctx.lineTo(cx + 6, cy);
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx + 14, cy - 8); ctx.lineTo(cx + 6, cy - 16); ctx.lineTo(cx + 6, cy); ctx.fill();
       } else if (type === 'SLIGHT_LEFT') {
         ctx.fillRect(cx + 4, cy - 4, 4, 18);
         ctx.fillRect(cx - 6, cy - 10, 12, 4);
-        ctx.beginPath();
-        ctx.moveTo(cx - 12, cy - 12);
-        ctx.lineTo(cx - 4, cy - 16);
-        ctx.lineTo(cx - 4, cy - 4);
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx - 12, cy - 12); ctx.lineTo(cx - 4, cy - 16); ctx.lineTo(cx - 4, cy - 4); ctx.fill();
       } else if (type === 'SLIGHT_RIGHT') {
         ctx.fillRect(cx - 8, cy - 4, 4, 18);
         ctx.fillRect(cx - 6, cy - 10, 12, 4);
-        ctx.beginPath();
-        ctx.moveTo(cx + 12, cy - 12);
-        ctx.lineTo(cx + 4, cy - 16);
-        ctx.lineTo(cx + 4, cy - 4);
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx + 12, cy - 12); ctx.lineTo(cx + 4, cy - 16); ctx.lineTo(cx + 4, cy - 4); ctx.fill();
       } else if (type === 'UTURN') {
         ctx.fillRect(cx - 10, cy - 4, 4, 18);
         ctx.fillRect(cx + 6, cy - 4, 4, 18);
         ctx.fillRect(cx - 10, cy - 10, 20, 4);
-        ctx.beginPath();
-        ctx.moveTo(cx - 8, cy + 18);
-        ctx.lineTo(cx - 16, cy + 8);
-        ctx.lineTo(cx, cy + 8);
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx - 8, cy + 18); ctx.lineTo(cx - 16, cy + 8); ctx.lineTo(cx, cy + 8); ctx.fill();
       } else {
-        // Đi thẳng
         ctx.fillRect(cx - 2, cy - 8, 4, 22);
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - 16);
-        ctx.lineTo(cx - 8, cy - 6);
-        ctx.lineTo(cx + 8, cy - 6);
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx, cy - 16); ctx.lineTo(cx - 8, cy - 6); ctx.lineTo(cx + 8, cy - 6); ctx.fill();
       }
     }
 
@@ -937,14 +1046,17 @@
       ctx.fillText(line, x, y);
     }
 
-    function generateCppCode(style, bx, by, bw, bh, ix, iy) {
-      let code = `// C++ Code cho Kiểu H${style+1}:\n`;
-      code += `u8g2.drawFrame(${bx}, ${by}, ${bw}, ${bh});\n`;
-      code += `myFont.set_font(vietnamtimes12);\n`;
-      code += `myFont.print(${bx+4}, ${by+14}, nextStreet.c_str(), 1, 0);\n`;
-      code += `myFont.set_font(FONT_HUD_DIST);\n`;
-      code += `myFont.print(0, 48, distToNext.c_str(), 1, 0);\n`;
-      code += `myFont.print(128 - spdLen, 48, spdBuf, 1, 0);`;
+    function generateCppSnippet(cat, variant) {
+      let code = `// C++ Code cho ${cat} (Kiểu ${variant + 1}):\n`;
+      if (cat === 'STATUS') {
+        code += `void drawSTATUS() {\n  u8g2.clearBuffer();\n  // Render Style ${variant}\n  u8g2.sendBuffer();\n}`;
+      } else if (cat === 'HUD') {
+        code += `void drawHUD() {\n  // Render HUD Style ${variant}\n}`;
+      } else if (cat === 'NOTIF') {
+        code += `void drawNOTIF() {\n  // Render NOTIF Style ${variant}\n}`;
+      } else {
+        code += `// Giao diện ${cat} chuẩn u8g2\n`;
+      }
       document.getElementById('cppCodeBox').innerText = code;
     }
 
@@ -954,6 +1066,8 @@
       alert('Đã sao chép mã C++ vào Clipboard!');
     }
 
+    // Khởi tạo
+    renderGalleryCards();
     refreshAll();
   </script>
 </body>
