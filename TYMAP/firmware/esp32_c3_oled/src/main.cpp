@@ -598,9 +598,6 @@ void setup()
     pDeviceStatusChar = pService->createCharacteristic(CHA_DEVICE_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
     pService->start();
-
-    NimBLEDevice::getAdvertising()->setName("TYMAP-SH1106");
-    NimBLEDevice::getAdvertising()->setScanResponse(true);
     NimBLEDevice::getAdvertising()->start();
 
     updateBatteryVoltage();
@@ -614,7 +611,7 @@ void loop()
     // Khởi động lại BLE advertising an toàn khi bị ngắt kết nối
     if (advertisingPending) {
         advertisingPending = false;
-        NimBLEDevice::startAdvertising();
+        NimBLEDevice::getAdvertising()->start();
     }
 
     // Tự động đóng popup thông báo sau 8 giây
