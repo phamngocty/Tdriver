@@ -1054,11 +1054,6 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        val version = try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        } catch (e: Exception) { "1.0" }
-        binding.tvVersion.text = "Phiên bản: $version"
-
         // NÂNG CAO: toggle mở rộng các tùy chọn kỹ thuật
         binding.toggleMapAdvanced.setOnClickListener {
             val show = binding.layoutMapAdvanced.visibility != View.VISIBLE
@@ -1173,8 +1168,8 @@ class SettingsFragment : Fragment() {
         val ctx = context
         if (ctx != null) {
             val appVerName = try {
-                ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "1.0.2"
-            } catch (e: Exception) { "1.0.2" }
+                ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "1.0.6"
+            } catch (e: Exception) { "1.0.6" }
             val appVerCode = try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toInt()
@@ -1182,8 +1177,8 @@ class SettingsFragment : Fragment() {
                     @Suppress("DEPRECATION")
                     ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionCode
                 }
-            } catch (e: Exception) { 2 }
-            val fwVerName = PrefsHelper.getString(ctx, "esp32_fw_version_name", "1.0.2")
+            } catch (e: Exception) { 6 }
+            val fwVerName = PrefsHelper.getString(ctx, "esp32_fw_version_name", "1.0.6")
             binding.tvVersion.text = "Phiên bản App: v$appVerName (Build $appVerCode) • Firmware ESP32: v$fwVerName\n(Nhấp 5 lần để mở Tab Render)"
         }
 

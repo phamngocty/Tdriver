@@ -2046,7 +2046,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:gravity="center"
-                        android:text="Phiên bản: 1.0.0 (Nhấp 5 lần mở Tab Render)"
+                        android:text="Phiên bản App: v1.0.6 (Build 6) • Firmware ESP32: v1.0.6\n(Nhấp 5 lần mở Tab Render)"
                         android:textSize="11sp"
                         android:textColor="@color/colorTextMuted"/>
 
