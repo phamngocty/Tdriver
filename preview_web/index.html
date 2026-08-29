@@ -541,6 +541,16 @@
         </select>
       </div>
 
+      <div class="control-group">
+        <label class="control-label">Kiểu Dẫn Đường HUD (OLED 128x64)</label>
+        <select id="oledHudStyleSelect" onchange="updateUI()">
+          <option value="0">H1: Classic Boxed (Khung Tên Đường + 200M 70KM/H)</option>
+          <option value="1">H2: Split Dashboard (Chia đôi - Tốc độ lớn bên trái)</option>
+          <option value="2">H3: Big Arrow Focus (Mũi tên rẽ lớn 48px + Progress)</option>
+          <option value="3">H4: Racing Telemetry Bar (Thanh RPM tốc độ thể thao)</option>
+        </select>
+      </div>
+
       <!-- HUD Navigation Controls -->
       <div class="section-title"><span>🧭</span> Thông số Dẫn đường (HUD)</div>
 
@@ -693,12 +703,14 @@
       const turnIcon = document.getElementById('turnIconSelect').value;
       const warnType = document.getElementById('warnTypeSelect').value;
 
+      const oledHudStyle = parseInt(document.getElementById('oledHudStyleSelect').value);
+
       document.getElementById('speedBadge').innerText = speed + ' km/h';
       document.getElementById('voltageBadge').innerText = voltage + ' V';
       document.getElementById('phoneBatBadge').innerText = phoneBat + '%';
 
       renderRoundScreen(speed, voltage, phoneBat, street, dist, eta, temp, statusStyle, turnIcon, isWarningActive, warnType);
-      renderOledScreen(speed, voltage, phoneBat, street, dist, eta, temp, turnIcon, isWarningActive, warnType);
+      renderOledScreen(speed, voltage, phoneBat, street, dist, eta, temp, turnIcon, isWarningActive, warnType, oledHudStyle);
     }
 
     // ==========================================
@@ -952,7 +964,7 @@
     // ==========================================
     // 2. RENDER MÀN HÌNH OLED 128x64 (SH1106)
     // ==========================================
-    function renderOledScreen(speed, voltage, phoneBat, street, dist, eta, temp, turnIcon, hasWarn, warnType) {
+    function renderOledScreen(speed, voltage, phoneBat, street, dist, eta, temp, turnIcon, hasWarn, warnType, hudStyle = 0) {
       ctxOled.clearRect(0, 0, 128, 64);
       ctxOled.fillStyle = '#000000';
       ctxOled.fillRect(0, 0, 128, 64);
@@ -1000,23 +1012,103 @@
         ctxOled.textAlign = 'right';
         ctxOled.fillText('ĐT:' + phoneBat + '%', 126, 58);
       } else if (currentMode === 'HUD') {
-        // 1. Phía trên bên trái: Icon rẽ
-        drawTurnIconOled(ctxOled, turnIcon, 22, 22);
+        if (hudStyle === 0) {
+          // ---------------- H1: CLASSIC BOXED (Phác thảo gốc của bạn) ----------------
+          // 1. Phía trên bên trái: Icon rẽ
+          drawTurnIconOled(ctxOled, turnIcon, 22, 22);
 
-        // 2. Phía trên bên phải: Khung chữ nhật hiển thị tên đường (x=48, y=0, w=80, h=44)
-        ctxOled.strokeRect(48, 0, 79, 44);
-        ctxOled.font = '700 10px "Plus Jakarta Sans", sans-serif';
-        ctxOled.textAlign = 'left';
-        wrapText(ctxOled, street, 52, 16, 72, 13, 'left');
+          // 2. Phía trên bên phải: Khung chữ nhật hiển thị tên đường (x=48, y=0, w=80, h=44)
+          ctxOled.strokeRect(48, 0, 79, 44);
+          ctxOled.font = '700 10px "Plus Jakarta Sans", sans-serif';
+          ctxOled.textAlign = 'left';
+          wrapText(ctxOled, street, 52, 16, 72, 13, 'left');
 
-        // 3. Hàng dưới cùng: Khoảng cách rẽ (Trái) & Tốc độ (Phải)
-        ctxOled.font = '900 14px "Orbitron", sans-serif';
-        ctxOled.textAlign = 'left';
-        ctxOled.fillText(dist.toUpperCase(), 0, 60);
+          // 3. Hàng dưới cùng: Khoảng cách rẽ (Trái) & Tốc độ (Phải)
+          ctxOled.font = '900 14px "Orbitron", sans-serif';
+          ctxOled.textAlign = 'left';
+          ctxOled.fillText(dist.toUpperCase(), 0, 60);
 
-        ctxOled.font = '900 14px "Orbitron", sans-serif';
-        ctxOled.textAlign = 'right';
-        ctxOled.fillText(speed + ' KM/H', 128, 60);
+          ctxOled.font = '900 14px "Orbitron", sans-serif';
+          ctxOled.textAlign = 'right';
+          ctxOled.fillText(speed + ' KM/H', 128, 60);
+        } else if (hudStyle === 1) {
+          // ---------------- H2: SPLIT DASHBOARD (Chia đôi đối xứng) ----------------
+          // Cột trái: Tốc độ siêu lớn
+          ctxOled.font = '900 28px "Orbitron", sans-serif';
+          ctxOled.textAlign = 'center';
+          ctxOled.fillText(speed, 28, 32);
+
+          ctxOled.font = '700 10px "Orbitron", sans-serif';
+          ctxOled.fillText('KM/H', 28, 46);
+
+          // Vạch tốc độ mini dưới chân
+          ctxOled.strokeRect(4, 52, 48, 6);
+          ctxOled.fillRect(4, 52, Math.min((speed / 120) * 48, 48), 6);
+
+          // Đường phân cách giữa
+          ctxOled.beginPath();
+          ctxOled.moveTo(56, 0); ctxOled.lineTo(56, 64);
+          ctxOled.stroke();
+
+          // Cột phải: Icon rẽ + khoảng cách + tên đường
+          drawTurnIconOled(ctxOled, turnIcon, 74, 18);
+          ctxOled.font = '900 14px "Orbitron", sans-serif';
+          ctxOled.textAlign = 'left';
+          ctxOled.fillText(dist.toUpperCase(), 92, 22);
+
+          ctxOled.font = '700 9px "Plus Jakarta Sans", sans-serif';
+          wrapText(ctxOled, street, 60, 42, 66, 11, 'left');
+        } else if (hudStyle === 2) {
+          // ---------------- H3: BIG ARROW FOCUS (Mũi tên lớn 48px + Progress) ----------------
+          // Cột trái: Mũi tên cực lớn
+          drawTurnIconOled(ctxOled, turnIcon, 22, 24);
+          ctxOled.font = '900 12px "Orbitron", sans-serif';
+          ctxOled.textAlign = 'center';
+          ctxOled.fillText(dist.toUpperCase(), 22, 58);
+
+          // Cột phải: Tên đường + Vạch tiến trình + Tốc độ & ETA
+          ctxOled.font = '700 11px "Plus Jakarta Sans", sans-serif';
+          ctxOled.textAlign = 'left';
+          ctxOled.fillText(street.length > 14 ? street.substring(0, 12) + '..' : street, 48, 14);
+
+          // Vạch tiến trình điểm rẽ
+          ctxOled.strokeRect(48, 22, 78, 6);
+          ctxOled.fillRect(48, 22, 52, 6);
+
+          // Tốc độ & ETA
+          ctxOled.font = '900 14px "Orbitron", sans-serif';
+          ctxOled.fillText(speed + 'k', 48, 50);
+
+          ctxOled.font = '700 10px "Plus Jakarta Sans", sans-serif';
+          ctxOled.textAlign = 'right';
+          ctxOled.fillText('Đến ' + eta, 126, 50);
+        } else {
+          // ---------------- H4: RACING TELEMETRY (Thanh tốc độ đua) ----------------
+          // Header: Thanh vạch tốc độ RPM
+          ctxOled.strokeRect(0, 0, 85, 10);
+          ctxOled.fillRect(0, 0, Math.min((speed / 120) * 85, 85), 10);
+
+          ctxOled.font = '900 11px "Orbitron", sans-serif';
+          ctxOled.textAlign = 'right';
+          ctxOled.fillText(speed + ' KM/H', 128, 10);
+
+          // Thân giữa: Icon rẽ + khoảng cách + tên đường
+          drawTurnIconOled(ctxOled, turnIcon, 18, 30);
+
+          ctxOled.font = '900 16px "Orbitron", sans-serif';
+          ctxOled.textAlign = 'left';
+          ctxOled.fillText(dist.toUpperCase(), 38, 28);
+
+          ctxOled.font = '700 10px "Plus Jakarta Sans", sans-serif';
+          ctxOled.fillText(street.length > 15 ? street.substring(0, 13) + '..' : street, 38, 44);
+
+          // Footer
+          ctxOled.beginPath(); ctxOled.moveTo(0, 50); ctxOled.lineTo(128, 50); ctxOled.stroke();
+          ctxOled.font = '9px "Plus Jakarta Sans", sans-serif';
+          ctxOled.fillText('XE:' + voltage + 'V', 2, 60);
+          ctxOled.textAlign = 'right';
+          ctxOled.fillText('Đến: ' + eta, 126, 60);
+        }
       }
       } else if (currentMode === 'NOTIF') {
         const app = document.getElementById('notifAppInput').value;

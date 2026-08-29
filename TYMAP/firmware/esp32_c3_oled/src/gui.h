@@ -73,11 +73,12 @@ extern uint8_t trafficWarningType;  // 1: Quá tốc độ, 2: Camera phạt ngu
 extern uint8_t trafficWarningValue; // Giá trị tốc độ giới hạn
 extern unsigned long trafficWarningStartTime;
 
-// Trạng thái Menu
+// Trạng thái Menu & Kiểu dáng HUD
 extern bool isMenuOpen;
 extern unsigned long menuStartTime;
 extern int menuSelectedIndex;
 extern int brightness;
+extern uint8_t hudStyle; // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar
 
 // Trạng thái Cập nhật Firmware BLE OTA
 extern bool isOtaMode;

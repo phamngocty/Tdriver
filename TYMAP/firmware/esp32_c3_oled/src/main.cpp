@@ -347,6 +347,25 @@ class NotifCallback : public NimBLECharacteristicCallbacks
     }
 };
 
+// Characterstic Callback: Cài Đặt (Settings)
+class SettingsCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.empty()) return;
+        JsonDocument doc;
+        if (deserializeJson(doc, val.c_str()) == DeserializationError::Ok) {
+            if (doc["hud_style"].is<int>()) hudStyle = doc["hud_style"].as<int>() % 4;
+            if (doc["brightness"].is<int>()) {
+                brightness = doc["brightness"].as<int>();
+                u8g2.setContrast(brightness);
+            }
+            screenNeedsRedraw = true;
+        }
+    }
+};
+
 // Characterstic Callback: Lệnh Điều Khiển Từ Xa (Remote Command)
 class RemoteCmdCallback : public NimBLECharacteristicCallbacks
 {
@@ -365,6 +384,10 @@ class RemoteCmdCallback : public NimBLECharacteristicCallbacks
         }
         else if (cmd == 0x13) currentMode = INFO_MODE;
         else if (cmd == 0x20) sendDeviceStatus();
+        else if (cmd == 0x30) {
+            // Chuyển kiểu HUD
+            hudStyle = (hudStyle + 1) % 4;
+        }
 
         screenNeedsRedraw = true;
     }
@@ -456,6 +479,12 @@ void setup()
         screenNeedsRedraw = true;
     });
 
+    // Double click nút Mode: Chuyển đổi nhanh 4 kiểu HUD (H1, H2, H3, H4)
+    btnMode.attachDoubleClick([]() {
+        hudStyle = (hudStyle + 1) % 4;
+        screenNeedsRedraw = true;
+    });
+
     btnMode.attachLongPressStart([]() {
         // Đảo ngược màu hoặc Reset về STATUS
         currentMode = STATUS_MODE;
@@ -470,6 +499,12 @@ void setup()
         }
     });
 
+    // Double click nút Zoom: Chuyển đổi kiểu HUD
+    btnZoom.attachDoubleClick([]() {
+        hudStyle = (hudStyle + 1) % 4;
+        screenNeedsRedraw = true;
+    });
+
     // Khởi tạo NimBLE Server
     NimBLEDevice::init("TYMAP-SH1106");
     NimBLEDevice::setPower(ESP_PWR_LVL_P9);
@@ -480,6 +515,9 @@ void setup()
 
     NimBLECharacteristic *pNavChar = pService->createCharacteristic(CHA_NAV_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pNavChar->setCallbacks(new NavCallback());
+
+    NimBLECharacteristic *pSettingsChar = pService->createCharacteristic(CHA_SETTINGS_UUID, NIMBLE_PROPERTY::WRITE);
+    pSettingsChar->setCallbacks(new SettingsCallback());
 
     NimBLECharacteristic *pIconDataChar = pService->createCharacteristic(CHA_ICON_DATA_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pIconDataChar->setCallbacks(new IconDataCallback());
