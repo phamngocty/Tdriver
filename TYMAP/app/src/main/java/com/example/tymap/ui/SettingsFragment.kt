@@ -252,7 +252,12 @@ class SettingsFragment : Fragment() {
             Toast.makeText(requireContext(), "Bật Bluetooth trước khi quét", Toast.LENGTH_SHORT).show()
             return
         }
+        deviceAdapter.clearDevices()
         binding.scanProgress.visibility = View.VISIBLE
+        val scanSettings = android.bluetooth.le.ScanSettings.Builder()
+            .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setReportDelay(0)
+            .build()
         val scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 activity?.runOnUiThread { 
@@ -263,7 +268,7 @@ class SettingsFragment : Fragment() {
             }
         }
         try {
-            scanner.startScan(scanCallback)
+            scanner.startScan(null, scanSettings, scanCallback)
             isScanning = true
             Handler(Looper.getMainLooper()).postDelayed({
                 try { scanner.stopScan(scanCallback) } catch (e: Exception) {}

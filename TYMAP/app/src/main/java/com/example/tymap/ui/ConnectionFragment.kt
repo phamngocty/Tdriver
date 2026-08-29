@@ -344,7 +344,12 @@ class ConnectionFragment : Fragment() {
     private fun startScanning() {
         if (isScanning) return
         val scanner = bluetoothAdapter?.bluetoothLeScanner ?: return
+        deviceAdapter.clearDevices()
         binding.scanProgress.visibility = View.VISIBLE
+        val scanSettings = android.bluetooth.le.ScanSettings.Builder()
+            .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setReportDelay(0)
+            .build()
         val scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 activity?.runOnUiThread { 
@@ -354,13 +359,18 @@ class ConnectionFragment : Fragment() {
                 }
             }
         }
-        scanner.startScan(scanCallback)
-        isScanning = true
-        Handler(Looper.getMainLooper()).postDelayed({
-            scanner.stopScan(scanCallback)
+        try {
+            scanner.startScan(null, scanSettings, scanCallback)
+            isScanning = true
+            Handler(Looper.getMainLooper()).postDelayed({
+                try { scanner.stopScan(scanCallback) } catch (e: Exception) {}
+                isScanning = false
+                if (_binding != null) binding.scanProgress.visibility = View.GONE
+            }, 10000)
+        } catch (e: Exception) {
             isScanning = false
-            binding.scanProgress.visibility = View.GONE
-        }, 10000)
+            if (_binding != null) binding.scanProgress.visibility = View.GONE
+        }
     }
 
     @SuppressLint("MissingPermission")
