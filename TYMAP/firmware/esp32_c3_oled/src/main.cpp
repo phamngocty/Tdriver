@@ -149,6 +149,8 @@ void updateBatteryVoltage()
     batteryVoltage = vAdc * (127.0f / 27.0f);
 }
 
+volatile bool advertisingPending = false;
+
 // Server Callbacks BLE
 class MyServerCallbacks : public NimBLEServerCallbacks
 {
@@ -166,6 +168,7 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         }
         hasActiveOledImage = false;
         screenNeedsRedraw = true;
+        advertisingPending = true;
     }
 };
 
@@ -569,7 +572,7 @@ void setup()
     NimBLECharacteristic *pRemoteCmdChar = pService->createCharacteristic(CHA_REMOTE_CMD_UUID, NIMBLE_PROPERTY::WRITE);
     pRemoteCmdChar->setCallbacks(new RemoteCmdCallback());
 
-    NimBLECharacteristic *pDeviceCtrlChar = pService->createCharacteristic(CHA_DEVICE_CTRL_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
+    pDeviceCtrlChar = pService->createCharacteristic(CHA_DEVICE_CTRL_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
     pDeviceCtrlChar->setCallbacks(new RemoteCmdCallback());
 
     NimBLECharacteristic *pOledImageChar = pService->createCharacteristic(CHA_OLED_IMAGE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
@@ -597,6 +600,12 @@ void loop()
 {
     btnMode.tick();
     btnZoom.tick();
+
+    // Khởi động lại BLE advertising an toàn khi bị ngắt kết nối
+    if (advertisingPending) {
+        advertisingPending = false;
+        NimBLEDevice::startAdvertising();
+    }
 
     // Tự động đóng popup thông báo sau 8 giây
     if (isNotifPopupTransient && currentMode == NOTIF_MODE) {
