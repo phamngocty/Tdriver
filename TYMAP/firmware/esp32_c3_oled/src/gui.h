@@ -80,6 +80,7 @@ extern int menuSelectedIndex;
 extern int brightness;
 extern uint8_t hudStyle;    // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar, 4=H5 Banner, 5=H6 Dual Pill
 extern uint8_t statusStyle; // 0=S1 Classic Digital, 1=S2 Dual Gauges, 2=S3 Minimalist, 3=S4 Sport Telemetry
+extern uint8_t notifStyle;  // 0=N1 Rounded Card, 1=N2 Split App Focus, 2=N3 Top Banner
 
 // Trạng thái Cập nhật Firmware BLE OTA
 extern bool isOtaMode;

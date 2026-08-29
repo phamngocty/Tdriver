@@ -201,16 +201,15 @@ class NavCallback : public NimBLECharacteristicCallbacks
 
                 if (k == "active" || k == "nav") navActive = v.toInt();
                 else if (k == "dist") distToNext = v;
-                else if (k == "title" || k == "street") nextStreet = v;
+                else if (k == "inst" || k == "title" || k == "street") nextStreet = v;
                 else if (k == "eta") eta = v;
                 else if (k == "ete") ete = v;
                 else if (k == "dir") navDirIdx = v.toInt();
-                else if (k == "total") totalDist = v;
+                else if (k == "road" || k == "total") totalDist = v;
             }
         }
 
         if (navActive == 0) {
-            // App tắt dẫn đường -> tự động về STATUS
             currentMode = STATUS_MODE;
             hasCustomIcon = false;
         } else if (navActive == 1) {
@@ -242,20 +241,45 @@ class SpeedCallback : public NimBLECharacteristicCallbacks
     void onWrite(NimBLECharacteristic *pChar) override
     {
         std::string val = pChar->getValue();
-        if (!val.empty()) {
+        if (val.empty()) return;
+
+        String sVal = val.c_str();
+        if (sVal.startsWith("speed=")) {
+            int speed = 0;
+            int start = 0;
+            while (start < sVal.length()) {
+                int comma = sVal.indexOf(',', start);
+                if (comma == -1) comma = sVal.length();
+                String part = sVal.substring(start, comma);
+                start = comma + 1;
+                int eq = part.indexOf('=');
+                if (eq != -1) {
+                    String k = part.substring(0, eq);
+                    String v = part.substring(eq + 1);
+                    if (k == "speed") speed = v.toInt();
+                }
+            }
+            gpsSpeed = speed;
+        } else {
             gpsSpeed = atoi(val.c_str());
-            screenNeedsRedraw = true;
         }
+        screenNeedsRedraw = true;
     }
 };
 
-// Characterstic Callback: Thời gian
+// Characterstic Callback: Thời gian (Hỗ trợ cả 4-byte Epoch Binary và 10-char String)
 class TimeCallback : public NimBLECharacteristicCallbacks
 {
     void onWrite(NimBLECharacteristic *pChar) override
     {
         std::string val = pChar->getValue();
-        if (val.length() >= 10) {
+        if (val.length() == 4) {
+            uint32_t ts;
+            memcpy(&ts, val.data(), 4);
+            rtc.setTime(ts);
+            timeSynced = true;
+            screenNeedsRedraw = true;
+        } else if (val.length() >= 10) {
             long epoch = atol(val.c_str());
             if (epoch > 1700000000) {
                 rtc.setTime(epoch);
@@ -276,7 +300,11 @@ class WeatherCallback : public NimBLECharacteristicCallbacks
             JsonDocument doc;
             if (deserializeJson(doc, val.c_str()) == DeserializationError::Ok) {
                 if (doc["temp"].is<float>()) weatherTemp = doc["temp"].as<float>();
+                else if (doc["t"].is<float>()) weatherTemp = doc["t"].as<float>();
+
                 if (doc["icon"].is<const char*>()) weatherIcon = doc["icon"].as<String>();
+                else if (doc["i"].is<const char*>()) weatherIcon = doc["i"].as<String>();
+
                 screenNeedsRedraw = true;
             }
         }
@@ -289,7 +317,13 @@ class PhoneBatteryCallback : public NimBLECharacteristicCallbacks
     void onWrite(NimBLECharacteristic *pChar) override
     {
         std::string val = pChar->getValue();
-        if (!val.empty()) {
+        if (val.empty()) return;
+
+        JsonDocument doc;
+        if (deserializeJson(doc, val.c_str()) == DeserializationError::Ok) {
+            phoneBatteryLevel = doc["level"] | -1;
+            phoneBatteryCharging = doc["charging"] | false;
+        } else {
             int sep = val.find(',');
             if (sep != std::string::npos) {
                 phoneBatteryLevel = atoi(val.substr(0, sep).c_str());
@@ -297,8 +331,8 @@ class PhoneBatteryCallback : public NimBLECharacteristicCallbacks
             } else {
                 phoneBatteryLevel = atoi(val.c_str());
             }
-            screenNeedsRedraw = true;
         }
+        screenNeedsRedraw = true;
     }
 };
 
@@ -354,7 +388,7 @@ class NotifCallback : public NimBLECharacteristicCallbacks
     }
 };
 
-// Characterstic Callback: Cài Đặt (Settings)
+// Characterstic Callback: Cài Đặt (Settings - JSON & Key-Value)
 class SettingsCallback : public NimBLECharacteristicCallbacks
 {
     void onWrite(NimBLECharacteristic *pChar) override
@@ -362,31 +396,53 @@ class SettingsCallback : public NimBLECharacteristicCallbacks
         std::string val = pChar->getValue();
         if (val.empty()) return;
 
-        // 1. Thử giải mã định dạng JSON
-        JsonDocument doc;
-        if (deserializeJson(doc, val.c_str()) == DeserializationError::Ok) {
-            if (doc["hud_style"].is<int>()) hudStyle = doc["hud_style"].as<int>() % 6;
-            if (doc["status_style"].is<int>()) statusStyle = doc["status_style"].as<int>() % 4;
-            if (doc["brightness"].is<int>()) {
-                brightness = doc["brightness"].as<int>();
-                u8g2.setContrast(brightness);
+        String s = val.c_str();
+        if (s.startsWith("{")) {
+            JsonDocument doc;
+            if (deserializeJson(doc, s.c_str()) == DeserializationError::Ok) {
+                if (doc["hud_style"].is<int>()) hudStyle = doc["hud_style"].as<int>() % 6;
+                else if (doc["hudStyle"].is<int>()) hudStyle = doc["hudStyle"].as<int>() % 6;
+
+                if (doc["status_style"].is<int>()) statusStyle = doc["status_style"].as<int>() % 4;
+                else if (doc["statusStyle"].is<int>()) statusStyle = doc["statusStyle"].as<int>() % 4;
+
+                if (doc["notif_style"].is<int>()) notifStyle = doc["notif_style"].as<int>() % 3;
+                else if (doc["notifStyle"].is<int>()) notifStyle = doc["notifStyle"].as<int>() % 3;
+
+                if (doc["brightness"].is<int>()) {
+                    brightness = doc["brightness"].as<int>();
+                    u8g2.setContrast((brightness * 255) / 100);
+                }
+                screenNeedsRedraw = true;
             }
-            screenNeedsRedraw = true;
-            return;
-        }
+        } else {
+            int startIdx = 0;
+            while (startIdx < s.length()) {
+                int endIdx = s.indexOf('\n', startIdx);
+                if (endIdx == -1) endIdx = s.length();
+                String line = s.substring(startIdx, endIdx);
+                startIdx = endIdx + 1;
 
-        // 2. Định dạng chuỗi key=value
-        String sVal = String(val.c_str());
-        if (sVal.startsWith("hud_style=") || sVal.startsWith("hudStyle=")) {
-            hudStyle = sVal.substring(sVal.indexOf('=') + 1).toInt() % 6;
-        } else if (sVal.startsWith("status_style=") || sVal.startsWith("statusStyle=")) {
-            statusStyle = sVal.substring(sVal.indexOf('=') + 1).toInt() % 4;
-        } else if (sVal.startsWith("brightness=")) {
-            brightness = sVal.substring(sVal.indexOf('=') + 1).toInt();
-            u8g2.setContrast(brightness);
-        }
+                int eqIdx = line.indexOf('=');
+                if (eqIdx != -1) {
+                    String key = line.substring(0, eqIdx);
+                    String value = line.substring(eqIdx + 1);
+                    key.trim(); value.trim();
 
-        screenNeedsRedraw = true;
+                    if (key == "brightness") {
+                        brightness = value.toInt();
+                        u8g2.setContrast((brightness * 255) / 100);
+                    } else if (key == "statusStyle" || key == "status_style") {
+                        statusStyle = (uint8_t)(value.toInt() % 4);
+                    } else if (key == "hudStyle" || key == "hud_style") {
+                        hudStyle = (uint8_t)(value.toInt() % 6);
+                    } else if (key == "notifStyle" || key == "notif_style") {
+                        notifStyle = (uint8_t)(value.toInt() % 3);
+                    }
+                    screenNeedsRedraw = true;
+                }
+            }
+        }
     }
 };
 

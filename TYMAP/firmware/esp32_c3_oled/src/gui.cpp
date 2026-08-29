@@ -37,6 +37,7 @@ void drawCustomIcon(const uint8_t *bitmap, int xOffset, int yOffset, int scale)
 
 uint8_t statusStyle = 0; // 0=S1 Classic Digital, 1=S2 Dual Gauges, 2=S3 Minimalist, 3=S4 Sport Telemetry
 uint8_t hudStyle = 0;    // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar, 4=H5 Banner, 5=H6 Dual Pill
+uint8_t notifStyle = 0;  // 0=N1 Rounded Card, 1=N2 Split App Focus, 2=N3 Top Banner
 
 // -------------------------------------------------------------
 // 1. MÀN HÌNH STATUS (ĐỒNG HỒ & THÔNG SỐ XE - 4 KIỂU PHONG CÁCH)
