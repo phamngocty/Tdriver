@@ -35,6 +35,7 @@ const char *CHA_SETTINGS_UUID = "9d37a346-63d3-4df6-8eee-f0242949f59f";
 const char *CHA_TIME_UUID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
 const char *CHA_WEATHER_UUID = "b2c3d4e5-f6a7-4890-b123-456789abcdef";
 const char *CHA_OLED_IMAGE_UUID = "e1f2a3b4-c5d6-4789-a012-3456789abcdef";
+const char *CHA_MAP_IMAGE_UUID = "c3d4e5f6-a7b8-4901-c234-567890abcdef";
 const char *CHA_DEVICE_CTRL_UUID = "d4e5f6a7-b8c9-4012-d345-678901bcdef0";
 const char *CHA_REMOTE_CMD_UUID = "f1a2b3c4-d5e6-4789-a012-3456789abcde";
 const char *CHA_DEVICE_STATUS_UUID = "a1b2c3d4-e5f6-4789-b012-3456789abcde";
@@ -533,6 +534,9 @@ void setup()
     NimBLECharacteristic *pNavChar = pService->createCharacteristic(CHA_NAV_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pNavChar->setCallbacks(new NavCallback());
 
+    NimBLECharacteristic *pNavIconChar = pService->createCharacteristic(CHA_NAV_TBT_ICON_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pNavIconChar->setCallbacks(new NavCallback());
+
     NimBLECharacteristic *pSettingsChar = pService->createCharacteristic(CHA_SETTINGS_UUID, NIMBLE_PROPERTY::WRITE);
     pSettingsChar->setCallbacks(new SettingsCallback());
 
@@ -560,8 +564,14 @@ void setup()
     NimBLECharacteristic *pRemoteCmdChar = pService->createCharacteristic(CHA_REMOTE_CMD_UUID, NIMBLE_PROPERTY::WRITE);
     pRemoteCmdChar->setCallbacks(new RemoteCmdCallback());
 
+    NimBLECharacteristic *pDeviceCtrlChar = pService->createCharacteristic(CHA_DEVICE_CTRL_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
+    pDeviceCtrlChar->setCallbacks(new RemoteCmdCallback());
+
     NimBLECharacteristic *pOledImageChar = pService->createCharacteristic(CHA_OLED_IMAGE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pOledImageChar->setCallbacks(new OledImageCallback());
+
+    NimBLECharacteristic *pMapImageChar = pService->createCharacteristic(CHA_MAP_IMAGE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pMapImageChar->setCallbacks(new OledImageCallback());
 
     NimBLECharacteristic *pOtaChar = pService->createCharacteristic(CHA_OTA_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pOtaChar->setCallbacks(new OtaCallback());

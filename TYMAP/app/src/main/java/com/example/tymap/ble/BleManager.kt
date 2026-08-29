@@ -91,22 +91,30 @@ class MyBleManager(context: Context) : BleManager(context) {
             mapStatusChar = service.getCharacteristic(BleConstants.CHA_MAP_STATUS)
             otaChar = service.getCharacteristic(BleConstants.CHA_OTA)
 
-            val missing = mutableListOf<String>()
-            if (navChar == null) missing.add("NAV")
-            if (navIconChar == null) missing.add("NAV_ICON")
-            if (speedChar == null) missing.add("SPEED")
-            if (settingsChar == null) missing.add("SETTINGS")
-            if (timeChar == null) missing.add("TIME")
-            if (weatherChar == null) missing.add("WEATHER")
-            if (deviceCtrlChar == null) missing.add("DEVICE_CTRL")
-            if (remoteCmdChar == null) missing.add("REMOTE_CMD")
-            if (deviceStatusChar == null) missing.add("DEVICE_STATUS")
-            if (iconDataChar == null) missing.add("ICON_DATA")
-            if (notificationChar == null) missing.add("NOTIFICATION")
+            val criticalMissing = mutableListOf<String>()
+            if (navChar == null) criticalMissing.add("NAV")
+            if (speedChar == null) criticalMissing.add("SPEED")
 
-            if (missing.isNotEmpty()) {
-                NavigationRepository.addLog("Missing characteristics: ${missing.joinToString()}")
+            if (criticalMissing.isNotEmpty()) {
+                NavigationRepository.addLog("Missing critical characteristics: ${criticalMissing.joinToString()}")
                 return false
+            }
+
+            // Log optional characteristics
+            val optionalMissing = mutableListOf<String>()
+            if (navIconChar == null) optionalMissing.add("NAV_ICON")
+            if (settingsChar == null) optionalMissing.add("SETTINGS")
+            if (timeChar == null) optionalMissing.add("TIME")
+            if (weatherChar == null) optionalMissing.add("WEATHER")
+            if (deviceCtrlChar == null) optionalMissing.add("DEVICE_CTRL")
+            if (remoteCmdChar == null) optionalMissing.add("REMOTE_CMD")
+            if (deviceStatusChar == null) optionalMissing.add("DEVICE_STATUS")
+            if (iconDataChar == null) optionalMissing.add("ICON_DATA")
+            if (notificationChar == null) optionalMissing.add("NOTIFICATION")
+            if (oledImageChar == null) optionalMissing.add("OLED_IMAGE")
+
+            if (optionalMissing.isNotEmpty()) {
+                NavigationRepository.addLog("Optional characteristics not found: ${optionalMissing.joinToString()}")
             }
 
             return true

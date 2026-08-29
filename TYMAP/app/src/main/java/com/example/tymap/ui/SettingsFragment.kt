@@ -660,7 +660,12 @@ class SettingsFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             NavigationRepository.deviceStatus.collect { status ->
                 val display = status["display"] ?: ""
-                val isOled = display.contains("OLED") || display.contains("SSD1306")
+                val devName = status["name"] ?: ""
+                val isOled = display.contains("OLED", ignoreCase = true) || 
+                             display.contains("SSD1306", ignoreCase = true) || 
+                             display.contains("SH1106", ignoreCase = true) ||
+                             devName.contains("SH1106", ignoreCase = true) ||
+                             devName.contains("OLED", ignoreCase = true)
                 
                 updateOledSettingsVisibility(isOled)
                 
