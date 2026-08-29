@@ -7,20 +7,35 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-
 import com.example.tymap.R
+
+data class DiscoveredBleDevice(
+    val device: BluetoothDevice,
+    val displayName: String
+)
 
 class BluetoothDeviceAdapter(private val onDeviceClick: (BluetoothDevice) -> Unit) :
     RecyclerView.Adapter<BluetoothDeviceAdapter.ViewHolder>() {
 
-    private val devices = mutableListOf<BluetoothDevice>()
+    private val devices = mutableListOf<DiscoveredBleDevice>()
 
     @SuppressLint("MissingPermission")
-    fun addDevice(device: BluetoothDevice) {
-        if (!devices.any { it.address == device.address }) {
-            devices.add(device)
+    fun addDevice(device: BluetoothDevice, scanRecordName: String? = null) {
+        val name = scanRecordName?.takeIf { it.isNotBlank() } ?: device.name?.takeIf { it.isNotBlank() } ?: "Thiết bị BLE"
+        val existingIndex = devices.indexOfFirst { it.device.address == device.address }
+        if (existingIndex < 0) {
+            devices.add(DiscoveredBleDevice(device, name))
             notifyItemInserted(devices.size - 1)
+        } else if (devices[existingIndex].displayName == "Thiết bị BLE" && name != "Thiết bị BLE") {
+            devices[existingIndex] = DiscoveredBleDevice(device, name)
+            notifyItemChanged(existingIndex)
         }
+    }
+
+    fun clearDevices() {
+        val count = devices.size
+        devices.clear()
+        notifyItemRangeRemoved(0, count)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -31,12 +46,12 @@ class BluetoothDeviceAdapter(private val onDeviceClick: (BluetoothDevice) -> Uni
 
     @SuppressLint("MissingPermission")
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val device = devices[position]
-        holder.tvName.text = device.name ?: "Unknown Device"
-        holder.tvAddress.text = device.address
+        val item = devices[position]
+        holder.tvName.text = item.displayName
+        holder.tvAddress.text = item.device.address
         
         holder.itemView.setOnClickListener { 
-            onDeviceClick(device) 
+            onDeviceClick(item.device) 
         }
     }
 

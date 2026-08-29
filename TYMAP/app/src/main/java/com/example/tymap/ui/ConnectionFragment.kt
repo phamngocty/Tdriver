@@ -347,7 +347,11 @@ class ConnectionFragment : Fragment() {
         binding.scanProgress.visibility = View.VISIBLE
         val scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                activity?.runOnUiThread { result.device?.let { deviceAdapter.addDevice(it) } }
+                activity?.runOnUiThread { 
+                    result.device?.let { 
+                        deviceAdapter.addDevice(it, result.scanRecord?.deviceName) 
+                    } 
+                }
             }
         }
         scanner.startScan(scanCallback)
