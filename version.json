@@ -2,7 +2,7 @@
   "app": {
     "versionCode": 10,
     "versionName": "1.0.10",
-    "apkUrl": "http://192.168.1.114:3002/attachments/8999125c-16f7-4a2f-a8b6-af0a026820de",
+    "apkUrl": "http://192.168.1.114:3002/attachments/a74470f5-4048-4919-b4db-2075ca3c6af7",
     "changelog": "• Tối ưu hóa chạy nền 100% không bị ngắt kết nối khi tắt màn hình.\n• Tự động phản hồi và kiểm tra phiên bản 2 chiều giữa ESP32 & App.\n• Dọn dẹp và tối ưu hóa quyền ứng dụng."
   },
   "firmware": {
