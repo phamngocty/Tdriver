@@ -981,6 +981,57 @@ class SettingsFragment : Fragment() {
         }
 
         // 5.5. OLED OPTIONS
+        // OLED HUD Styles
+        val oledHudStyles = arrayOf(
+            "H1: Classic Boxed (Khung tên đường)",
+            "H2: Split Cyber Dash (Tốc độ lớn trái)",
+            "H3: Big Arrow Focus (Mũi tên 48px)",
+            "H4: Racing Telemetry (Thanh RPM)",
+            "H5: Top Street Banner (Dải băng)",
+            "H6: Minimalist Dual Pill (Khối thẻ)"
+        )
+        setupSpinner(binding.spinnerOledHudStyle, oledHudStyles, PrefsHelper.getInt(context, "oled_hud_style", 0)) { styleIdx ->
+            PrefsHelper.putInt(context, "oled_hud_style", styleIdx)
+            NavigationService.bleManager?.writeSettings("{\"hud_style\":$styleIdx}")
+            Toast.makeText(context, "Đã gửi cấu hình Kiểu HUD: ${oledHudStyles[styleIdx]}", Toast.LENGTH_SHORT).show()
+        }
+
+        // OLED STATUS Styles
+        val oledStatusStyles = arrayOf(
+            "S1: Classic Digital (Đồng hồ to + thời tiết)",
+            "S2: Dual Gauges (Chia đôi giờ & tốc độ)",
+            "S3: Elegant Minimalist (Thanh lịch tối giản)",
+            "S4: Sport Activity (Thể thao đường đua)"
+        )
+        setupSpinner(binding.spinnerOledStatusStyle, oledStatusStyles, PrefsHelper.getInt(context, "oled_status_style", 0)) { styleIdx ->
+            PrefsHelper.putInt(context, "oled_status_style", styleIdx)
+            NavigationService.bleManager?.writeSettings("{\"status_style\":$styleIdx}")
+            Toast.makeText(context, "Đã gửi cấu hình Mặt Đồng Hồ OLED!", Toast.LENGTH_SHORT).show()
+        }
+
+        // OLED NOTIF Styles
+        val oledNotifStyles = arrayOf(
+            "N1: Rounded Focus Card (Khung thẻ)",
+            "N2: Split App Icon Focus (Icon 32px)",
+            "N3: Top Navigation Banner (Popup nổi)"
+        )
+        setupSpinner(binding.spinnerOledNotifStyle, oledNotifStyles, PrefsHelper.getInt(context, "oled_notif_style", 0)) { styleIdx ->
+            PrefsHelper.putInt(context, "oled_notif_style", styleIdx)
+            NavigationService.bleManager?.writeSettings("{\"notif_style\":$styleIdx}")
+            Toast.makeText(context, "Đã gửi cấu hình Thông Báo OLED!", Toast.LENGTH_SHORT).show()
+        }
+
+        // OLED Brightness / Contrast
+        val initialOledBrightness = PrefsHelper.getInt(context, "oled_brightness", 255)
+        binding.sliderOledBrightness.value = initialOledBrightness.toFloat().coerceIn(0f, 255f)
+        binding.tvValueOledBrightness.text = "$initialOledBrightness / 255"
+        binding.sliderOledBrightness.addOnChangeListener { _, value, _ ->
+            val bVal = value.toInt()
+            PrefsHelper.putInt(context, "oled_brightness", bVal)
+            binding.tvValueOledBrightness.text = "$bVal / 255"
+            NavigationService.bleManager?.writeSettings("{\"brightness\":$bVal}")
+        }
+
         val initialOledThresh = PrefsHelper.getInt(context, "oled_threshold", 128)
         binding.sliderOledThreshold.value = initialOledThresh.toFloat()
         binding.tvValueOledThreshold.text = "${initialOledThresh}"

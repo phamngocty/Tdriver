@@ -354,15 +354,32 @@ class SettingsCallback : public NimBLECharacteristicCallbacks
     {
         std::string val = pChar->getValue();
         if (val.empty()) return;
+
+        // 1. Thử giải mã định dạng JSON
         JsonDocument doc;
         if (deserializeJson(doc, val.c_str()) == DeserializationError::Ok) {
-            if (doc["hud_style"].is<int>()) hudStyle = doc["hud_style"].as<int>() % 4;
+            if (doc["hud_style"].is<int>()) hudStyle = doc["hud_style"].as<int>() % 6;
+            if (doc["status_style"].is<int>()) statusStyle = doc["status_style"].as<int>() % 4;
             if (doc["brightness"].is<int>()) {
                 brightness = doc["brightness"].as<int>();
                 u8g2.setContrast(brightness);
             }
             screenNeedsRedraw = true;
+            return;
         }
+
+        // 2. Định dạng chuỗi key=value
+        String sVal = String(val.c_str());
+        if (sVal.startsWith("hud_style=") || sVal.startsWith("hudStyle=")) {
+            hudStyle = sVal.substring(sVal.indexOf('=') + 1).toInt() % 6;
+        } else if (sVal.startsWith("status_style=") || sVal.startsWith("statusStyle=")) {
+            statusStyle = sVal.substring(sVal.indexOf('=') + 1).toInt() % 4;
+        } else if (sVal.startsWith("brightness=")) {
+            brightness = sVal.substring(sVal.indexOf('=') + 1).toInt();
+            u8g2.setContrast(brightness);
+        }
+
+        screenNeedsRedraw = true;
     }
 };
 

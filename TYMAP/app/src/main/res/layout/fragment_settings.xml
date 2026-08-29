@@ -1478,6 +1478,162 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:visibility="gone">
+
+                    <!-- OLED HUD Style -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingVertical="4dp">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:padding="8dp">
+                            <ImageView
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:src="@drawable/ic_turn_right"
+                                app:tint="#F59E0B" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Kiểu dẫn đường HUD (OLED)"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="#F1F5F9" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="6 bản phác thảo Turn-by-Turn"
+                                android:textSize="10sp"
+                                android:textColor="@color/colorTextMuted" />
+                        </LinearLayout>
+
+                        <Spinner
+                            android:id="@+id/spinnerOledHudStyle"
+                            android:layout_width="160dp"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <!-- OLED STATUS Clock Style -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingVertical="4dp">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:padding="8dp">
+                            <ImageView
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:src="@drawable/ic_clock"
+                                app:tint="#F59E0B" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Kiểu mặt đồng hồ (STATUS)"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="#F1F5F9" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="4 phong cách hiển thị thông số xe"
+                                android:textSize="10sp"
+                                android:textColor="@color/colorTextMuted" />
+                        </LinearLayout>
+
+                        <Spinner
+                            android:id="@+id/spinnerOledStatusStyle"
+                            android:layout_width="160dp"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <!-- OLED NOTIF Style -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingVertical="4dp">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:padding="8dp">
+                            <ImageView
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:src="@drawable/ic_notifications"
+                                app:tint="#F59E0B" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Kiểu thông báo (NOTIF)"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="#F1F5F9" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Thẻ toàn màn hình hoặc Popup nổi"
+                                android:textSize="10sp"
+                                android:textColor="@color/colorTextMuted" />
+                        </LinearLayout>
+
+                        <Spinner
+                            android:id="@+id/spinnerOledNotifStyle"
+                            android:layout_width="160dp"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <!-- OLED Brightness / Contrast -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
+                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_settings" app:tint="#F59E0B"/>
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Độ sáng / Tương phản OLED" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                        <TextView android:id="@+id/tvValueOledBrightness" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#F59E0B"/>
+                    </LinearLayout>
+                    <com.google.android.material.slider.Slider android:id="@+id/sliderOledBrightness" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="255" android:stepSize="5" />
+
                     <!-- Threshold -->
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
                         <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_layers" app:tint="#F59E0B"/>
