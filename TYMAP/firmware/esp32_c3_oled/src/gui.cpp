@@ -555,10 +555,12 @@ void drawLogoSplash(unsigned long currentTime, unsigned long startTime, unsigned
 {
     u8g2.clearBuffer();
 
-    // 1. Vẽ Logo 64x64 căn chính giữa màn hình (x = 32, y = -3)
-    u8g2.drawXBMP(32, -3, 64, 64, logo_pnt_64x64);
+    // 1. Vẽ Logo 64x64 căn chính giữa màn hình (x = 32, y = 0, widthBytes = 8, height = 64)
+    // Lưu ý: Mảng logo_pnt_64x64 xuất dạng standard bitmap (MSB-first) -> dùng drawBitmap
+    u8g2.setDrawColor(1);
+    u8g2.drawBitmap(32, 0, 8, 64, logo_pnt_64x64);
 
-    // 2. Tính toán tiến trình thanh Loading
+    // 2. Tính toán tiến trình thanh Loading (0.0 -> 1.0)
     float progress = 0.0f;
     if (introDuration > 0 && currentTime >= startTime) {
         progress = (float)(currentTime - startTime) / (float)introDuration;
@@ -572,7 +574,6 @@ void drawLogoSplash(unsigned long currentTime, unsigned long startTime, unsigned
     int barW = 100;
     int barH = 5;
 
-    u8g2.setDrawColor(1);
     u8g2.drawFrame(barX, barY, barW, barH);
 
     int fillW = (int)(progress * (barW - 2));
