@@ -660,9 +660,7 @@ class SettingsFragment : Fragment() {
 
     private fun updateOledSettingsVisibility(isOledConnected: Boolean = false) {
         if (_binding == null) return
-        val manualShow = PrefsHelper.getBoolean(requireContext(), "manual_show_oled", false)
-        val shouldShow = isOledConnected || manualShow
-        binding.layoutOledSettings.visibility = if (shouldShow) View.VISIBLE else View.GONE
+        binding.layoutOledSettings.visibility = View.VISIBLE
     }
 
     private fun observeDeviceType() {
