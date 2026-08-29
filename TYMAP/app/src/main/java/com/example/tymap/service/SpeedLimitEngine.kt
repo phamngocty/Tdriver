@@ -93,8 +93,17 @@ object SpeedLimitEngine {
                         onResult(result)
                     }
                 } else {
+                    // Fallback sang mức thủ công trong cài đặt nếu không tìm thấy tag trên OSM/Overpass
+                    val manualLimit = PrefsHelper.getInt(context, "manual_speed_threshold", 60)
+                    val fallbackResult = SpeedLimitResult(
+                        speedLimit = manualLimit,
+                        source = "Mặc định cài đặt",
+                        roadName = ""
+                    )
+                    ramGridCache[key] = fallbackResult
+                    com.example.tymap.repository.NavigationRepository.updateSpeedLimit(manualLimit, "")
                     withContext(Dispatchers.Main) {
-                        onResult(null)
+                        onResult(fallbackResult)
                     }
                 }
             } catch (e: Exception) {
@@ -111,7 +120,7 @@ object SpeedLimitEngine {
     private fun queryOverpassApi(context: Context, lat: Double, lon: Double): SpeedLimitResult? {
         val query = """
             [out:json][timeout:5];
-            way(around:50,$lat,$lon)["maxspeed"];
+            way(around:60,$lat,$lon)["highway"];
             out tags;
         """.trimIndent()
 
@@ -122,6 +131,7 @@ object SpeedLimitEngine {
         }
         endpoints.add("https://overpass-api.de/api/interpreter?data=")
         endpoints.add("https://overpass.kumi.systems/api/interpreter?data=")
+        endpoints.add("https://maps.mail.ru/osm/tools/overpass/api/interpreter?data=")
 
         for (endpoint in endpoints) {
             try {
@@ -134,23 +144,57 @@ object SpeedLimitEngine {
 
                 val json = JSONObject(body)
                 val elements = json.optJSONArray("elements") ?: continue
+                
+                var bestSpeed = 0
+                var bestRoadName = ""
+                var isExplicitMaxSpeed = false
+
                 for (i in 0 until elements.length()) {
                     val el = elements.getJSONObject(i)
                     val tags = el.optJSONObject("tags") ?: continue
                     val maxspeedStr = tags.optString("maxspeed", "")
                     val roadName = tags.optString("name", "")
+                    val highway = tags.optString("highway", "")
 
-                    val parsedSpeed = parseSpeedString(maxspeedStr)
-                    if (parsedSpeed > 0) {
-                        if (isNas) {
-                            NasConnectionManager.markNasSuccess()
-                        }
-                        return SpeedLimitResult(
-                            speedLimit = parsedSpeed,
-                            source = if (isNas) "NAS Fusion Engine" else "OpenStreetMap (Overpass)",
-                            roadName = roadName
-                        )
+                    val explicitSpeed = parseSpeedString(maxspeedStr)
+                    if (explicitSpeed > 0) {
+                        bestSpeed = explicitSpeed
+                        bestRoadName = roadName
+                        isExplicitMaxSpeed = true
+                        break
                     }
+
+                    // Tự động suy luận tốc độ theo quy chuẩn giao thông VN nếu OSM chưa gán tag maxspeed
+                    if (bestSpeed == 0 && highway.isNotEmpty()) {
+                        val inferredSpeed = when (highway) {
+                            "motorway", "motorway_link" -> 100
+                            "trunk", "trunk_link" -> 80
+                            "primary", "primary_link" -> 60
+                            "secondary", "secondary_link", "tertiary", "tertiary_link" -> 50
+                            "residential", "living_street", "unclassified", "service" -> 50
+                            else -> 50
+                        }
+                        if (inferredSpeed > 0) {
+                            bestSpeed = inferredSpeed
+                            bestRoadName = roadName
+                        }
+                    }
+                }
+
+                if (bestSpeed > 0) {
+                    if (isNas) {
+                        NasConnectionManager.markNasSuccess()
+                    }
+                    val sourceStr = if (isNas) {
+                        if (isExplicitMaxSpeed) "NAS Fusion Engine (maxspeed)" else "NAS Fusion Engine (theo loại đường)"
+                    } else {
+                        if (isExplicitMaxSpeed) "Overpass OSM (maxspeed)" else "Overpass OSM (theo loại đường)"
+                    }
+                    return SpeedLimitResult(
+                        speedLimit = bestSpeed,
+                        source = sourceStr,
+                        roadName = bestRoadName
+                    )
                 }
             } catch (e: Exception) {
                 if (NasConnectionManager.isNasEndpoint(endpoint) && NasConnectionManager.isConnectionFailure(e)) {

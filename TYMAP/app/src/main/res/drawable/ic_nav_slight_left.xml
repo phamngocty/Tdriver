@@ -3,14 +3,8 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Thân chếch trái nhẹ -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4"
-        android:fillColor="#00000000"
-        android:pathData="M28,38 L28,22 L18,12"/>
-    <!-- Đầu mũi tên chếch trái -->
+    <!-- Mũi tên chếch trái 45 độ mượt mà -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M10,10 L22,10 L22,14 L20,14 L28,22 L25,25 L17,17 L17,19 L13,19 Z"/>
+        android:pathData="M9,11 L23,8.5 L21,15 L25.5,18.5 C30.5,22.5 32,27 32,34 L32,39 C32,40.1 31.1,41 30,41 L26,41 C24.9,41 24,40.1 24,39 L24,34 C24,29.5 22.5,26.5 19.5,24 L15,20.5 L13,27 Z"/>
 </vector>

@@ -34,6 +34,8 @@ import com.example.tymap.repository.NavigationRepository
 import com.example.tymap.repository.StepInfo
 import com.example.tymap.model.OledFilter
 import com.example.tymap.utils.PrefsHelper
+import com.example.tymap.utils.IconUtils
+import com.example.tymap.ui.maneuverIconRes
 import com.google.gson.reflect.TypeToken
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -200,7 +202,10 @@ class NavigationService : Service() {
         icon1bpp: ByteArray?, 
         bitmap: android.graphics.Bitmap?
     ) {
-        val iconHash = icon1bpp?.let { calculateCRC32(it) } ?: -1L
+        val finalIcon1bpp = icon1bpp 
+            ?: bitmap?.let { IconUtils.convertTo1bpp(it, 48, 48) }
+            ?: IconUtils.getVectorDrawable1bpp(this, com.example.tymap.ui.maneuverIconRes(iconIndex), 48, 48)
+        val iconHash = finalIcon1bpp?.let { calculateCRC32(it) } ?: -1L
         
         val captureMode = PrefsHelper.getInt(this, "map_capture_mode", 0)
         
@@ -244,13 +249,13 @@ class NavigationService : Service() {
         NavigationRepository.updateHudPreview(NavigationRepository.HudData(
             active = true,
             isNavigation = true,
-            hasIcon = icon1bpp != null,
+            hasIcon = finalIcon1bpp != null,
             distance = distance,
             eta = eta,
             duration = ete,
             title = instruction, 
             directions = roadName,
-            icon1bpp = icon1bpp,
+            icon1bpp = finalIcon1bpp,
             bitmapIcon = bitmap
         ))
 
@@ -275,7 +280,7 @@ class NavigationService : Service() {
         
         // 2. Send Icon Data - Send in Map Mode as well because MAP HUD needs it
         if (!isPopupActive) {
-            if (icon1bpp != null) {
+            if (finalIcon1bpp != null) {
                 // Priority: Bitmap/Hash Icon
                 if (iconHash != lastSentIconHash) {
                     lastSentIconHash = iconHash
@@ -498,11 +503,13 @@ class NavigationService : Service() {
             }
             
             val iconIndex = forcedIconIndex ?: (if (isGmaps) guessIconFromTitle(title) else 0)
+            val finalIcon1bpp = bitmap?.let { IconUtils.convertTo1bpp(it, 48, 48) }
+                ?: IconUtils.getVectorDrawable1bpp(this@NavigationService, com.example.tymap.ui.maneuverIconRes(iconIndex), 48, 48)
             
             NavigationRepository.updateHudPreview(NavigationRepository.HudData(
                 active = true,
                 isNavigation = true,
-                hasIcon = true,
+                hasIcon = finalIcon1bpp != null,
                 distance = finalDist, 
                 title = finalInstruction,
                 directions = road,
@@ -510,13 +517,24 @@ class NavigationService : Service() {
                 duration = ete,
                 speed = "",
                 iconIndex = iconIndex,
-                bitmapIcon = bitmap
+                bitmapIcon = bitmap,
+                icon1bpp = finalIcon1bpp
             ))
 
             // Send to ESP32 in a structured format
             val cleanDist = cleanDistanceString(finalDist)
             val bleData = "active=1\nnav=1\ndist=$cleanDist\ntitle=$finalInstruction\nroad=$road\ndir=$iconIndex\neta=$eta\nete=$ete"
             bleManager.writeNavigationData(bleData)
+
+            if (finalIcon1bpp != null) {
+                val iconHash = calculateCRC32(finalIcon1bpp)
+                if (iconHash != lastSentIconHash) {
+                    lastSentIconHash = iconHash
+                    val hashHex = String.format("%08X", iconHash)
+                    NavigationRepository.addLog("BLE: Sending in-app icon hash = $hashHex")
+                    bleManager.writeNavIconHash(hashHex)
+                }
+            }
         }
     }
 
@@ -877,25 +895,68 @@ class NavigationService : Service() {
         serviceScope.launch(Dispatchers.IO) {
             val location = NavigationRepository.gpsLocation.value ?: return@launch
             try {
-                val url = "https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true"
-                val request = Request.Builder().url(url).build()
-                httpClient.newCall(request).execute().use { response ->
-                    val body = response.body.string()
-                    if (response.isSuccessful && body.startsWith("{")) {
-                        val json = gson.fromJson(body, WeatherResponse::class.java)
-                        val iconCode = mapWeatherCode(json.current_weather.weathercode)
-                        bleManager.writeWeather(gson.toJson(mapOf(
-                            "t" to json.current_weather.temperature,
-                            "i" to iconCode
-                        )))
-                        android.util.Log.d("NavigationService", "BLE Weather Synced: ${json.current_weather.temperature}°C, icon: $iconCode")
-                    } else {
-                        android.util.Log.e("NavigationService", "Weather API Error: ${response.code} - $body")
+                val weatherApiKey = PrefsHelper.getSecureString(this@NavigationService, "api_key_weatherapi", "").trim()
+                var tempC: Float? = null
+                var iconCode: String? = null
+
+                // 1. Thử WeatherAPI.com nếu người dùng có key
+                if (weatherApiKey.isNotEmpty()) {
+                    try {
+                        val url = "https://api.weatherapi.com/v1/current.json?key=$weatherApiKey&q=${location.latitude},${location.longitude}&lang=vi"
+                        val req = Request.Builder().url(url).build()
+                        httpClient.newCall(req).execute().use { resp ->
+                            if (resp.isSuccessful) {
+                                val json = org.json.JSONObject(resp.body.string())
+                                val current = json.optJSONObject("current")
+                                if (current != null) {
+                                    tempC = current.optDouble("temp_c", 28.0).toFloat()
+                                    val code = current.optJSONObject("condition")?.optInt("code", 1000) ?: 1000
+                                    iconCode = mapWeatherApiCode(code)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("NavigationService", "WeatherAPI sync failed, falling back to Open-Meteo: ${e.message}")
                     }
+                }
+
+                // 2. Fallback sang Open-Meteo Multi-Model (ECMWF & JMA)
+                if (tempC == null) {
+                    val url = "https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true&models=best_match,ecmwf_ifs025,jma_gsm"
+                    val request = Request.Builder().url(url).build()
+                    httpClient.newCall(request).execute().use { response ->
+                        val body = response.body.string()
+                        if (response.isSuccessful && body.startsWith("{")) {
+                            val json = gson.fromJson(body, WeatherResponse::class.java)
+                            tempC = json.current_weather.temperature
+                            iconCode = mapWeatherCode(json.current_weather.weathercode)
+                        }
+                    }
+                }
+
+                if (tempC != null && iconCode != null) {
+                    bleManager.writeWeather(gson.toJson(mapOf(
+                        "t" to tempC,
+                        "i" to iconCode
+                    )))
+                    android.util.Log.d("NavigationService", "BLE Weather Synced: ${tempC}°C, icon: $iconCode")
                 }
             } catch (e: Exception) {
                 android.util.Log.e("NavigationService", "Weather Sync Exception: ${e.message}")
             }
+        }
+    }
+
+    private fun mapWeatherApiCode(code: Int): String {
+        return when (code) {
+            1000 -> "01d" // Nắng / quang đãng
+            1003 -> "02d" // Ít mây
+            1006, 1009 -> "04d" // Nhiều mây / U ám
+            1030, 1135, 1147 -> "50d" // Sương mù
+            1087, 1273, 1276, 1279, 1282 -> "11d" // Sấm sét / Dông bão
+            1063, 1150, 1153, 1180, 1183, 1186, 1189, 1192, 1195, 1240, 1243, 1246 -> "10d" // Mưa
+            1066, 1114, 1210, 1213, 1216, 1219, 1222, 1225 -> "13d" // Tuyết
+            else -> "02d"
         }
     }
 

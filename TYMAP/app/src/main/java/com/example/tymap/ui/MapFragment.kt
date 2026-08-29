@@ -610,6 +610,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     private fun clearDestination() {
+        stopSimulation()
         destinationMarker?.let {
             binding.mapView.overlays.remove(it)
             destinationMarker = null
@@ -618,6 +619,22 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.mapView.overlays.removeAll(toRemove)
         routePolylines.clear()
         NavigationRepository.updateRoutes(emptyList())
+        NavigationRepository.setNavigationRunning(false)
+        NavigationRepository.setMapModeActive(false)
+        NavigationRepository.updateHudPreview(null)
+        NavigationRepository.updateWeatherEta(null)
+        NavigationRepository.updateSpeedLimit(0, "")
+        NavigationRepository.updateTrafficWarningPoints(emptyList())
+
+        // Lệnh lập tức chuyển ESP32 về chế độ STATUS
+        val mgr = NavigationService.bleManager
+        if (mgr != null && mgr.isConnected) {
+            mgr.writeNavigationData("active=0\nnav=0\ndist=\ntitle=\ndir=\neta=\nete=")
+            mgr.sendRemoteCommand(0x12.toByte())
+        }
+
+        val density = resources.displayMetrics.density
+        bottomSheetBehavior.peekHeight = (220 * density).toInt()
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
         binding.bottomSheet.layoutRoutePreview.visibility = View.GONE
         binding.bottomSheet.layoutPlaceInfo.visibility = View.GONE
@@ -647,14 +664,9 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 }
             }
             override fun onSlide(bottomSheet: View, slideOffset: Float) {
-                // Only bottom-anchored controls (which the expanding sheet would
-                // otherwise cover) follow the sheet. fabLocation lives in the
-                // top-right stack, so it must NOT move here.
-                val shift = if (slideOffset > 0f) -slideOffset * (bottomSheet.height - bottomSheetBehavior.peekHeight) else 0f
-                binding.zoomControls.translationY = shift
-                binding.btnRecenter.translationY = shift
-                binding.cardGpsSpeedometer.translationY = shift
-                binding.cardSpeedLimitSign.translationY = shift
+                // CoordinatorLayout automatically handles anchor positioning for
+                // anchored views (cardGpsSpeedometer, btnRecenter, zoomControls, cardSpeedLimitSign).
+                // Do not apply manual negative translationY to avoid double-offset pushing views into the sky.
             }
         })
 
@@ -713,11 +725,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 ?: NavigationRepository.routes.value.firstOrNull()
             if (activeRoute != null && activeRoute.steps.isNotEmpty()) {
                 binding.layoutRouteSteps.visibility = View.VISIBLE
+                routeStepsAdapter.destinationWeather = NavigationRepository.weatherEta.value?.etaPointWeather
                 routeStepsAdapter.submitList(activeRoute.steps)
                 val durationMin = Math.round(activeRoute.duration / 60.0)
                 val distKm = String.format(java.util.Locale.US, "%.1f km", activeRoute.distance / 1000.0)
                 binding.tvStepsDuration.text = "$durationMin phút"
-                binding.tvStepsSummary.text = "$distKm • ${activeRoute.engineName}"
+                val weather = NavigationRepository.weatherEta.value
+                val weatherSuffix = if (weather != null) " • ${weather.etaPointWeather.icon} ${weather.etaPointWeather.tempC}°C" else ""
+                binding.tvStepsSummary.text = "$distKm • ${activeRoute.engineName}$weatherSuffix"
             } else {
                 Toast.makeText(requireContext(), "Chưa có danh sách bước rẽ", Toast.LENGTH_SHORT).show()
             }
@@ -731,11 +746,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
                     ?: NavigationRepository.routes.value.firstOrNull()
                 activeRoute?.let { route ->
+                    routeStepsAdapter.destinationWeather = NavigationRepository.weatherEta.value?.etaPointWeather
                     routeStepsAdapter.submitList(route.steps)
                 }
                 NavigationRepository.hudPreviewData.value?.let { hud ->
                     binding.tvStepsDuration.text = hud.duration
-                    binding.tvStepsSummary.text = if (hud.eta.isNotEmpty()) "${hud.distance} • ${hud.eta}" else hud.distance
+                    val weather = NavigationRepository.weatherEta.value
+                    val weatherSuffix = if (weather != null) " • ${weather.etaPointWeather.icon} ${weather.etaPointWeather.tempC}°C" else ""
+                    binding.tvStepsSummary.text = if (hud.eta.isNotEmpty()) "${hud.distance} • ${hud.eta}$weatherSuffix" else "${hud.distance}$weatherSuffix"
                 }
             }
         }
@@ -1261,6 +1279,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.bottomSheet.layoutPlaceInfo.visibility = View.VISIBLE
         binding.bottomSheet.layoutRoutePreview.visibility = View.GONE
         binding.bottomSheet.layoutNavigation.visibility = View.GONE
+        val density = resources.displayMetrics.density
+        bottomSheetBehavior.peekHeight = (160 * density).toInt()
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
         
         binding.bottomSheet.btnStart.setOnClickListener { startNavigation(lat, lon) }
@@ -1712,9 +1732,12 @@ class MapFragment : Fragment(), IOrientationConsumer {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 NavigationRepository.currentSpeedLimit.collect { speedLimit ->
                     val isSpeedWarningEnabled = PrefsHelper.getBoolean(requireContext(), "speed_warning", true)
-                    if (isSpeedWarningEnabled && speedLimit > 0) {
+                    val effectiveLimit = if (speedLimit > 0) speedLimit else PrefsHelper.getInt(requireContext(), "speed_threshold", 60)
+                    if (isSpeedWarningEnabled && effectiveLimit > 0) {
                         binding.cardSpeedLimitSign.visibility = View.VISIBLE
-                        binding.tvSpeedLimitSignValue.text = "$speedLimit"
+                        binding.tvSpeedLimitSignValue.text = "$effectiveLimit"
+                    } else {
+                        binding.cardSpeedLimitSign.visibility = View.GONE
                     }
                 }
             }
@@ -1790,6 +1813,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     binding.bottomSheet.layoutPlaceInfo.visibility = View.GONE
                     binding.bottomSheet.layoutRoutePreview.visibility = View.GONE
                     binding.bottomSheet.layoutNavigation.visibility = View.VISIBLE
+                    val density = resources.displayMetrics.density
+                    bottomSheetBehavior.peekHeight = (125 * density).toInt()
                     bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
                     NavigationRepository.gpsLocation.value?.let {
                         binding.mapView.controller.setZoom(PrefsHelper.getFloat(requireContext(), "default_zoom", 15f).toDouble())
@@ -1799,6 +1824,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     }
                 } else {
                     binding.bottomSheet.layoutNavigation.visibility = View.GONE
+                    val density = resources.displayMetrics.density
+                    bottomSheetBehavior.peekHeight = (220 * density).toInt()
                     bottomSheetBehavior.state = BottomSheetBehavior.STATE_HIDDEN
                     binding.mapView.mapOrientation = 0f 
                     updateLocationButtonState()
@@ -1813,6 +1840,15 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     binding.bottomSheet.tvNavDistance.text = hud.distance
                     binding.bottomSheet.tvNavDistance.setTypeface(null, Typeface.BOLD)
                     binding.bottomSheet.tvNavEta.text = getString(R.string.eta_format, hud.eta, hud.duration)
+                    
+                    val weather = NavigationRepository.weatherEta.value
+                    if (weather != null) {
+                        val ew = weather.etaPointWeather
+                        binding.bottomSheet.tvNavWeather.text = "${ew.icon} ${ew.tempC}°C"
+                        binding.bottomSheet.tvNavWeather.setTextColor(if (ew.isRainAlert) Color.parseColor("#F87171") else Color.parseColor("#38BDF8"))
+                        binding.bottomSheet.tvNavWeather.visibility = View.VISIBLE
+                    }
+
                     if (hud.bitmapIcon != null) {
                         binding.bottomSheet.ivNavIcon.setImageBitmap(hud.bitmapIcon)
                     } else {
@@ -1822,10 +1858,30 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     // Đồng bộ thông tin Header của danh sách ngã rẽ chi tiết
                     if (binding.layoutRouteSteps.visibility == View.VISIBLE) {
                         binding.tvStepsDuration.text = hud.duration
-                        binding.tvStepsSummary.text = if (hud.eta.isNotEmpty()) "${hud.distance} • ${hud.eta}" else hud.distance
+                        val weatherSuffix = if (weather != null) " • ${weather.etaPointWeather.icon} ${weather.etaPointWeather.tempC}°C" else ""
+                        binding.tvStepsSummary.text = if (hud.eta.isNotEmpty()) "${hud.distance} • ${hud.eta}$weatherSuffix" else "${hud.distance}$weatherSuffix"
                     }
                 } else {
                     binding.layoutRouteSteps.visibility = View.GONE
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            NavigationRepository.weatherEta.collectLatest { weather ->
+                if (weather != null) {
+                    val ew = weather.etaPointWeather
+                    binding.bottomSheet.tvNavWeather.text = "${ew.icon} ${ew.tempC}°C"
+                    binding.bottomSheet.tvNavWeather.setTextColor(if (ew.isRainAlert) Color.parseColor("#F87171") else Color.parseColor("#38BDF8"))
+                    if (NavigationRepository.navigationState.value) {
+                        binding.bottomSheet.tvNavWeather.visibility = View.VISIBLE
+                    }
+                    routeStepsAdapter.destinationWeather = ew
+                    routeStepsAdapter.notifyDataSetChanged()
+                } else {
+                    binding.bottomSheet.tvNavWeather.visibility = View.GONE
+                    routeStepsAdapter.destinationWeather = null
+                    routeStepsAdapter.notifyDataSetChanged()
                 }
             }
         }
@@ -1950,6 +2006,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.bottomSheet.btnClosePreview.setOnClickListener {
             clearDestination()
         }
+        val density = resources.displayMetrics.density
+        bottomSheetBehavior.peekHeight = (230 * density).toInt()
         bottomSheetBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
     }
 
@@ -2083,8 +2141,9 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.bottomSheet.tvWeatherFirstStep.text = "📍 Bước 1: $firstStepText"
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val weather = com.example.tymap.service.WeatherEtaService.checkFullRouteWeather(startLat, startLng, destLat, destLng, durationSeconds)
+            val weather = com.example.tymap.service.WeatherEtaService.checkFullRouteWeather(context, startLat, startLng, destLat, destLng, durationSeconds)
             withContext(Dispatchers.Main) {
+                NavigationRepository.updateWeatherEta(weather)
                 if (weather != null) {
                     binding.bottomSheet.cardWeatherEta.visibility = View.VISIBLE
                     binding.bottomSheet.tvWeatherEtaBadge.text = "ETA: ${weather.etaTimeStr} (+${weather.travelMinutes}m)"
@@ -2287,6 +2346,25 @@ class MapFragment : Fragment(), IOrientationConsumer {
             putExtra("DEST_LAT", lat); putExtra("DEST_LON", lon)
         }
         requireContext().startForegroundService(intent)
+
+        val activeRoute = NavigationRepository.routes.value.firstOrNull { it.isSelected }
+            ?: NavigationRepository.routes.value.firstOrNull()
+
+        // 1. Tải cảnh báo giao thông (Camera phạt nguội & Biển báo tốc độ Overpass / NAS) dọc tuyến
+        if (activeRoute != null && activeRoute.polyline.isNotEmpty()) {
+            com.example.tymap.service.TrafficWarningManager.fetchRouteWarnings(requireContext(), activeRoute.polyline)
+        }
+
+        // 2. Tải tốc độ giới hạn ngay tại vị trí hiện tại từ Overpass
+        NavigationRepository.gpsLocation.value?.let { loc ->
+            com.example.tymap.service.SpeedLimitEngine.fetchSpeedLimit(requireContext(), loc) { }
+        }
+
+        // 3. Đảm bảo cập nhật dự báo thời tiết điểm đến khi bắt đầu dẫn đường
+        if (NavigationRepository.weatherEta.value == null) {
+            val duration = activeRoute?.duration ?: 900.0
+            fetchWeatherEtaForRoute(lat, lon, duration)
+        }
     }
 
     private fun handleSharedLocation() {

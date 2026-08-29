@@ -3,18 +3,14 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Chấm tròn đích đến -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M24,20 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0"/>
-    <!-- Cột cắm ghim -->
+    <!-- Vòng chân đế điểm đến -->
     <path
         android:strokeColor="#FFFFFF"
         android:strokeWidth="3"
         android:fillColor="#00000000"
-        android:pathData="M24,28 L24,40"/>
-    <!-- Mũi tên vào -->
+        android:pathData="M24,39 m-10,0 a10,3.5 0 1,0 20,0 a10,3.5 0 1,0 -20,0"/>
+    <!-- Ghim vị trí đích đến sắc nét -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M24,8 L30,16 L26,16 L26,20 L22,20 L22,16 L18,16 Z"/>
+        android:pathData="M24,6 C17.4,6 12,11.4 12,18 C12,26.5 22.8,37.2 23.3,37.7 C23.7,38.1 24.3,38.1 24.7,37.7 C25.2,37.2 36,26.5 36,18 C36,11.4 30.6,6 24,6 Z M24,22.5 C21.5,22.5 19.5,20.5 19.5,18 C19.5,15.5 21.5,13.5 24,13.5 C26.5,13.5 28.5,15.5 28.5,18 C28.5,20.5 26.5,22.5 24,22.5 Z"/>
 </vector>

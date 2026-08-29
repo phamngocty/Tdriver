@@ -671,16 +671,16 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
             else
             {
                 // Nếu dừng dẫn đường, chuyển về STATUS_MODE từ cả HUD và MAP mode
-                if (currentMode == HUD_MODE || currentMode == MAP_MODE)
-                {
-                    currentMode = STATUS_MODE;
-                    isPopupActive = false;
-                    isReceivingJpeg = false;
-                    jpegSize = 0;
-                    jpegWritten = 0;
-                    hasActiveTile = false;
-                    statusUpdatePending = true; // Cập nhật trạng thái an toàn qua luồng loop
-                }
+                currentMode = STATUS_MODE;
+                isPopupActive = false;
+                isReceivingJpeg = false;
+                jpegSize = 0;
+                jpegWritten = 0;
+                hasActiveTile = false;
+                hasCustomIcon = false;
+                needClearScreen = true;
+                screenNeedsRedraw = true;
+                statusUpdatePending = true; // Cập nhật trạng thái an toàn qua luồng loop
             }
             screenNeedsRedraw = true;
         }
@@ -1184,6 +1184,7 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
                     currentMode = STATUS_MODE;
                     isPopupActive = false;
                     isReceivingJpeg = false;
+                    hasCustomIcon = false;
                     needClearScreen = true;
                     screenNeedsRedraw = true;
                     statusUpdatePending = true;

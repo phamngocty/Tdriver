@@ -3,14 +3,8 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Thân rẽ phải -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4"
-        android:fillColor="#00000000"
-        android:pathData="M18,38 L18,22 Q18,14 26,14 L32,14"/>
-    <!-- Đầu mũi tên phải -->
+    <!-- Mũi tên rẽ phải 90 độ mượt mà -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M38,14 L28,8 L28,12 L18,12 L18,16 L28,16 L28,20 Z"/>
+        android:pathData="M42,24 L29,12 L29,19.5 L24,19.5 C18,19.5 13.5,24 13.5,30 L13.5,39 C13.5,40.1 14.4,41 15.5,41 L20.5,41 C21.6,41 22.5,40.1 22.5,39 L22.5,30 C22.5,29.2 23.2,28.5 24,28.5 L29,28.5 L29,36 Z"/>
 </vector>

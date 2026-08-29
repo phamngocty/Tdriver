@@ -77,7 +77,7 @@ void drawHUD()
     // Hiển thị icon thời tiết góc trên bên phải nếu có dữ liệu
     if (weatherIcon.length() > 0)
     {
-        drawWeatherIcon(canvasSprite, weatherIcon, 204, 26);
+        drawWeatherIcon(canvasSprite, weatherIcon, 50, 50);
     }
 
     // 2. Icon hướng rẽ trung tâm (cy=84)
@@ -413,6 +413,22 @@ void drawMapHudOverlay()
     else
     {
         // ================= MẪU MH1: COMPACT FLOATING PILL (HIỂN THỊ 85% BẢN ĐỒ) =================
+        // Ô hiển thị Tốc độ GPS (km/h) nổi phía trên Icon rẽ của Pill MH1
+        char speedBuf[16];
+        snprintf(speedBuf, sizeof(speedBuf), "%d km/h", gpsSpeed);
+        myFont.set_font(FONT_HUD_INFO);
+        uint16_t spdLen = myFont.getLength(speedBuf);
+        uint16_t badgeW = spdLen + 14;
+        if (badgeW < 56)
+            badgeW = 56;
+        int badgeX = 48 - badgeW / 2;
+        if (badgeX < 18)
+            badgeX = 18;
+        int badgeY = 152;
+        canvasSprite.fillRoundRect(badgeX, badgeY, badgeW, 22, 10, color565(30, 41, 59));
+        canvasSprite.drawRoundRect(badgeX, badgeY, badgeW, 22, 10, TFT_GREEN);
+        myFont.print(badgeX + (badgeW - spdLen) / 2, badgeY + 4, speedBuf, TFT_GREEN, color565(30, 41, 59));
+
         uint16_t cardBgColor = color565(15, 23, 42);
         canvasSprite.fillRoundRect(30, 180, 180, 44, 22, cardBgColor);
         canvasSprite.drawRoundRect(30, 180, 180, 44, 22, TFT_GREEN);
@@ -488,7 +504,7 @@ void drawMapHudOverlay()
     // Hiển thị icon thời tiết góc trên bên phải nếu có dữ liệu
     if (weatherIcon.length() > 0)
     {
-        drawWeatherIcon(canvasSprite, weatherIcon, 204, 26);
+        drawWeatherIcon(canvasSprite, weatherIcon, 50, 50);
     }
 }
 
@@ -1562,7 +1578,8 @@ void drawOtaProgressScreen()
     if (otaExpectedSize > 0)
     {
         pct = (int)(((uint64_t)otaWritten * 100) / otaExpectedSize);
-        if (pct > 100) pct = 100;
+        if (pct > 100)
+            pct = 100;
     }
 
     // 2. Vòng tròn tiến trình dạng Arc
@@ -1594,7 +1611,8 @@ void drawOtaProgressScreen()
     if (pct > 0)
     {
         int fillW = (barW * pct) / 100;
-        if (fillW < 6) fillW = 6;
+        if (fillW < 6)
+            fillW = 6;
         canvasSprite.fillRoundRect(barX, barY, fillW, barH, 4, (pct >= 100) ? color565(34, 197, 94) : color565(0, 229, 255));
     }
     canvasSprite.drawRoundRect(barX, barY, barW, barH, 4, color565(51, 65, 85));

@@ -433,16 +433,18 @@ class SettingsFragment : Fragment() {
     private fun setupApiHealthDashboard() {
         val context = requireContext()
         val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "")
+        val weatherApiKey = PrefsHelper.getSecureString(context, "api_key_weatherapi", "")
 
         apiServicesList.clear()
         apiServicesList.addAll(listOf(
             ApiService("nas_routing", "GraphHopper NAS (Primary)", "Máy chủ định tuyến xe máy & ô tô tốc độ cao (8989 / DuckDNS).", NasConnectionManager.getGraphHopperBaseUrl(context), false, status = ServiceStatus.FREE),
             ApiService("nas_traffic", "Fusion Engine NAS (Primary)", "Trạm cảnh báo camera phạt nguội & tốc độ siêu tốc (8088 / DuckDNS).", NasConnectionManager.getFusionEngineBaseUrl(context), false, status = ServiceStatus.FREE),
             ApiService("nas_geo", "Nominatim & Photon NAS (Primary)", "Tìm kiếm & giải mã tọa độ Việt Nam từ NAS (8081 / DuckDNS).", NasConnectionManager.getNominatimBaseUrl(context), false, status = ServiceStatus.FREE),
+            ApiService("weatherapi", "WeatherAPI.com (Khuyên dùng)", "Dự báo thời tiết & mưa Việt Nam cực chuẩn (1.000.000 req/tháng miễn phí).", "https://www.weatherapi.com/signup.aspx", true, apiKey = weatherApiKey, status = if (weatherApiKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("goong", "Goong.io API (Việt Nam)", "Cảnh báo biển báo, camera phạt nguội & dẫn đường Việt Nam.", "https://account.goong.io/", true, apiKey = goongKey, status = if (goongKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("osrm", "OSRM Backend Engine (Cloud)", "Dẫn đường dự phòng cực nhanh miễn phí.", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
             ApiService("valhalla", "Valhalla Routing Engine (Cloud)", "Dẫn đường đa phương tiện dự phòng đám mây.", "https://valhalla.opentripplanner.org/", false, status = ServiceStatus.FREE),
-            ApiService("open_meteo", "Open-Meteo Weather (ETA)", "Dự báo thời tiết & khả năng mưa lúc đến nơi miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
+            ApiService("open_meteo", "Open-Meteo Multi-Model (ECMWF/JMA)", "Dự báo thời tiết Châu Âu & Nhật Bản miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
             ApiService("photon", "Photon & Nominatim (OSM Cloud)", "Tìm kiếm địa chỉ dự phòng toàn cầu miễn phí.", "https://photon.komoot.io/", false, status = ServiceStatus.FREE)
         ))
 
@@ -471,6 +473,7 @@ class SettingsFragment : Fragment() {
         val context = context ?: return
         val keyName = when(serviceId) {
             "goong" -> "api_key_goong"
+            "weatherapi" -> "api_key_weatherapi"
             else -> null
         }
         keyName?.let { 
@@ -489,6 +492,7 @@ class SettingsFragment : Fragment() {
                 "nas_routing" -> testNasGraphhopper()
                 "nas_traffic" -> testNasFusionEngine()
                 "nas_geo" -> testNasNominatim()
+                "weatherapi" -> testWeatherApi(service.apiKey)
                 "goong" -> testGoongKey(service.apiKey)
                 "osrm" -> testOsrm()
                 "valhalla" -> testValhalla()
@@ -601,8 +605,18 @@ class SettingsFragment : Fragment() {
         return try { OkHttpClient().newCall(Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 
+    private fun testWeatherApi(key: String): Boolean {
+        if (key.isBlank()) return false
+        val url = "https://api.weatherapi.com/v1/current.json?key=${key.trim()}&q=10.762622,106.660172&lang=vi"
+        return try {
+            OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun testOpenMeteo(): Boolean {
-        val url = "https://api.open-meteo.com/v1/forecast?latitude=10.762622&longitude=106.660172&current_weather=true"
+        val url = "https://api.open-meteo.com/v1/forecast?latitude=10.762622&longitude=106.660172&current_weather=true&models=best_match,ecmwf_ifs025,jma_gsm"
         return try { OkHttpClient().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
     }
 

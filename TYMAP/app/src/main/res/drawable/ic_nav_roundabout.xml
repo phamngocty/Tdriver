@@ -3,26 +3,20 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Vòng tròn roundabout -->
+    <!-- Đường vào và chạy quanh bùng binh -->
     <path
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="3.5"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M24,24 m-12,0 a12,12 0 1,1 24,0 a12,12 0 1,1 -24,0"/>
-    <!-- Đường vào vòng xuyến (từ dưới) -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="3"
-        android:fillColor="#00000000"
-        android:pathData="M24,36 L24,40"/>
-    <!-- Đường ra vòng xuyến (lên trên phải) -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="3"
-        android:fillColor="#00000000"
-        android:pathData="M33,15 L38,10"/>
-    <!-- Mũi tên ra -->
+        android:pathData="M24,41 L24,34 C18.5,34 14,29.5 14,24 C14,18.5 18.5,14 24,14 C29.5,14 34,18.5 34,24 L34,26"/>
+    <!-- Tâm bùng binh -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M42,6 L36,16 L32,12 Z"/>
+        android:pathData="M24,24 m-3.5,0 a3.5,3.5 0 1,1 7,0 a3.5,3.5 0 1,1 -7,0"/>
+    <!-- Mũi tên thoát bùng binh -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,36 L27.5,25 L40.5,25 Z"/>
 </vector>

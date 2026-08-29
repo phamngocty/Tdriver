@@ -96,6 +96,13 @@ object NavigationRepository {
     private val _hudPreviewData = MutableStateFlow<HudData?>(null)
     val hudPreviewData = _hudPreviewData.asStateFlow()
 
+    private val _weatherEta = MutableStateFlow<com.example.tymap.service.EtaFullWeatherResult?>(null)
+    val weatherEta: StateFlow<com.example.tymap.service.EtaFullWeatherResult?> = _weatherEta.asStateFlow()
+
+    fun updateWeatherEta(weather: com.example.tymap.service.EtaFullWeatherResult?) {
+        _weatherEta.value = weather
+    }
+
     enum class BleConnectionState {
         Disconnected, Connecting, Connected, Ready
     }

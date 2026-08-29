@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingVertical="8dp">
+    android:paddingVertical="8dp"
+    android:paddingHorizontal="4dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -14,24 +15,32 @@
 
         <!-- Cột trái: Icon ngã rẽ và đường nối đứng -->
         <LinearLayout
-            android:layout_width="48dp"
+            android:layout_width="44dp"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal"
             android:orientation="vertical">
 
-            <ImageView
-                android:id="@+id/ivStepIcon"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:src="@drawable/ic_directions"
-                app:tint="#FFFFFF" />
+            <FrameLayout
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:background="@drawable/bg_circle_button"
+                android:backgroundTint="#1E293B">
+
+                <ImageView
+                    android:id="@+id/ivStepIcon"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_nav_straight"
+                    app:tint="@color/colorAccentCyan" />
+            </FrameLayout>
 
             <View
                 android:id="@+id/viewLine"
                 android:layout_width="2dp"
-                android:layout_height="32dp"
-                android:layout_marginTop="8dp"
-                android:background="#555555" />
+                android:layout_height="36dp"
+                android:layout_marginTop="6dp"
+                android:background="#334155" />
         </LinearLayout>
 
         <!-- Cột phải: Chỉ dẫn và thông tin chi tiết -->
@@ -39,15 +48,15 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="14dp"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/tvStepInstruction"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
+                android:textColor="#F8FAFC"
+                android:textSize="15sp"
                 android:textStyle="bold"
                 android:text="--" />
 
@@ -56,7 +65,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="#388E3C"
+                android:textColor="@color/colorAccentCyan"
                 android:textSize="13sp"
                 android:text="--"
                 android:visibility="gone" />
@@ -65,9 +74,9 @@
                 android:id="@+id/tvStepDistance"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:textColor="#AAAAAA"
-                android:textSize="14sp"
+                android:layout_marginTop="6dp"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
                 android:text="--" />
         </LinearLayout>
     </LinearLayout>
@@ -75,7 +84,7 @@
     <!-- Đường gạch dưới ngăn cách nhẹ -->
     <View
         android:layout_width="match_parent"
-        android:layout_height="1px"
-        android:layout_marginTop="12dp"
-        android:background="#333333" />
+        android:layout_height="1dp"
+        android:layout_marginTop="10dp"
+        android:background="#1E293B" />
 </LinearLayout>

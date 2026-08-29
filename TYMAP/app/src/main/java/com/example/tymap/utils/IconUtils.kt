@@ -49,7 +49,7 @@ object IconUtils {
                 // If transparent, it's off (0). If visible, check luminance.
                 // For nav icons (usually white or bright), luminance > 128 is "on" (1)
                 val luminance = (0.299 * r + 0.587 * g + 0.114 * b)
-                val isPixelOn = alpha > 128 && luminance > 128
+                val isPixelOn = alpha > 128 && (luminance > 100 || (r > 100 || g > 100 || b > 100))
                 
                 if (isPixelOn) {
                     val byteIdx = bitIndex / 8
@@ -60,5 +60,26 @@ object IconUtils {
             }
         }
         return buffer
+    }
+
+    /**
+     * Converts an Android Drawable resource (VectorDrawable) directly into 1bpp monochrome 48x48 ByteArray for ESP32.
+     */
+    fun getVectorDrawable1bpp(context: android.content.Context, drawableResId: Int, width: Int = 48, height: Int = 48): ByteArray? {
+        return try {
+            val drawable = androidx.core.content.ContextCompat.getDrawable(context, drawableResId) ?: return null
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            // Ensure vector is drawn in pure white so luminance is 255
+            drawable.setTint(Color.WHITE)
+            drawable.setBounds(0, 0, width, height)
+            drawable.draw(canvas)
+            val bytes = convertTo1bpp(bitmap, width, height)
+            bitmap.recycle()
+            bytes
+        } catch (e: Exception) {
+            android.util.Log.e("IconUtils", "Failed to render vector to 1bpp", e)
+            null
+        }
     }
 }
