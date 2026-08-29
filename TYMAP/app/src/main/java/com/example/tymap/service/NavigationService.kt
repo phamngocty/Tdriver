@@ -93,6 +93,8 @@ class NavigationService : Service() {
     private val NOTIFICATION_ID = 1
     private val CHANNEL_ID = "NavigationChannel"
 
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
     // Icon Hash Cache to avoid re-sending same icon data
     private var lastSentIconHash: Long = -1
 
@@ -436,6 +438,17 @@ class NavigationService : Service() {
         createNotificationChannel()
         setupHeadlessMap()
         
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            wakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "TYMAP:NavigationServiceWakeLock").apply {
+                setReferenceCounted(false)
+                acquire(24 * 60 * 60 * 1000L) // 24h safety timeout
+            }
+            android.util.Log.d("NavigationService", "Acquired PARTIAL_WAKE_LOCK for uninterrupted background navigation")
+        } catch (e: Exception) {
+            android.util.Log.w("NavigationService", "Could not acquire WakeLock: ${e.message}")
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(gmapsHudReceiver, IntentFilter("com.example.tymap.ACTION_GMAPS_HUD"), RECEIVER_EXPORTED)
         } else {
@@ -2013,13 +2026,23 @@ class NavigationService : Service() {
         screenCaptureManager = null
         mediaProjection = null
         
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                android.util.Log.d("NavigationService", "Released WakeLock")
+            }
+        } catch (e: Exception) {}
+
         NavigationRepository.setNavigationRunning(false)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(CHANNEL_ID, "Navigation Service Channel", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel(CHANNEL_ID, "Navigation Service Channel", NotificationManager.IMPORTANCE_LOW).apply {
+            description = "Luồng định vị và dẫn đường chạy nền cho TYMAP & ESP32"
+            setShowBadge(false)
+        }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
@@ -2027,9 +2050,13 @@ class NavigationService : Service() {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Navigation Running")
-            .setContentText("Tap to return to the app")
+            .setContentTitle("TYMAP đang dẫn đường & kết nối ESP32")
+            .setContentText("Dữ liệu GPS & TBT đang liên tục truyền sang màn hình xe...")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .build()
     }

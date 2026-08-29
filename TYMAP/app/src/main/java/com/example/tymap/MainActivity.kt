@@ -56,10 +56,25 @@ class MainActivity : AppCompatActivity() {
         PrefsHelper.putBoolean(this, "render_tab_unlocked", false)
         updateRenderTabVisibility()
         observeOledConnection()
+        observeKeepScreenOn()
         handleIntent(intent)
         requestBatteryOptimizationExemption()
         
         checkAndRequestPermissions()
+    }
+
+    // Tự động giữ màn hình luôn sáng khi đang dẫn đường (nếu bật tùy chọn)
+    private fun observeKeepScreenOn() {
+        lifecycleScope.launch {
+            NavigationRepository.navigationState.collect { running ->
+                val keepScreenOn = PrefsHelper.getBoolean(this@MainActivity, "keep_screen_on", true)
+                if (running && keepScreenOn) {
+                    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                } else {
+                    window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                }
+            }
+        }
     }
 
     // Tự hiện tab Render (ESP32 OLED) khi đang kết nối thiết bị OLED qua BLE.
