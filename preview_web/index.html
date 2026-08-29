@@ -3,43 +3,43 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TYMAP Display Studio - Trình Mô Phỏng & Hiệu Chỉnh Giao Diện</title>
+  <title>TYMAP Display Studio Pro - Bộ Phác Thảo & Hiệu Chỉnh HUD OLED 128x64</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg-dark: #07090e;
-      --bg-card: rgba(16, 22, 34, 0.85);
-      --border-card: rgba(255, 255, 255, 0.08);
+      --bg-card: rgba(15, 23, 42, 0.85);
+      --border-card: rgba(255, 255, 255, 0.1);
       --primary-cyan: #00e5ff;
-      --primary-blue: #2563eb;
+      --primary-blue: #3b82f6;
       --neon-green: #00ff7f;
-      --warn-yellow: #ffb703;
-      --warn-red: #ff3366;
+      --warn-yellow: #f59e0b;
+      --warn-red: #ef4444;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
-      --accent-glow: 0 0 25px rgba(0, 229, 255, 0.35);
+      --oled-glow: 0 0 12px rgba(255, 255, 255, 0.7);
+      --oled-pixel-on: #ffffff;
+      --oled-pixel-off: #0b111e;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: radial-gradient(circle at 50% 0%, #111a2e 0%, #06090f 100%);
+      background: radial-gradient(circle at 50% 0%, #1e293b 0%, #030712 100%);
       color: var(--text-main);
       font-family: 'Plus Jakarta Sans', sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      overflow-x: hidden;
     }
 
-    /* Top Navigation */
     header {
-      background: rgba(11, 15, 25, 0.8);
+      background: rgba(15, 23, 42, 0.9);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border-card);
-      padding: 14px 28px;
+      padding: 12px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -55,142 +55,125 @@
     }
 
     .brand-logo {
-      width: 38px;
-      height: 38px;
+      width: 36px;
+      height: 36px;
       background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
-      border-radius: 10px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-family: 'Orbitron', sans-serif;
       font-weight: 900;
-      font-size: 18px;
       color: #000;
-      box-shadow: var(--accent-glow);
+      font-size: 18px;
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
     }
 
     .brand-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(90deg, #fff, var(--primary-cyan));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.3px;
     }
 
     .brand-badge {
       font-size: 11px;
       font-weight: 700;
-      background: rgba(0, 229, 255, 0.12);
-      border: 1px solid rgba(0, 229, 255, 0.3);
+      background: rgba(0, 229, 255, 0.15);
+      border: 1px solid rgba(0, 229, 255, 0.4);
       color: var(--primary-cyan);
-      padding: 3px 8px;
-      border-radius: 20px;
+      padding: 2px 8px;
+      border-radius: 12px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
 
-    .device-tabs {
+    .nav-tabs {
       display: flex;
-      background: rgba(0, 0, 0, 0.4);
+      background: rgba(0, 0, 0, 0.5);
       padding: 4px;
-      border-radius: 12px;
+      border-radius: 10px;
       border: 1px solid var(--border-card);
       gap: 4px;
     }
 
-    .tab-btn {
+    .nav-btn {
       background: transparent;
       border: none;
       color: var(--text-muted);
-      padding: 8px 16px;
-      border-radius: 8px;
+      padding: 6px 14px;
+      border-radius: 6px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.2s;
     }
 
-    .tab-btn.active {
-      background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(37, 99, 235, 0.2));
-      color: #fff;
-      border: 1px solid rgba(0, 229, 255, 0.4);
-      box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
+    .nav-btn.active {
+      background: var(--primary-cyan);
+      color: #000;
+      font-weight: 800;
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
     }
 
-    /* Main Workspace Layout */
+    /* Main Container */
     .studio-container {
       display: grid;
-      grid-template-columns: 1fr 420px;
+      grid-template-columns: 1fr 430px;
       gap: 24px;
       padding: 24px;
-      max-width: 1600px;
+      max-width: 1700px;
       margin: 0 auto;
       width: 100%;
       flex: 1;
     }
 
-    @media (max-width: 1150px) {
+    @media (max-width: 1200px) {
       .studio-container {
         grid-template-columns: 1fr;
       }
     }
 
-    /* Viewport Area */
-    .viewport-panel {
+    /* Left Stage */
+    .stage-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Big Focus Display Card */
+    .focus-card {
       background: var(--bg-card);
       border: 1px solid var(--border-card);
       border-radius: 20px;
-      padding: 32px;
+      padding: 28px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       position: relative;
       overflow: hidden;
-      min-height: 580px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
     }
 
-    .viewport-grid-bg {
-      position: absolute;
-      inset: 0;
-      background-image: 
-        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-      background-size: 30px 30px;
-      pointer-events: none;
-    }
-
-    .display-stage {
+    .card-header {
+      width: 100%;
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
-      gap: 48px;
-      flex-wrap: wrap;
-      z-index: 2;
+      margin-bottom: 20px;
     }
 
-    /* GC9A01 Round Display Frame */
-    .device-wrapper {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .device-label {
-      font-size: 13px;
-      font-weight: 700;
+    .card-title {
+      font-size: 15px;
+      font-weight: 800;
       color: var(--primary-cyan);
-      letter-spacing: 0.8px;
       text-transform: uppercase;
+      letter-spacing: 0.8px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
 
-    .device-label::before {
+    .card-title::before {
       content: "";
       width: 8px;
       height: 8px;
@@ -199,121 +182,149 @@
       box-shadow: 0 0 8px var(--neon-green);
     }
 
-    .round-frame {
-      width: 290px;
-      height: 290px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 35% 30%, #334155, #0f172a 60%, #020617 100%);
-      padding: 25px;
-      box-shadow: 
-        0 25px 50px rgba(0, 0, 0, 0.8),
-        inset 0 2px 4px rgba(255, 255, 255, 0.3),
-        inset 0 -4px 8px rgba(0, 0, 0, 0.9),
-        0 0 40px rgba(0, 229, 255, 0.15);
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 3px solid #1e293b;
-    }
-
-    .round-screen {
-      width: 240px;
-      height: 240px;
-      border-radius: 50%;
-      background: #000;
-      position: relative;
-      overflow: hidden;
-      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.95);
-    }
-
-    /* OLED 1.3" Display Frame */
-    .oled-frame {
-      width: 340px;
-      height: 220px;
+    /* OLED 1.3" Hardware Bezel Frame */
+    .oled-hardware-frame {
+      width: 540px;
+      max-width: 100%;
       background: linear-gradient(135deg, #1e293b, #0f172a);
-      border-radius: 16px;
-      padding: 24px 20px;
-      box-shadow: 
-        0 20px 45px rgba(0, 0, 0, 0.8),
-        inset 0 1px 2px rgba(255, 255, 255, 0.15);
+      border-radius: 18px;
+      padding: 28px 24px;
       border: 2px solid #334155;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), inset 0 1px 2px rgba(255, 255, 255, 0.2);
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 12px;
+      gap: 14px;
     }
 
-    .oled-glass {
-      width: 280px;
-      height: 140px;
-      background: #040810;
-      border-radius: 6px;
+    .oled-glass-panel {
+      width: 100%;
+      background: #020408;
+      border-radius: 10px;
+      padding: 12px;
       border: 2px solid #000;
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: inset 0 0 15px rgba(0, 229, 255, 0.05);
-      position: relative;
     }
 
-    .oled-screen {
-      width: 256px;
-      height: 128px;
+    .oled-pixel-canvas-wrapper {
+      width: 100%;
+      aspect-ratio: 2 / 1;
       background: #000;
-      image-rendering: pixelated;
+      border-radius: 4px;
       position: relative;
       overflow: hidden;
-      border: 1px solid #111;
+      box-shadow: 0 0 25px rgba(255, 255, 255, 0.15);
     }
 
-    .oled-pcb-label {
-      font-size: 10px;
+    #focusOledCanvas {
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      display: block;
+    }
+
+    .oled-specs-bar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
       font-family: 'JetBrains Mono', monospace;
       color: #64748b;
-      letter-spacing: 1px;
-    }
-
-    /* Mode Navigation Toolbar */
-    .mode-selector-bar {
-      margin-top: 24px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-      z-index: 2;
-    }
-
-    .mode-pill {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: var(--text-muted);
-      padding: 8px 16px;
-      border-radius: 30px;
-      font-size: 13px;
       font-weight: 700;
+    }
+
+    /* Grid Gallery of All HUD Styles */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+      width: 100%;
+    }
+
+    .style-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 16px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+
+    .style-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(0, 229, 255, 0.4);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .style-card.active {
+      border: 2px solid var(--primary-cyan);
+      background: rgba(0, 229, 255, 0.05);
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.25);
+    }
+
+    .style-card.active::after {
+      content: "ĐANG CHỌN";
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--primary-cyan);
+      color: #000;
+      font-size: 9px;
+      font-weight: 900;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .style-card-header {
       display: flex;
       align-items: center;
-      gap: 6px;
-    }
-
-    .mode-pill:hover {
-      background: rgba(255, 255, 255, 0.1);
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 800;
       color: #fff;
     }
 
-    .mode-pill.active {
-      background: var(--primary-cyan);
-      color: #000;
-      border-color: var(--primary-cyan);
-      box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+    .style-badge {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--primary-cyan);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
-    /* Control Panel Sidebar */
-    .controls-panel {
+    .style-preview-frame {
+      width: 100%;
+      aspect-ratio: 2 / 1;
+      background: #000;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      overflow: hidden;
+      image-rendering: pixelated;
+    }
+
+    .style-preview-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .style-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Right Sidebar Controls */
+    .sidebar-panel {
       background: var(--bg-card);
       border: 1px solid var(--border-card);
       border-radius: 20px;
@@ -321,23 +332,18 @@
       display: flex;
       flex-direction: column;
       gap: 20px;
-      max-height: calc(100vh - 120px);
+      max-height: calc(100vh - 100px);
       overflow-y: auto;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
     }
 
-    .controls-panel::-webkit-scrollbar {
-      width: 6px;
-    }
-    .controls-panel::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 10px;
-    }
+    .sidebar-panel::-webkit-scrollbar { width: 5px; }
+    .sidebar-panel::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
 
     .section-title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 800;
-      color: var(--text-main);
+      color: #fff;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       display: flex;
@@ -347,9 +353,7 @@
       border-bottom: 1px solid var(--border-card);
     }
 
-    .section-title span {
-      color: var(--primary-cyan);
-    }
+    .section-title span { color: var(--primary-cyan); }
 
     .control-group {
       display: flex;
@@ -366,103 +370,90 @@
       align-items: center;
     }
 
-    .control-label .val-badge {
-      color: var(--primary-cyan);
+    .val-tag {
       font-family: 'JetBrains Mono', monospace;
+      color: var(--primary-cyan);
       font-size: 12px;
       background: rgba(0, 229, 255, 0.1);
       padding: 2px 6px;
       border-radius: 4px;
     }
 
-    input[type="text"], select, textarea {
-      background: rgba(0, 0, 0, 0.5);
+    input[type="text"], select {
+      background: rgba(0, 0, 0, 0.6);
       border: 1px solid var(--border-card);
       color: #fff;
-      padding: 10px 12px;
+      padding: 9px 12px;
       border-radius: 8px;
       font-size: 13px;
       font-family: inherit;
       width: 100%;
       outline: none;
-      transition: border 0.2s ease;
     }
 
-    input[type="text"]:focus, select:focus, textarea:focus {
+    input[type="text"]:focus, select:focus {
       border-color: var(--primary-cyan);
-      box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.25);
     }
 
     input[type="range"] {
       -webkit-appearance: none;
       width: 100%;
       height: 6px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
+      background: #1e293b;
+      border-radius: 3px;
       outline: none;
     }
 
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       border-radius: 50%;
       background: var(--primary-cyan);
       cursor: pointer;
       box-shadow: 0 0 10px var(--primary-cyan);
     }
 
-    .toggle-btn-group {
-      display: flex;
+    /* 2 Column sub-grid for inspector coordinates */
+    .coord-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 8px;
     }
 
-    .toggle-option {
-      flex: 1;
-      text-align: center;
-      padding: 8px;
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid var(--border-card);
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .toggle-option.active {
-      background: rgba(0, 229, 255, 0.15);
-      border-color: var(--primary-cyan);
-      color: var(--primary-cyan);
-    }
-
-    .action-btn {
+    .btn-action {
       background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
-      border: none;
       color: #000;
       font-weight: 800;
       padding: 12px;
       border-radius: 10px;
-      font-size: 13px;
+      border: none;
       cursor: pointer;
+      font-size: 13px;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: var(--accent-glow);
       transition: transform 0.1s, box-shadow 0.2s;
     }
 
-    .action-btn:hover {
+    .btn-action:hover {
       transform: translateY(-1px);
-      box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.4);
     }
 
-    /* Live Canvas Styles */
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
+    .code-box {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #38bdf8;
+      max-height: 140px;
+      overflow-y: auto;
+      white-space: pre-wrap;
     }
   </style>
 </head>
@@ -472,747 +463,452 @@
     <div class="brand">
       <div class="brand-logo">T</div>
       <div>
-        <div class="brand-title">TYMAP Display Studio</div>
+        <div class="brand-title">TYMAP Display Studio Pro</div>
       </div>
-      <div class="brand-badge">Live Visualizer v1.0.9</div>
+      <div class="brand-badge">OLED 128x64 Master Visualizer</div>
     </div>
 
-    <div class="device-tabs">
-      <button class="tab-btn active" onclick="switchDeviceView('both')">Mô phỏng cả hai</button>
-      <button class="tab-btn" onclick="switchDeviceView('round')">GC9A01 (240x240)</button>
-      <button class="tab-btn" onclick="switchDeviceView('oled')">OLED SH1106 (128x64)</button>
+    <div class="nav-tabs">
+      <button class="nav-btn active" onclick="setViewTab('hud')">🧭 Phác Thảo Tất Cả Kiểu HUD</button>
+      <button class="nav-btn" onclick="setViewTab('tuner')">🛠️ Bộ Tinh Chỉnh Tọa Độ (Inspector)</button>
     </div>
   </header>
 
   <div class="studio-container">
-    <!-- Viewport Panel -->
-    <div class="viewport-panel">
-      <div class="viewport-grid-bg"></div>
-
-      <div class="display-stage">
-        <!-- GC9A01 Round Display -->
-        <div class="device-wrapper" id="gc9a01-container">
-          <div class="device-label">ESP32-S3 • GC9A01 240x240 IPS</div>
-          <div class="round-frame">
-            <div class="round-screen">
-              <canvas id="roundCanvas" width="240" height="240"></canvas>
-            </div>
-          </div>
+    
+    <!-- Left Stage Panel -->
+    <div class="stage-panel">
+      
+      <!-- Big Focus Display (Màn hình chi tiết phóng to) -->
+      <div class="focus-card">
+        <div class="card-header">
+          <div class="card-title" id="focusTitle">H1: Classic Boxed (Phác thảo chuẩn gốc)</div>
+          <div class="brand-badge" id="hudBadge">HUD STYLE 0</div>
         </div>
 
-        <!-- OLED 1.3" Display -->
-        <div class="device-wrapper" id="oled-container">
-          <div class="device-label">ESP32-C3 • SH1106 1.3" OLED (128x64)</div>
-          <div class="oled-frame">
-            <div class="oled-glass">
-              <div class="oled-screen">
-                <canvas id="oledCanvas" width="128" height="64"></canvas>
-              </div>
+        <div class="oled-hardware-frame">
+          <div class="oled-glass-panel">
+            <div class="oled-pixel-canvas-wrapper">
+              <canvas id="focusOledCanvas" width="128" height="64"></canvas>
             </div>
-            <div class="oled-pcb-label">I2C: SDA=6, SCL=7 • 1BPP BITMAP</div>
+          </div>
+          <div class="oled-specs-bar">
+            <span>DRIVER: SH1106 I2C (128x64)</span>
+            <span>PIN: SDA=6, SCL=7</span>
+            <span>FONT: FontMaker VN</span>
           </div>
         </div>
       </div>
 
-      <!-- Mode Selector Toolbar -->
-      <div class="mode-selector-bar">
-        <div class="mode-pill active" onclick="setMode('STATUS')">🕒 Đồng hồ (STATUS)</div>
-        <div class="mode-pill" onclick="setMode('HUD')">🧭 Dẫn đường (HUD)</div>
-        <div class="mode-pill" onclick="setMode('MAP')">🗺️ Bản đồ (MAP)</div>
-        <div class="mode-pill" onclick="setMode('NOTIF')">💬 Thông báo (NOTIF)</div>
-        <div class="mode-pill" onclick="setMode('INFO')">ℹ️ Thông tin (INFO)</div>
-        <div class="mode-pill" onclick="setMode('SPLASH')">🚀 Logo Khởi Động</div>
+      <!-- Gallery of All HUD Styles (Tất cả các bản phác thảo cạnh nhau) -->
+      <div class="card-title"><span>📐</span> Bộ Sưu Tập 6 Bản Phác Thảo HUD OLED 128x64</div>
+
+      <div class="gallery-grid">
+        
+        <!-- H1: Classic Boxed -->
+        <div class="style-card active" id="card-0" onclick="selectStyle(0)">
+          <div class="style-card-header">
+            <span class="style-badge">H1</span> Classic Boxed Turn
+          </div>
+          <div class="style-preview-frame">
+            <canvas class="style-preview-canvas" id="canvas-h0" width="128" height="64"></canvas>
+          </div>
+          <div class="style-desc">
+            Bản phác thảo gốc: Khung hộp viền chữ nhật chứa tên đường tiếng Việt bên phải, icon rẽ trái, hàng dưới là <b>200M</b> và <b>70 KM/H</b>.
+          </div>
+        </div>
+
+        <!-- H2: Split Dashboard -->
+        <div class="style-card" id="card-1" onclick="selectStyle(1)">
+          <div class="style-card-header">
+            <span class="style-badge">H2</span> Split Cyber Dash
+          </div>
+          <div class="style-preview-frame">
+            <canvas class="style-preview-canvas" id="canvas-h1" width="128" height="64"></canvas>
+          </div>
+          <div class="style-desc">
+            Chia đôi đối xứng: Cột trái hiển thị Tốc độ <b>70 KM/H</b> siêu lớn + vạch tốc độ. Cột phải là Icon rẽ + khoảng cách + tên đường.
+          </div>
+        </div>
+
+        <!-- H3: Big Arrow Focus -->
+        <div class="style-card" id="card-2" onclick="selectStyle(2)">
+          <div class="style-card-header">
+            <span class="style-badge">H3</span> Big Arrow Focus
+          </div>
+          <div class="style-preview-frame">
+            <canvas class="style-preview-canvas" id="canvas-h2" width="128" height="64"></canvas>
+          </div>
+          <div class="style-desc">
+            Mũi tên rẽ cực lớn 48px + Khoảng cách ngay chân mũi tên. Cột phải hiển thị Tên đường in đậm, Thanh tiến trình và Giờ đến ETA.
+          </div>
+        </div>
+
+        <!-- H4: Racing Telemetry -->
+        <div class="style-card" id="card-3" onclick="selectStyle(3)">
+          <div class="style-card-header">
+            <span class="style-badge">H4</span> Racing Telemetry Bar
+          </div>
+          <div class="style-preview-frame">
+            <canvas class="style-preview-canvas" id="canvas-h3" width="128" height="64"></canvas>
+          </div>
+          <div class="style-desc">
+            Phong cách đua xe thể thao: Thanh vạch RPM tốc độ nằm ngang trên cùng, Icon rẽ và tên đường ở giữa, Footer điện áp <b>12.6V</b>.
+          </div>
+        </div>
+
+        <!-- H5: Compact Banner -->
+        <div class="style-card" id="card-4" onclick="selectStyle(4)">
+          <div class="style-card-header">
+            <span class="style-badge">H5</span> Top Street Banner
+          </div>
+          <div class="style-preview-frame">
+            <canvas class="style-preview-canvas" id="canvas-h4" width="128" height="64"></canvas>
+          </div>
+          <div class="style-desc">
+            Dải băng tiêu đề: Tên đường chạy nổi bật trên dải đen viền trên cùng, bên dưới là Icon rẽ lớn, khoảng cách <b>200m</b> và Tốc độ <b>70 km/h</b>.
+          </div>
+        </div>
+
+        <!-- H6: Minimalist Dual Pill -->
+        <div class="style-card" id="card-5" onclick="selectStyle(5)">
+          <div class="style-card-header">
+            <span class="style-badge">H6</span> Minimalist Dual Pill
+          </div>
+          <div class="style-preview-frame">
+            <canvas class="style-preview-canvas" id="canvas-h5" width="128" height="64"></canvas>
+          </div>
+          <div class="style-desc">
+            Hai khối thẻ bo góc đối xứng: Khối trái chứa Icon rẽ + khoảng cách, khối phải chứa Tốc độ + Tên đường tiếng Việt.
+          </div>
+        </div>
+
       </div>
+
     </div>
 
-    <!-- Live Controls Sidebar -->
-    <div class="controls-panel">
+    <!-- Right Sidebar Controls (Bộ Công Cụ Hiệu Chỉnh) -->
+    <div class="sidebar-panel">
       
-      <!-- General & Theme Settings -->
-      <div class="section-title"><span>⚙️</span> Kiểu dáng & Giao diện</div>
-      
+      <!-- Input Data Controls -->
+      <div class="section-title"><span>🧭</span> Thông Số Mô Phỏng Thực Tế</div>
+
       <div class="control-group">
-        <label class="control-label">Mặt Đồng Hồ STATUS (GC9A01)</label>
-        <select id="statusStyleSelect" onchange="updateUI()">
-          <option value="0">S4: Cyber Dual Gauges (Mặc định)</option>
-          <option value="1">S5: Classic Analog Watch</option>
-          <option value="2">S3: Dual Energy Pill</option>
-          <option value="4">S7: Sport Activity Dash</option>
-        </select>
+        <div class="control-label">Tốc độ xe GPS <span class="val-tag" id="speedTag">70 km/h</span></div>
+        <input type="range" id="speedInput" min="0" max="150" value="70" oninput="refreshAll()">
       </div>
 
       <div class="control-group">
-        <label class="control-label">Kiểu Dẫn Đường HUD (OLED 128x64)</label>
-        <select id="oledHudStyleSelect" onchange="updateUI()">
-          <option value="0">H1: Classic Boxed (Khung Tên Đường + 200M 70KM/H)</option>
-          <option value="1">H2: Split Dashboard (Chia đôi - Tốc độ lớn bên trái)</option>
-          <option value="2">H3: Big Arrow Focus (Mũi tên rẽ lớn 48px + Progress)</option>
-          <option value="3">H4: Racing Telemetry Bar (Thanh RPM tốc độ thể thao)</option>
-        </select>
-      </div>
-
-      <!-- HUD Navigation Controls -->
-      <div class="section-title"><span>🧭</span> Thông số Dẫn đường (HUD)</div>
-
-      <div class="control-group">
-        <div class="control-label">Tốc độ GPS <span class="val-badge" id="speedBadge">48 km/h</span></div>
-        <input type="range" id="speedInput" min="0" max="150" value="48" oninput="updateUI()">
+        <label class="control-label">Khoảng cách rẽ</label>
+        <input type="text" id="distInput" value="200M" oninput="refreshAll()">
       </div>
 
       <div class="control-group">
-        <label class="control-label">Khoảng cách rẽ tiếp theo</label>
-        <input type="text" id="distInput" value="250 m" oninput="updateUI()">
+        <label class="control-label">Tên đường kế tiếp (Tiếng Việt)</label>
+        <input type="text" id="streetInput" value="Đường Nguyễn Huệ" oninput="refreshAll()">
       </div>
 
       <div class="control-group">
-        <label class="control-label">Tên đường tiếp theo (Tiếng Việt)</label>
-        <input type="text" id="streetInput" value="Đường Nguyễn Huệ" oninput="updateUI()">
-      </div>
-
-      <div class="control-group">
-        <label class="control-label">Biểu tượng rẽ TBT</label>
-        <select id="turnIconSelect" onchange="updateUI()">
-          <option value="LEFT">⬅️ Rẽ Trái</option>
-          <option value="RIGHT">➡️ Rẽ Phải</option>
+        <label class="control-label">Hướng rẽ TBT</label>
+        <select id="turnSelect" onchange="refreshAll()">
+          <option value="LEFT" selected>⬅️ Rẽ Trái (90 độ)</option>
+          <option value="RIGHT">➡️ Rẽ Phải (90 độ)</option>
           <option value="SLIGHT_LEFT">↖️ Chếch Trái</option>
           <option value="SLIGHT_RIGHT">↗️ Chếch Phải</option>
-          <option value="STRAIGHT" selected>⬆️ Đi Thẳng</option>
-          <option value="ROUNDABOUT">🔄 Vòng Xoay</option>
+          <option value="STRAIGHT">⬆️ Đi Thẳng</option>
           <option value="UTURN">↩️ Quay Đầu</option>
         </select>
       </div>
 
       <div class="control-group">
-        <label class="control-label">Thời gian đến dự kiến (ETA)</label>
-        <input type="text" id="etaInput" value="18:35" oninput="updateUI()">
+        <label class="control-label">Giờ đến dự kiến (ETA)</label>
+        <input type="text" id="etaInput" value="18:35" oninput="refreshAll()">
       </div>
 
-      <!-- Bike & Phone Battery -->
-      <div class="section-title"><span>🔋</span> Nguồn & Thiết bị</div>
-
+      <!-- Layout Inspector & Coordinates Tuner -->
+      <div class="section-title"><span>🛠️</span> Tinh Chỉnh Tọa Độ (Inspector)</div>
+      
       <div class="control-group">
-        <div class="control-label">Điện áp Bình Xe <span class="val-badge" id="voltageBadge">12.6 V</span></div>
-        <input type="range" id="voltageInput" min="100" max="148" value="126" oninput="updateUI()">
-      </div>
-
-      <div class="control-group">
-        <div class="control-label">Mức Pin Điện Thoại <span class="val-badge" id="phoneBatBadge">85%</span></div>
-        <input type="range" id="phoneBatInput" min="0" max="100" value="85" oninput="updateUI()">
-      </div>
-
-      <div class="control-group">
-        <label class="control-label">Nhiệt độ Thời tiết</label>
-        <input type="text" id="tempInput" value="29°C" oninput="updateUI()">
-      </div>
-
-      <!-- Traffic Warning -->
-      <div class="section-title"><span>⚠️</span> Cảnh Báo Giao Thông</div>
-
-      <div class="control-group">
-        <label class="control-label">Bật Cảnh Báo Giao Thông</label>
-        <div class="toggle-btn-group">
-          <div class="toggle-option active" id="warnOff" onclick="setTrafficWarning(false)">TẮT</div>
-          <div class="toggle-option" id="warnOn" onclick="setTrafficWarning(true)">BẬT</div>
+        <div class="control-label">Vị trí Khung Tên Đường (X, Y)</div>
+        <div class="coord-grid">
+          <input type="text" id="boxX" value="48" placeholder="X" oninput="refreshAll()">
+          <input type="text" id="boxY" value="0" placeholder="Y" oninput="refreshAll()">
         </div>
       </div>
 
-      <div class="control-group" id="warnTypeGroup" style="display: none;">
-        <label class="control-label">Loại Cảnh Báo</label>
-        <select id="warnTypeSelect" onchange="updateUI()">
-          <option value="SPEED">Tốc độ giới hạn (60 km/h)</option>
-          <option value="CAMERA">Camera phạt nguội</option>
+      <div class="control-group">
+        <div class="control-label">Kích thước Khung (W, H)</div>
+        <div class="coord-grid">
+          <input type="text" id="boxW" value="79" placeholder="Rộng" oninput="refreshAll()">
+          <input type="text" id="boxH" value="44" placeholder="Cao" oninput="refreshAll()">
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">Tọa độ Icon Rẽ (X, Y)</div>
+        <div class="coord-grid">
+          <input type="text" id="iconX" value="22" placeholder="X" oninput="refreshAll()">
+          <input type="text" id="iconY" value="22" placeholder="Y" oninput="refreshAll()">
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-label">Cỡ Font Khoảng Cách / Tốc Độ</div>
+        <select id="fontSizeSelect" onchange="refreshAll()">
+          <option value="14" selected>Lớn (14px - Orbitron/h_to2)</option>
+          <option value="16">Rất lớn (16px - FONT_HUD_DIST)</option>
+          <option value="12">Vừa vặn (12px - vietnamtimes12x2b)</option>
         </select>
       </div>
 
-      <!-- Notification Simulator -->
-      <div class="section-title"><span>💬</span> Mô phỏng Thông Báo</div>
+      <!-- C++ Code Exporter -->
+      <div class="section-title"><span>💾</span> Xuất Mã C++ Firmware</div>
+      <div class="code-box" id="cppCodeBox">// Mã C++ u8g2 tự động sinh theo tọa độ...</div>
 
-      <div class="control-group">
-        <label class="control-label">Ứng dụng</label>
-        <input type="text" id="notifAppInput" value="Zalo" oninput="updateUI()">
-      </div>
-
-      <div class="control-group">
-        <label class="control-label">Người gửi / Tiêu đề</label>
-        <input type="text" id="notifTitleInput" value="Nguyễn Văn A" oninput="updateUI()">
-      </div>
-
-      <div class="control-group">
-        <label class="control-label">Nội dung</label>
-        <textarea id="notifMsgInput" rows="2" oninput="updateUI()">Alo bạn ơi, khoảng 15 phút nữa mình gặp nhau ở quán nhé!</textarea>
-      </div>
+      <button class="btn-action" onclick="copyCppCode()">📋 Sao Chép Mã C++</button>
 
     </div>
   </div>
 
   <script>
-    let currentMode = 'STATUS';
-    let isWarningActive = false;
+    let currentStyle = 0;
 
-    const roundCanvas = document.getElementById('roundCanvas');
-    const ctxRound = roundCanvas.getContext('2d');
+    const focusCanvas = document.getElementById('focusOledCanvas');
+    const ctxFocus = focusCanvas.getContext('2d');
 
-    const oledCanvas = document.getElementById('oledCanvas');
-    const ctxOled = oledCanvas.getContext('2d');
+    const styleTitles = [
+      "H1: Classic Boxed (Phác thảo chuẩn gốc)",
+      "H2: Split Cyber Dashboard (Chia đôi tốc độ lớn)",
+      "H3: Big Arrow Focus (Mũi tên rẽ lớn 48px)",
+      "H4: Racing Telemetry Bar (Thanh RPM thể thao)",
+      "H5: Top Street Banner (Dải băng tiêu đề)",
+      "H6: Minimalist Dual Pill (Khối thẻ bo góc)"
+    ];
 
-    function setMode(mode) {
-      currentMode = mode;
-      document.querySelectorAll('.mode-pill').forEach(el => {
-        el.classList.remove('active');
-        if (el.innerText.includes(mode)) el.classList.add('active');
+    function selectStyle(idx) {
+      currentStyle = idx;
+      document.querySelectorAll('.style-card').forEach((c, i) => {
+        c.classList.toggle('active', i === idx);
       });
-      updateUI();
+      document.getElementById('focusTitle').innerText = styleTitles[idx];
+      document.getElementById('hudBadge').innerText = 'HUD STYLE ' + idx;
+      refreshAll();
     }
 
-    function switchDeviceView(view) {
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
-
-      const round = document.getElementById('gc9a01-container');
-      const oled = document.getElementById('oled-container');
-
-      if (view === 'both') {
-        round.style.display = 'flex';
-        oled.style.display = 'flex';
-      } else if (view === 'round') {
-        round.style.display = 'flex';
-        oled.style.display = 'none';
-      } else if (view === 'oled') {
-        round.style.display = 'none';
-        oled.style.display = 'flex';
-      }
-    }
-
-    function setTrafficWarning(active) {
-      isWarningActive = active;
-      document.getElementById('warnOff').classList.toggle('active', !active);
-      document.getElementById('warnOn').classList.toggle('active', active);
-      document.getElementById('warnTypeGroup').style.display = active ? 'flex' : 'none';
-      updateUI();
-    }
-
-    function updateUI() {
+    function refreshAll() {
       const speed = parseInt(document.getElementById('speedInput').value);
-      const voltage = (parseInt(document.getElementById('voltageInput').value) / 10).toFixed(1);
-      const phoneBat = parseInt(document.getElementById('phoneBatInput').value);
-      const street = document.getElementById('streetInput').value;
       const dist = document.getElementById('distInput').value;
+      const street = document.getElementById('streetInput').value;
+      const turn = document.getElementById('turnSelect').value;
       const eta = document.getElementById('etaInput').value;
-      const temp = document.getElementById('tempInput').value;
-      const statusStyle = parseInt(document.getElementById('statusStyleSelect').value);
-      const turnIcon = document.getElementById('turnIconSelect').value;
-      const warnType = document.getElementById('warnTypeSelect').value;
-
-      const oledHudStyle = parseInt(document.getElementById('oledHudStyleSelect').value);
-
-      document.getElementById('speedBadge').innerText = speed + ' km/h';
-      document.getElementById('voltageBadge').innerText = voltage + ' V';
-      document.getElementById('phoneBatBadge').innerText = phoneBat + '%';
-
-      renderRoundScreen(speed, voltage, phoneBat, street, dist, eta, temp, statusStyle, turnIcon, isWarningActive, warnType);
-      renderOledScreen(speed, voltage, phoneBat, street, dist, eta, temp, turnIcon, isWarningActive, warnType, oledHudStyle);
-    }
-
-    // ==========================================
-    // 1. RENDER MÀN HÌNH TRÒN 240x240 (GC9A01)
-    // ==========================================
-    function renderRoundScreen(speed, voltage, phoneBat, street, dist, eta, temp, style, turnIcon, hasWarn, warnType) {
-      ctxRound.clearRect(0, 0, 240, 240);
-      ctxRound.fillStyle = '#000000';
-      ctxRound.fillRect(0, 0, 240, 240);
-
-      const now = new Date();
-      const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-
-      if (currentMode === 'STATUS') {
-        if (style === 0) {
-          // S4: Cyber Dual Gauges
-          // Vòng cung tốc độ
-          ctxRound.strokeStyle = '#1e293b';
-          ctxRound.lineWidth = 8;
-          ctxRound.beginPath();
-          ctxRound.arc(120, 120, 105, Math.PI * 0.75, Math.PI * 2.25);
-          ctxRound.stroke();
-
-          ctxRound.strokeStyle = '#00e5ff';
-          ctxRound.beginPath();
-          const speedAngle = Math.PI * 0.75 + (Math.PI * 1.5) * (Math.min(speed, 120) / 120);
-          ctxRound.arc(120, 120, 105, Math.PI * 0.75, speedAngle);
-          ctxRound.stroke();
-
-          // Đồng hồ trung tâm
-          ctxRound.fillStyle = '#ffffff';
-          ctxRound.font = '900 46px "Orbitron", sans-serif';
-          ctxRound.textAlign = 'center';
-          ctxRound.fillText(timeStr, 120, 125);
-
-          // Tốc độ
-          ctxRound.fillStyle = '#00e5ff';
-          ctxRound.font = '700 20px "Orbitron", sans-serif';
-          ctxRound.fillText(speed + ' KM/H', 120, 160);
-
-          // Header Info
-          ctxRound.fillStyle = '#94a3b8';
-          ctxRound.font = '600 12px "Plus Jakarta Sans", sans-serif';
-          ctxRound.fillText(temp + ' • 12.6V', 120, 70);
-
-          // Footer
-          ctxRound.fillStyle = '#00ff7f';
-          ctxRound.font = '700 11px "Plus Jakarta Sans", sans-serif';
-          ctxRound.fillText('ĐT: ' + phoneBat + '%', 120, 195);
-        } else if (style === 1) {
-          // S5: Classic Analog Watch
-          ctxRound.strokeStyle = '#334155';
-          ctxRound.lineWidth = 4;
-          ctxRound.beginPath();
-          ctxRound.arc(120, 120, 110, 0, Math.PI * 2);
-          ctxRound.stroke();
-
-          // Kim giờ & phút
-          const hr = now.getHours() % 12 + now.getMinutes() / 60;
-          const min = now.getMinutes();
-
-          const hrAngle = (hr * 30 - 90) * Math.PI / 180;
-          const minAngle = (min * 6 - 90) * Math.PI / 180;
-
-          // Kim giờ
-          ctxRound.strokeStyle = '#ffffff';
-          ctxRound.lineWidth = 5;
-          ctxRound.beginPath();
-          ctxRound.moveTo(120, 120);
-          ctxRound.lineTo(120 + Math.cos(hrAngle) * 55, 120 + Math.sin(hrAngle) * 55);
-          ctxRound.stroke();
-
-          // Kim phút
-          ctxRound.strokeStyle = '#00e5ff';
-          ctxRound.lineWidth = 3;
-          ctxRound.beginPath();
-          ctxRound.moveTo(120, 120);
-          ctxRound.lineTo(120 + Math.cos(minAngle) * 80, 120 + Math.sin(minAngle) * 80);
-          ctxRound.stroke();
-
-          // Tâm
-          ctxRound.fillStyle = '#ffb703';
-          ctxRound.beginPath();
-          ctxRound.arc(120, 120, 5, 0, Math.PI * 2);
-          ctxRound.fill();
-
-          ctxRound.fillStyle = '#94a3b8';
-          ctxRound.font = '700 12px "Orbitron", sans-serif';
-          ctxRound.textAlign = 'center';
-          ctxRound.fillText('TYMAP', 120, 75);
-          ctxRound.fillText(temp, 120, 175);
-        } else {
-          // S3 / S7: Digital Sport
-          ctxRound.fillStyle = '#00e5ff';
-          ctxRound.font = '700 13px "Plus Jakarta Sans", sans-serif';
-          ctxRound.textAlign = 'center';
-          ctxRound.fillText(now.toLocaleDateString('vi-VN'), 120, 45);
-
-          ctxRound.fillStyle = '#ffffff';
-          ctxRound.font = '900 52px "Orbitron", sans-serif';
-          ctxRound.fillText(timeStr, 120, 110);
-
-          ctxRound.fillStyle = '#00ff7f';
-          ctxRound.font = '800 24px "Orbitron", sans-serif';
-          ctxRound.fillText(speed + ' KM/H', 120, 155);
-
-          ctxRound.fillStyle = '#94a3b8';
-          ctxRound.font = '600 12px "Plus Jakarta Sans", sans-serif';
-          ctxRound.fillText('XE: ' + voltage + 'V  |  ĐT: ' + phoneBat + '%', 120, 195);
-        }
-      } else if (currentMode === 'HUD') {
-        // Màn hình HUD Chỉ đường
-        // Icon rẽ
-        drawTurnIconRound(ctxRound, turnIcon, 120, 60);
-
-        // Khoảng cách
-        ctxRound.fillStyle = '#00e5ff';
-        ctxRound.font = '900 32px "Orbitron", sans-serif';
-        ctxRound.textAlign = 'center';
-        ctxRound.fillText(dist, 120, 125);
-
-        // Tên đường
-        ctxRound.fillStyle = '#ffffff';
-        ctxRound.font = '700 14px "Plus Jakarta Sans", sans-serif';
-        ctxRound.fillText(street, 120, 155);
-
-        // Bottom Bar (Tốc độ & ETA)
-        ctxRound.strokeStyle = '#1e293b';
-        ctxRound.lineWidth = 1;
-        ctxRound.beginPath();
-        ctxRound.moveTo(40, 175);
-        ctxRound.lineTo(200, 175);
-        ctxRound.stroke();
-
-        ctxRound.fillStyle = '#00ff7f';
-        ctxRound.font = '800 16px "Orbitron", sans-serif';
-        ctxRound.textAlign = 'left';
-        ctxRound.fillText(speed + ' km/h', 45, 205);
-
-        ctxRound.fillStyle = '#ffb703';
-        ctxRound.font = '700 14px "Plus Jakarta Sans", sans-serif';
-        ctxRound.textAlign = 'right';
-        ctxRound.fillText('Đến: ' + eta, 195, 205);
-      } else if (currentMode === 'NOTIF') {
-        // Thông báo Fullscreen Focus N2
-        const app = document.getElementById('notifAppInput').value;
-        const title = document.getElementById('notifTitleInput').value;
-        const msg = document.getElementById('notifMsgInput').value;
-
-        ctxRound.fillStyle = '#0f172a';
-        ctxRound.beginPath();
-        ctxRound.roundRect(20, 30, 200, 180, 16);
-        ctxRound.fill();
-        ctxRound.strokeStyle = '#2563eb';
-        ctxRound.lineWidth = 2;
-        ctxRound.stroke();
-
-        ctxRound.fillStyle = '#00e5ff';
-        ctxRound.font = '800 12px "Orbitron", sans-serif';
-        ctxRound.textAlign = 'center';
-        ctxRound.fillText(app.toUpperCase(), 120, 55);
-
-        ctxRound.fillStyle = '#ffffff';
-        ctxRound.font = '800 14px "Plus Jakarta Sans", sans-serif';
-        ctxRound.fillText(title, 120, 85);
-
-        ctxRound.fillStyle = '#94a3b8';
-        ctxRound.font = '500 11px "Plus Jakarta Sans", sans-serif';
-        wrapText(ctxRound, msg, 120, 115, 170, 18);
-      } else if (currentMode === 'MAP') {
-        // Mô phỏng bản đồ
-        ctxRound.fillStyle = '#0f172a';
-        ctxRound.fillRect(0, 0, 240, 240);
-
-        // Đường xá
-        ctxRound.strokeStyle = '#334155';
-        ctxRound.lineWidth = 14;
-        ctxRound.beginPath();
-        ctxRound.moveTo(20, 180);
-        ctxRound.quadraticCurveTo(120, 80, 220, 60);
-        ctxRound.stroke();
-
-        // Đường dẫn đường Cyan
-        ctxRound.strokeStyle = '#00e5ff';
-        ctxRound.lineWidth = 8;
-        ctxRound.beginPath();
-        ctxRound.moveTo(20, 180);
-        ctxRound.quadraticCurveTo(120, 80, 220, 60);
-        ctxRound.stroke();
-
-        // Vị trí GPS (Mũi tên đỏ)
-        ctxRound.fillStyle = '#ff3366';
-        ctxRound.beginPath();
-        ctxRound.arc(100, 110, 8, 0, Math.PI * 2);
-        ctxRound.fill();
-
-        // Mini Card
-        ctxRound.fillStyle = 'rgba(0, 0, 0, 0.85)';
-        ctxRound.beginPath();
-        ctxRound.roundRect(40, 170, 160, 45, 12);
-        ctxRound.fill();
-        ctxRound.strokeStyle = '#00e5ff';
-        ctxRound.lineWidth = 1;
-        ctxRound.stroke();
-
-        ctxRound.fillStyle = '#fff';
-        ctxRound.font = '800 14px "Orbitron", sans-serif';
-        ctxRound.textAlign = 'center';
-        ctxRound.fillText(dist + ' • ' + speed + ' km/h', 120, 198);
-      } else if (currentMode === 'INFO') {
-        ctxRound.fillStyle = '#00e5ff';
-        ctxRound.font = '800 14px "Orbitron", sans-serif';
-        ctxRound.textAlign = 'center';
-        ctxRound.fillText('TYMAP v1.0.9', 120, 50);
-
-        ctxRound.fillStyle = '#fff';
-        ctxRound.font = '600 12px "Plus Jakarta Sans", sans-serif';
-        ctxRound.fillText('GC9A01 240x240 IPS', 120, 75);
-        ctxRound.fillText('RAM: 142 KB Free', 120, 110);
-        ctxRound.fillText('Điện áp: ' + voltage + 'V', 120, 135);
-        ctxRound.fillText('BLE: Đã Kết Nối', 120, 160);
-        ctxRound.fillText('Uptime: 01:25:30', 120, 185);
-      } else if (currentMode === 'SPLASH') {
-        ctxRound.fillStyle = '#00e5ff';
-        ctxRound.font = '900 36px "Orbitron", sans-serif';
-        ctxRound.textAlign = 'center';
-        ctxRound.fillText('TYMAP', 120, 110);
-
-        ctxRound.fillStyle = '#94a3b8';
-        ctxRound.font = '700 12px "Plus Jakarta Sans", sans-serif';
-        ctxRound.fillText('SMART HUD DISPLAY', 120, 140);
-      }
-
-      // Cảnh báo giao thông Overlay
-      if (hasWarn && currentMode !== 'SPLASH') {
-        ctxRound.fillStyle = 'rgba(255, 51, 102, 0.9)';
-        ctxRound.beginPath();
-        ctxRound.arc(190, 50, 30, 0, Math.PI * 2);
-        ctxRound.fill();
-        ctxRound.strokeStyle = '#ffffff';
-        ctxRound.lineWidth = 3;
-        ctxRound.stroke();
-
-        ctxRound.fillStyle = '#ffffff';
-        ctxRound.font = '900 18px "Orbitron", sans-serif';
-        ctxRound.textAlign = 'center';
-        ctxRound.fillText(warnType === 'SPEED' ? '60' : '📷', 190, 56);
-      }
-    }
-
-    // ==========================================
-    // 2. RENDER MÀN HÌNH OLED 128x64 (SH1106)
-    // ==========================================
-    function renderOledScreen(speed, voltage, phoneBat, street, dist, eta, temp, turnIcon, hasWarn, warnType, hudStyle = 0) {
-      ctxOled.clearRect(0, 0, 128, 64);
-      ctxOled.fillStyle = '#000000';
-      ctxOled.fillRect(0, 0, 128, 64);
-
-      const now = new Date();
-      const timeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-
-      ctxOled.fillStyle = '#ffffff';
-      ctxOled.strokeStyle = '#ffffff';
-
-      if (currentMode === 'STATUS') {
-        // Header
-        ctxOled.beginPath();
-        ctxOled.arc(4, 5, 2, 0, Math.PI * 2);
-        ctxOled.fill();
-
-        ctxOled.font = '10px "Plus Jakarta Sans", sans-serif';
-        ctxOled.textAlign = 'left';
-        ctxOled.fillText(now.getDate() + '/' + (now.getMonth() + 1), 10, 8);
-
-        ctxOled.textAlign = 'right';
-        ctxOled.fillText(temp, 126, 8);
-
-        ctxOled.lineWidth = 1;
-        ctxOled.beginPath();
-        ctxOled.moveTo(0, 11);
-        ctxOled.lineTo(128, 11);
-        ctxOled.stroke();
-
-        // Đồng hồ to
-        ctxOled.font = '900 28px "Orbitron", sans-serif';
-        ctxOled.textAlign = 'center';
-        ctxOled.fillText(timeStr, 64, 40);
-
-        // Footer
-        ctxOled.beginPath();
-        ctxOled.moveTo(0, 48);
-        ctxOled.lineTo(128, 48);
-        ctxOled.stroke();
-
-        ctxOled.font = '9px "Plus Jakarta Sans", sans-serif';
-        ctxOled.textAlign = 'left';
-        ctxOled.fillText('XE:' + voltage + 'V', 2, 58);
-
-        ctxOled.textAlign = 'right';
-        ctxOled.fillText('ĐT:' + phoneBat + '%', 126, 58);
-      } else if (currentMode === 'HUD') {
-        if (hudStyle === 0) {
-          // ---------------- H1: CLASSIC BOXED (Phác thảo gốc của bạn) ----------------
-          // 1. Phía trên bên trái: Icon rẽ
-          drawTurnIconOled(ctxOled, turnIcon, 22, 22);
-
-          // 2. Phía trên bên phải: Khung chữ nhật hiển thị tên đường (x=48, y=0, w=80, h=44)
-          ctxOled.strokeRect(48, 0, 79, 44);
-          ctxOled.font = '700 10px "Plus Jakarta Sans", sans-serif';
-          ctxOled.textAlign = 'left';
-          wrapText(ctxOled, street, 52, 16, 72, 13, 'left');
-
-          // 3. Hàng dưới cùng: Khoảng cách rẽ (Trái) & Tốc độ (Phải)
-          ctxOled.font = '900 14px "Orbitron", sans-serif';
-          ctxOled.textAlign = 'left';
-          ctxOled.fillText(dist.toUpperCase(), 0, 60);
-
-          ctxOled.font = '900 14px "Orbitron", sans-serif';
-          ctxOled.textAlign = 'right';
-          ctxOled.fillText(speed + ' KM/H', 128, 60);
-        } else if (hudStyle === 1) {
-          // ---------------- H2: SPLIT DASHBOARD (Chia đôi đối xứng) ----------------
-          // Cột trái: Tốc độ siêu lớn
-          ctxOled.font = '900 28px "Orbitron", sans-serif';
-          ctxOled.textAlign = 'center';
-          ctxOled.fillText(speed, 28, 32);
-
-          ctxOled.font = '700 10px "Orbitron", sans-serif';
-          ctxOled.fillText('KM/H', 28, 46);
-
-          // Vạch tốc độ mini dưới chân
-          ctxOled.strokeRect(4, 52, 48, 6);
-          ctxOled.fillRect(4, 52, Math.min((speed / 120) * 48, 48), 6);
-
-          // Đường phân cách giữa
-          ctxOled.beginPath();
-          ctxOled.moveTo(56, 0); ctxOled.lineTo(56, 64);
-          ctxOled.stroke();
-
-          // Cột phải: Icon rẽ + khoảng cách + tên đường
-          drawTurnIconOled(ctxOled, turnIcon, 74, 18);
-          ctxOled.font = '900 14px "Orbitron", sans-serif';
-          ctxOled.textAlign = 'left';
-          ctxOled.fillText(dist.toUpperCase(), 92, 22);
-
-          ctxOled.font = '700 9px "Plus Jakarta Sans", sans-serif';
-          wrapText(ctxOled, street, 60, 42, 66, 11, 'left');
-        } else if (hudStyle === 2) {
-          // ---------------- H3: BIG ARROW FOCUS (Mũi tên lớn 48px + Progress) ----------------
-          // Cột trái: Mũi tên cực lớn
-          drawTurnIconOled(ctxOled, turnIcon, 22, 24);
-          ctxOled.font = '900 12px "Orbitron", sans-serif';
-          ctxOled.textAlign = 'center';
-          ctxOled.fillText(dist.toUpperCase(), 22, 58);
-
-          // Cột phải: Tên đường + Vạch tiến trình + Tốc độ & ETA
-          ctxOled.font = '700 11px "Plus Jakarta Sans", sans-serif';
-          ctxOled.textAlign = 'left';
-          ctxOled.fillText(street.length > 14 ? street.substring(0, 12) + '..' : street, 48, 14);
-
-          // Vạch tiến trình điểm rẽ
-          ctxOled.strokeRect(48, 22, 78, 6);
-          ctxOled.fillRect(48, 22, 52, 6);
-
-          // Tốc độ & ETA
-          ctxOled.font = '900 14px "Orbitron", sans-serif';
-          ctxOled.fillText(speed + 'k', 48, 50);
-
-          ctxOled.font = '700 10px "Plus Jakarta Sans", sans-serif';
-          ctxOled.textAlign = 'right';
-          ctxOled.fillText('Đến ' + eta, 126, 50);
-        } else {
-          // ---------------- H4: RACING TELEMETRY (Thanh tốc độ đua) ----------------
-          // Header: Thanh vạch tốc độ RPM
-          ctxOled.strokeRect(0, 0, 85, 10);
-          ctxOled.fillRect(0, 0, Math.min((speed / 120) * 85, 85), 10);
-
-          ctxOled.font = '900 11px "Orbitron", sans-serif';
-          ctxOled.textAlign = 'right';
-          ctxOled.fillText(speed + ' KM/H', 128, 10);
-
-          // Thân giữa: Icon rẽ + khoảng cách + tên đường
-          drawTurnIconOled(ctxOled, turnIcon, 18, 30);
-
-          ctxOled.font = '900 16px "Orbitron", sans-serif';
-          ctxOled.textAlign = 'left';
-          ctxOled.fillText(dist.toUpperCase(), 38, 28);
-
-          ctxOled.font = '700 10px "Plus Jakarta Sans", sans-serif';
-          ctxOled.fillText(street.length > 15 ? street.substring(0, 13) + '..' : street, 38, 44);
-
-          // Footer
-          ctxOled.beginPath(); ctxOled.moveTo(0, 50); ctxOled.lineTo(128, 50); ctxOled.stroke();
-          ctxOled.font = '9px "Plus Jakarta Sans", sans-serif';
-          ctxOled.fillText('XE:' + voltage + 'V', 2, 60);
-          ctxOled.textAlign = 'right';
-          ctxOled.fillText('Đến: ' + eta, 126, 60);
+      const fontSize = parseInt(document.getElementById('fontSizeSelect').value);
+
+      document.getElementById('speedTag').innerText = speed + ' km/h';
+
+      // Custom coordinates from inspector
+      const boxX = parseInt(document.getElementById('boxX').value) || 48;
+      const boxY = parseInt(document.getElementById('boxY').value) || 0;
+      const boxW = parseInt(document.getElementById('boxW').value) || 79;
+      const boxH = parseInt(document.getElementById('boxH').value) || 44;
+      const iconX = parseInt(document.getElementById('iconX').value) || 22;
+      const iconY = parseInt(document.getElementById('iconY').value) || 22;
+
+      // 1. Render Focus Canvas
+      renderHUD(ctxFocus, currentStyle, speed, dist, street, turn, eta, boxX, boxY, boxW, boxH, iconX, iconY, fontSize);
+
+      // 2. Render all 6 preview gallery canvases
+      for (let i = 0; i < 6; i++) {
+        const c = document.getElementById('canvas-h' + i);
+        if (c) {
+          const ctx = c.getContext('2d');
+          renderHUD(ctx, i, speed, dist, street, turn, eta, 48, 0, 79, 44, 22, 22, 14);
         }
       }
-      } else if (currentMode === 'NOTIF') {
-        const app = document.getElementById('notifAppInput').value;
-        const title = document.getElementById('notifTitleInput').value;
-        const msg = document.getElementById('notifMsgInput').value;
 
-        ctxOled.strokeRect(0, 0, 127, 63);
-        ctxOled.font = '700 9px "Orbitron", sans-serif';
-        ctxOled.textAlign = 'left';
-        ctxOled.fillText(app.toUpperCase(), 4, 10);
+      // 3. Generate C++ snippet
+      generateCppCode(currentStyle, boxX, boxY, boxW, boxH, iconX, iconY);
+    }
 
-        ctxOled.font = '700 10px "Plus Jakarta Sans", sans-serif';
-        ctxOled.fillText(title.length > 16 ? title.substring(0, 14) + '..' : title, 4, 25);
+    function renderHUD(ctx, style, speed, dist, street, turn, eta, bx, by, bw, bh, ix, iy, fSize) {
+      ctx.clearRect(0, 0, 128, 64);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 128, 64);
 
-        ctxOled.font = '9px "Plus Jakarta Sans", sans-serif';
-        wrapText(ctxOled, msg, 4, 38, 120, 12, 'left');
-      } else if (currentMode === 'MAP') {
-        ctxOled.strokeRect(0, 0, 127, 63);
-        ctxOled.lineWidth = 4;
-        ctxOled.beginPath();
-        ctxOled.moveTo(10, 50);
-        ctxOled.quadraticCurveTo(64, 20, 118, 15);
-        ctxOled.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#ffffff';
 
-        ctxOled.fillRect(40, 30, 6, 6);
+      if (style === 0) {
+        // ================= H1: CLASSIC BOXED =================
+        drawTurnIcon(ctx, turn, ix, iy);
 
-        ctxOled.fillRect(0, 48, 44, 16);
-        ctxOled.fillStyle = '#000000';
-        ctxOled.font = '900 10px "Orbitron", sans-serif';
-        ctxOled.fillText(speed + 'k', 4, 60);
-      } else if (currentMode === 'INFO') {
-        ctxOled.strokeRect(0, 0, 127, 63);
-        ctxOled.font = '700 9px "Orbitron", sans-serif';
-        ctxOled.textAlign = 'center';
-        ctxOled.fillText('TYMAP v1.0.9 OLED', 64, 10);
-        ctxOled.beginPath(); ctxOled.moveTo(0, 14); ctxOled.lineTo(128, 14); ctxOled.stroke();
+        // Khung tên đường
+        ctx.strokeRect(bx, by, bw, bh);
+        ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'left';
+        wrapText(ctx, street, bx + 4, by + 14, bw - 8, 12, 'left');
 
-        ctxOled.font = '9px "Plus Jakarta Sans", sans-serif';
-        ctxOled.textAlign = 'left';
-        ctxOled.fillText('Heap: 182 KB Free', 4, 26);
-        ctxOled.fillText('Pin: ' + voltage + 'V | ĐT:' + phoneBat + '%', 4, 39);
-        ctxOled.fillText('Uptime: 01:25:30', 4, 52);
-      } else if (currentMode === 'SPLASH') {
-        // Vẽ Logo 64x64 căn giữa
-        ctxOled.strokeRect(32, 0, 64, 64);
-        ctxOled.font = '900 16px "Orbitron", sans-serif';
-        ctxOled.textAlign = 'center';
-        ctxOled.fillText('TYMAP', 64, 36);
-      }
+        // Hàng dưới: Khoảng cách & Tốc độ
+        ctx.font = '900 ' + fSize + 'px "Orbitron", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(dist.toUpperCase(), 0, 60);
 
-      // Warning Badge
-      if (hasWarn && currentMode !== 'SPLASH') {
-        ctxOled.fillRect(80, 0, 48, 16);
-        ctxOled.fillStyle = '#000000';
-        ctxOled.font = '900 10px "Orbitron", sans-serif';
-        ctxOled.textAlign = 'center';
-        ctxOled.fillText(warnType === 'SPEED' ? 'MAX 60' : 'CAM', 104, 12);
+        ctx.textAlign = 'right';
+        ctx.fillText(speed + ' KM/H', 128, 60);
+
+      } else if (style === 1) {
+        // ================= H2: SPLIT CYBER DASH =================
+        // Cột trái: Tốc độ lớn
+        ctx.font = '900 26px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(speed, 28, 30);
+
+        ctx.font = '700 10px "Orbitron", sans-serif';
+        ctx.fillText('KM/H', 28, 44);
+
+        ctx.strokeRect(4, 50, 48, 6);
+        ctx.fillRect(4, 50, Math.min((speed / 120) * 48, 48), 6);
+
+        // Vạch phân cách giữa
+        ctx.beginPath(); ctx.moveTo(56, 0); ctx.lineTo(56, 64); ctx.stroke();
+
+        // Cột phải: Icon rẽ + khoảng cách + tên đường
+        drawTurnIcon(ctx, turn, 72, 16);
+        ctx.font = '900 14px "Orbitron", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(dist.toUpperCase(), 90, 20);
+
+        ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
+        wrapText(ctx, street, 60, 40, 66, 11, 'left');
+
+      } else if (style === 2) {
+        // ================= H3: BIG ARROW FOCUS =================
+        drawTurnIcon(ctx, turn, 22, 24);
+        ctx.font = '900 12px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(dist.toUpperCase(), 22, 58);
+
+        // Cột phải
+        ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(street.length > 13 ? street.substring(0, 11) + '..' : street, 48, 14);
+
+        ctx.strokeRect(48, 22, 78, 6);
+        ctx.fillRect(48, 22, 52, 6);
+
+        ctx.font = '900 14px "Orbitron", sans-serif';
+        ctx.fillText(speed + 'k', 48, 50);
+
+        ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('Đến ' + eta, 126, 50);
+
+      } else if (style === 3) {
+        // ================= H4: RACING TELEMETRY =================
+        ctx.strokeRect(0, 0, 85, 10);
+        ctx.fillRect(0, 0, Math.min((speed / 120) * 85, 85), 10);
+
+        ctx.font = '900 11px "Orbitron", sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(speed + ' KM/H', 128, 10);
+
+        drawTurnIcon(ctx, turn, 18, 30);
+        ctx.font = '900 15px "Orbitron", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(dist.toUpperCase(), 38, 28);
+
+        ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
+        ctx.fillText(street.length > 15 ? street.substring(0, 13) + '..' : street, 38, 44);
+
+        ctx.beginPath(); ctx.moveTo(0, 50); ctx.lineTo(128, 50); ctx.stroke();
+        ctx.font = '9px "Plus Jakarta Sans", sans-serif';
+        ctx.fillText('XE: 12.6V', 2, 60);
+        ctx.textAlign = 'right';
+        ctx.fillText('Đến: ' + eta, 126, 60);
+
+      } else if (style === 4) {
+        // ================= H5: TOP STREET BANNER =================
+        // Dải tiêu đề trên cùng
+        ctx.fillRect(0, 0, 128, 14);
+        ctx.fillStyle = '#000000';
+        ctx.font = '900 10px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(street.length > 18 ? street.substring(0, 16) + '..' : street, 64, 11);
+
+        ctx.fillStyle = '#ffffff';
+        drawTurnIcon(ctx, turn, 20, 36);
+
+        ctx.font = '900 16px "Orbitron", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(dist.toUpperCase(), 44, 34);
+
+        ctx.font = '900 16px "Orbitron", sans-serif';
+        ctx.fillText(speed + ' KM/H', 44, 56);
+
+      } else if (style === 5) {
+        // ================= H6: MINIMALIST DUAL PILL =================
+        // Thẻ trái
+        ctx.strokeRect(0, 0, 58, 63);
+        drawTurnIcon(ctx, turn, 29, 22);
+        ctx.font = '900 12px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(dist.toUpperCase(), 29, 54);
+
+        // Thẻ phải
+        ctx.strokeRect(62, 0, 65, 63);
+        ctx.font = '900 16px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(speed + 'k', 94, 24);
+
+        ctx.font = '700 9px "Plus Jakarta Sans", sans-serif';
+        wrapText(ctx, street, 66, 40, 58, 11, 'left');
       }
     }
 
-    function drawTurnIconRound(ctx, type, cx, cy) {
-      ctx.fillStyle = '#00e5ff';
-      ctx.beginPath();
-      if (type === 'LEFT') {
-        ctx.moveTo(cx - 20, cy);
-        ctx.lineTo(cx + 10, cy - 20);
-        ctx.lineTo(cx + 10, cy + 20);
-      } else if (type === 'RIGHT') {
-        ctx.moveTo(cx + 20, cy);
-        ctx.lineTo(cx - 10, cy - 20);
-        ctx.lineTo(cx - 10, cy + 20);
-      } else {
-        ctx.moveTo(cx, cy - 20);
-        ctx.lineTo(cx - 20, cy + 10);
-        ctx.lineTo(cx + 20, cy + 10);
-      }
-      ctx.fill();
-    }
-
-    function drawTurnIconOled(ctx, type, cx, cy) {
+    function drawTurnIcon(ctx, type, cx, cy) {
       ctx.fillStyle = '#ffffff';
       if (type === 'LEFT') {
-        // Cột đứng từ dưới lên
         ctx.fillRect(cx + 6, cy - 10, 4, 24);
-        // Nhánh ngang sang trái
         ctx.fillRect(cx - 8, cy - 10, 14, 4);
-        // Đầu mũi tên sang trái
         ctx.beginPath();
         ctx.moveTo(cx - 14, cy - 8);
         ctx.lineTo(cx - 6, cy - 16);
         ctx.lineTo(cx - 6, cy);
         ctx.fill();
       } else if (type === 'RIGHT') {
-        // Cột đứng từ dưới lên
         ctx.fillRect(cx - 10, cy - 10, 4, 24);
-        // Nhánh ngang sang phải
         ctx.fillRect(cx - 10, cy - 10, 14, 4);
-        // Đầu mũi tên sang phải
         ctx.beginPath();
         ctx.moveTo(cx + 14, cy - 8);
         ctx.lineTo(cx + 6, cy - 16);
         ctx.lineTo(cx + 6, cy);
         ctx.fill();
+      } else if (type === 'SLIGHT_LEFT') {
+        ctx.fillRect(cx + 4, cy - 4, 4, 18);
+        ctx.fillRect(cx - 6, cy - 10, 12, 4);
+        ctx.beginPath();
+        ctx.moveTo(cx - 12, cy - 12);
+        ctx.lineTo(cx - 4, cy - 16);
+        ctx.lineTo(cx - 4, cy - 4);
+        ctx.fill();
+      } else if (type === 'SLIGHT_RIGHT') {
+        ctx.fillRect(cx - 8, cy - 4, 4, 18);
+        ctx.fillRect(cx - 6, cy - 10, 12, 4);
+        ctx.beginPath();
+        ctx.moveTo(cx + 12, cy - 12);
+        ctx.lineTo(cx + 4, cy - 16);
+        ctx.lineTo(cx + 4, cy - 4);
+        ctx.fill();
+      } else if (type === 'UTURN') {
+        ctx.fillRect(cx - 10, cy - 4, 4, 18);
+        ctx.fillRect(cx + 6, cy - 4, 4, 18);
+        ctx.fillRect(cx - 10, cy - 10, 20, 4);
+        ctx.beginPath();
+        ctx.moveTo(cx - 8, cy + 18);
+        ctx.lineTo(cx - 16, cy + 8);
+        ctx.lineTo(cx, cy + 8);
+        ctx.fill();
       } else {
+        // Đi thẳng
         ctx.fillRect(cx - 2, cy - 8, 4, 22);
         ctx.beginPath();
         ctx.moveTo(cx, cy - 16);
@@ -1230,8 +926,7 @@
       for (let n = 0; n < words.length; n++) {
         const testLine = line + words[n] + ' ';
         const metrics = ctx.measureText(testLine);
-        const testWidth = metrics.width;
-        if (testWidth > maxWidth && n > 0) {
+        if (metrics.width > maxWidth && n > 0) {
           ctx.fillText(line, x, y);
           line = words[n] + ' ';
           y += lineHeight;
@@ -1242,12 +937,24 @@
       ctx.fillText(line, x, y);
     }
 
-    // Live clock timer
-    setInterval(() => {
-      if (currentMode === 'STATUS') updateUI();
-    }, 1000);
+    function generateCppCode(style, bx, by, bw, bh, ix, iy) {
+      let code = `// C++ Code cho Kiểu H${style+1}:\n`;
+      code += `u8g2.drawFrame(${bx}, ${by}, ${bw}, ${bh});\n`;
+      code += `myFont.set_font(vietnamtimes12);\n`;
+      code += `myFont.print(${bx+4}, ${by+14}, nextStreet.c_str(), 1, 0);\n`;
+      code += `myFont.set_font(FONT_HUD_DIST);\n`;
+      code += `myFont.print(0, 48, distToNext.c_str(), 1, 0);\n`;
+      code += `myFont.print(128 - spdLen, 48, spdBuf, 1, 0);`;
+      document.getElementById('cppCodeBox').innerText = code;
+    }
 
-    updateUI();
+    function copyCppCode() {
+      const code = document.getElementById('cppCodeBox').innerText;
+      navigator.clipboard.writeText(code);
+      alert('Đã sao chép mã C++ vào Clipboard!');
+    }
+
+    refreshAll();
   </script>
 </body>
 </html>
