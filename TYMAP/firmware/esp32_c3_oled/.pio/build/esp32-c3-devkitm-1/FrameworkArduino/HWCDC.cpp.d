@@ -1,7 +1,7 @@
 .pio/build/esp32-c3-devkitm-1/FrameworkArduino/HWCDC.cpp.o: \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/HWCDC.cpp \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/USB.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/qio_qspi/include/sdkconfig.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/dio_qspi/include/sdkconfig.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_system/include/esp_system.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_err.h \

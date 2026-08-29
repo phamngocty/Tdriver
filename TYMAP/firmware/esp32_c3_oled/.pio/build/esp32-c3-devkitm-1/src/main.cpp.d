@@ -161,14 +161,14 @@
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_hw_support/include/soc/esp32/spiram.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/io_pin_remap.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src/Wire.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/U8g2lib.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/Print.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/U8x8lib.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/clib/u8x8.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/clib/u8g2.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/clib/u8x8.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src/Wire.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/NimBLEDevice.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimconfig.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimconfig_rename.h \
@@ -247,4 +247,11 @@
  .pio/libdeps/esp32-c3-devkitm-1/OneButton/src/OneButton.h \
  .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson.h \
  .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson.hpp \
- .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson/Configuration.hpp
+ .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson/Configuration.hpp \
+ D:/Documents/Arduino/libraries/FontMaker/FontMaker.h \
+ D:/Documents/Arduino/libraries/FontMaker/IOT47_UTF8.h \
+ D:/Documents/Arduino/libraries/FontMaker/MyFontMaker.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/libraries/Update/src/Update.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/MD5Builder.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_rom/include/esp_rom_md5.h \
+ src/gui.h

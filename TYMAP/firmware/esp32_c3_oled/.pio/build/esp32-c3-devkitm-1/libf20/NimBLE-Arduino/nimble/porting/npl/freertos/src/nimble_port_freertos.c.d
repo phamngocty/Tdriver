@@ -2,7 +2,7 @@
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimble/porting/npl/freertos/src/nimble_port_freertos.c \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/freertos/include/freertos/FreeRTOS.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/freertos/include/esp_additions/freertos/FreeRTOSConfig.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/qio_qspi/include/sdkconfig.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/dio_qspi/include/sdkconfig.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_compiler.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/freertos/port/riscv/include/freertos/FreeRTOSConfig_arch.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_rom/include/esp32c3/rom/ets_sys.h \

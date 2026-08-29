@@ -1,545 +1,574 @@
 #include <Arduino.h>
-#include <U8g2lib.h>
 #include <Wire.h>
+#include <U8g2lib.h>
 #include <NimBLEDevice.h>
 #include <ESP32Time.h>
 #include <OneButton.h>
 #include <ArduinoJson.h>
+#include <FontMaker.h>
+#include <Update.h>
+#include "gui.h"
+
+#ifndef OLED_SDA
+#define OLED_SDA 6
+#endif
+
+#ifndef OLED_SCL
+#define OLED_SCL 7
+#endif
 
 #define MODE_BTN 2
 #define ZOOM_BTN 3
 #define BAT_ADC 0
 
+// Firmware Version
+#define FW_VERSION_STR "1.0.9"
+#define FW_VERSION_CODE 9
+
 // GATT Server UUIDs
-const char* SERVICE_UUID = "0000feed-0000-1000-8000-00805f9b34fb";
-const char* CHA_NAV_UUID = "0b11deef-1563-447f-aece-d3dfeb1c1f20";
-const char* CHA_NAV_TBT_ICON_UUID = "d4d8fcca-16b2-4b8e-8ed5-90137c44a8ad";
-const char* CHA_ICON_DATA_UUID = "e2f3a4b5-c6d7-4890-e123-456789abcdef";
-const char* CHA_GPS_SPEED_UUID = "98b6073a-5cf3-4e73-b6d3-f8e05fa018a9";
-const char* CHA_SETTINGS_UUID = "9d37a346-63d3-4df6-8eee-f0242949f59f";
-const char* CHA_TIME_UUID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
-const char* CHA_WEATHER_UUID = "b2c3d4e5-f6a7-4890-b123-456789abcdef";
-const char* CHA_OLED_IMAGE_UUID = "e1f2a3b4-c5d6-4789-a012-3456789abcdef";
-const char* CHA_DEVICE_CTRL_UUID = "d4e5f6a7-b8c9-4012-d345-678901bcdef0";
-const char* CHA_REMOTE_CMD_UUID = "f1a2b3c4-d5e6-4789-a012-3456789abcde";
-const char* CHA_DEVICE_STATUS_UUID = "a1b2c3d4-e5f6-4789-b012-3456789abcde";
-const char* CHA_NOTIFICATION_UUID = "c1d2e3f4-a5b6-4789-c012-3456789abcdef";
+const char *SERVICE_UUID = "0000feed-0000-1000-8000-00805f9b34fb";
+const char *CHA_NAV_UUID = "0b11deef-1563-447f-aece-d3dfeb1c1f20";
+const char *CHA_NAV_TBT_ICON_UUID = "d4d8fcca-16b2-4b8e-8ed5-90137c44a8ad";
+const char *CHA_ICON_DATA_UUID = "e2f3a4b5-c6d7-4890-e123-456789abcdef";
+const char *CHA_GPS_SPEED_UUID = "98b6073a-5cf3-4e73-b6d3-f8e05fa018a9";
+const char *CHA_SETTINGS_UUID = "9d37a346-63d3-4df6-8eee-f0242949f59f";
+const char *CHA_TIME_UUID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
+const char *CHA_WEATHER_UUID = "b2c3d4e5-f6a7-4890-b123-456789abcdef";
+const char *CHA_OLED_IMAGE_UUID = "e1f2a3b4-c5d6-4789-a012-3456789abcdef";
+const char *CHA_DEVICE_CTRL_UUID = "d4e5f6a7-b8c9-4012-d345-678901bcdef0";
+const char *CHA_REMOTE_CMD_UUID = "f1a2b3c4-d5e6-4789-a012-3456789abcde";
+const char *CHA_DEVICE_STATUS_UUID = "a1b2c3d4-e5f6-4789-b012-3456789abcde";
+const char *CHA_NOTIFICATION_UUID = "c1d2e3f4-a5b6-4789-c012-3456789abcde";
+const char *CHA_PHONE_BATTERY_UUID = "e5f6a7b8-c9d0-4123-e456-789012cdef01";
+const char *CHA_WARNING_UUID = "e4f5a6b7-c8d9-4012-e345-678901bcdef0";
+const char *CHA_OTA_UUID = "f0a1b2c3-d4e5-4f60-a012-bcdef0123456";
 
-enum Mode { HUD_MODE, MAP_MODE, STATUS_MODE };
-Mode currentMode = STATUS_MODE;
-Mode selectedMode = STATUS_MODE;
+// Khởi tạo phần cứng U8g2 SH1106 I2C 128x64
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+// Callback vẽ pixel cho FontMaker
+void drawPixelOnOled(int16_t x, int16_t y, uint16_t color)
+{
+    if (x >= 0 && x < 128 && y >= 0 && y < 64)
+    {
+        u8g2.setDrawColor(color != 0 ? 1 : 0);
+        u8g2.drawPixel(x, y);
+    }
+}
+MakeFont myFont(drawPixelOnOled);
+
 ESP32Time rtc;
 OneButton btnMode(MODE_BTN, true);
 OneButton btnZoom(ZOOM_BTN, true);
 
 // BLE Characteristics
-NimBLECharacteristic* pDeviceStatusChar = nullptr;
-NimBLECharacteristic* pDeviceCtrlChar = nullptr;
+NimBLECharacteristic *pDeviceStatusChar = nullptr;
+NimBLECharacteristic *pDeviceCtrlChar = nullptr;
 
-// HUD Dẫn đường
+// Biến trạng thái toàn cục
+Mode currentMode = STATUS_MODE;
+Mode selectedMode = STATUS_MODE;
+Mode previousModeBeforeNotif = STATUS_MODE;
+volatile bool bleConnected = false;
+
 String nextStreet = "";
 String distToNext = "";
 String totalDist = "";
 String eta = "";
 String ete = "";
+int navDirIdx = 0;
 int gpsSpeed = 0;
 uint8_t staticIconIndex = 0;
-uint32_t lastNavUpdate = 0;
-
-// Cài đặt
-int brightness = 80;
-
-// Thời tiết & Pin
-float weatherTemp = 0.0;
-String weatherIcon = "";
-float batteryVoltage = 0.0;
-unsigned long lastStatusSent = 0;
-
-// Notification
-String notifApp = "";
-String notifTitle = "";
-String notifMsg = "";
-unsigned long notifTime = 0;
-
-// Icon Cache (FIFO)
-struct CachedIcon {
-    uint32_t hash;
-    uint8_t bitmap[288];
-};
-CachedIcon iconCache[20];
-int cacheSize = 0;
-uint32_t currentIconHash = 0;
 bool hasCustomIcon = false;
 uint8_t customIconBitmap[288];
 
-// Nhận ảnh OLED 128x64 1bpp (1024 bytes)
+float weatherTemp = -999.0f;
+String weatherIcon = "";
+float batteryVoltage = 0.0f;
+unsigned long lastStatusSent = 0;
+
+int phoneBatteryLevel = -1;
+bool phoneBatteryCharging = false;
+bool timeSynced = false;
+
+NotificationItem notifList[3];
+int notifCount = 0;
+int notifViewIndex = 0;
+bool isNotifPopupTransient = false;
+unsigned long notifPopupStartTime = 0;
+
+bool isTrafficWarningActive = false;
+uint8_t trafficWarningType = 0;
+uint8_t trafficWarningValue = 0;
+unsigned long trafficWarningStartTime = 0;
+
+bool isOtaMode = false;
+uint32_t otaExpectedSize = 0;
+uint32_t otaWritten = 0;
+
 uint8_t oledBuffer[1024];
+bool hasActiveOledImage = false;
 uint32_t oledImageSize = 0;
 uint32_t oledImageWritten = 0;
 bool isReceivingOledImage = false;
 
-// Trạng thái Menu Chồng
-bool isMenuOpen = false;
-unsigned long menuStartTime = 0;
-int menuSelectedIndex = 0; // 0: HUD, 1: MAP, 2: STATUS
+volatile bool screenNeedsRedraw = true;
+volatile bool needClearScreen = false;
+unsigned long lastRedrawTime = 0;
 
-// Tìm icon trong cache
-bool getCachedIcon(uint32_t hash, uint8_t* outBitmap) {
-    for (int i = 0; i < cacheSize; i++) {
-        if (iconCache[i].hash == hash) {
-            memcpy(outBitmap, iconCache[i].bitmap, 288);
-            return true;
-        }
-    }
-    return false;
-}
-
-// Thêm icon vào cache
-void addIconToCache(uint32_t hash, const uint8_t* bitmap) {
-    for (int i = 0; i < cacheSize; i++) {
-        if (iconCache[i].hash == hash) return;
-    }
-    
-    if (cacheSize < 20) {
-        iconCache[cacheSize].hash = hash;
-        memcpy(iconCache[cacheSize].bitmap, bitmap, 288);
-        cacheSize++;
-    } else {
-        for (int i = 0; i < 19; i++) {
-            iconCache[i] = iconCache[i + 1];
-        }
-        iconCache[19].hash = hash;
-        memcpy(iconCache[19].bitmap, bitmap, 288);
-    }
-}
-
-// Gửi trạng thái thiết bị
-void sendDeviceStatus() {
+// Gửi trạng thái thiết bị sang App qua BLE
+void sendDeviceStatus()
+{
     if (!pDeviceStatusChar) return;
-    char buffer[128];
+    char buffer[192];
     String modeStr = "STATUS";
     if (currentMode == HUD_MODE) modeStr = "HUD";
     else if (currentMode == MAP_MODE) modeStr = "MAP";
-    
+    else if (currentMode == INFO_MODE) modeStr = "INFO";
+    else if (currentMode == NOTIF_MODE) modeStr = "NOTIF";
+
     int rssi = -55 - (random() % 15);
-    
-    snprintf(buffer, sizeof(buffer), "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=OLED128x64\nver=1.0.9\nfw_code=9", 
-             modeStr.c_str(), batteryVoltage, rssi);
-    pDeviceStatusChar->setValue(buffer);
+
+    snprintf(buffer, sizeof(buffer),
+             "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=SH1106\ntimeSynced=%d\nnotifCount=%d\nver=%s\nfw_code=%d",
+             modeStr.c_str(), batteryVoltage, rssi,
+             timeSynced ? 1 : 0, notifCount, FW_VERSION_STR, FW_VERSION_CODE);
+
+    pDeviceStatusChar->setValue((uint8_t*)buffer, strlen(buffer));
     pDeviceStatusChar->notify();
     lastStatusSent = millis();
 }
 
-// Đo pin C3
-void updateBatteryVoltage() {
+// Đo điện áp pin xe
+void updateBatteryVoltage()
+{
     int adcVal = analogRead(BAT_ADC);
-    // Đo trực tiếp với cầu phân áp R1=100k, R2=27k. GPIO0
-    float vAdc = (adcVal / 4095.0) * 3.1;
-    batteryVoltage = vAdc * (127.0 / 27.0);
+    // Cầu phân áp R1=100k, R2=27k, Attenuation 11dB (0 - 3.1V)
+    float vAdc = (adcVal / 4095.0f) * 3.1f;
+    batteryVoltage = vAdc * (127.0f / 27.0f);
 }
 
-// Cài đặt độ sáng OLED
-void setOledContrast(int pct) {
-    brightness = pct;
-    int contrast = (pct * 255) / 100;
-    u8g2.setContrast(contrast);
-}
+// Server Callbacks BLE
+class MyServerCallbacks : public NimBLEServerCallbacks
+{
+    void onConnect(NimBLEServer *pServer) override
+    {
+        bleConnected = true;
+        screenNeedsRedraw = true;
+        sendDeviceStatus();
+    }
+    void onDisconnect(NimBLEServer *pServer) override
+    {
+        bleConnected = false;
+        if (currentMode == HUD_MODE || currentMode == MAP_MODE) {
+            currentMode = STATUS_MODE;
+        }
+        hasActiveOledImage = false;
+        screenNeedsRedraw = true;
+    }
+};
 
-// Callback nhận dữ liệu BLE
-class ServerCallbacks : public NimBLECharacteristicCallbacks {
-    void onWrite(NimBLECharacteristic* pCharacteristic) {
-        String uuid = pCharacteristic->getUUID().toString().c_str();
-        std::string val = pCharacteristic->getValue();
+// Characterstic Callback: Dẫn đường HUD
+class NavCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.empty()) return;
 
-        if (uuid == CHA_NAV_UUID) {
-            String data = val.c_str();
-            int startIdx = 0;
-            while (startIdx < data.length()) {
-                int endIdx = data.indexOf('\n', startIdx);
-                if (endIdx == -1) endIdx = data.length();
-                String line = data.substring(startIdx, endIdx);
-                startIdx = endIdx + 1;
-                
-                int eqIdx = line.indexOf('=');
-                if (eqIdx != -1) {
-                    String key = line.substring(0, eqIdx);
-                    String value = line.substring(eqIdx + 1);
-                    if (key == "dist") distToNext = value;
-                    else if (key == "inst" || key == "title") nextStreet = value;
-                    else if (key == "road") totalDist = value;
-                    else if (key == "dir") {
-                        if (value.length() > 0 && isDigit(value[0])) {
-                            staticIconIndex = value.toInt();
-                            hasCustomIcon = false;
-                        } else {
-                            totalDist = value;
-                        }
-                    }
-                    else if (key == "eta") eta = value;
-                    else if (key == "ete") ete = value;
-                }
-            }
-            lastNavUpdate = millis();
-        }
-        else if (uuid == CHA_NAV_TBT_ICON_UUID) {
-            if (val.length() == 1) {
-                staticIconIndex = val[0];
-                hasCustomIcon = false;
-            } else {
-                String strVal = val.c_str();
-                if (strVal.startsWith("hash=")) {
-                    String hashStr = strVal.substring(5);
-                    uint32_t hash = strtoul(hashStr.c_str(), nullptr, 16);
-                    currentIconHash = hash;
-                    
-                    uint8_t bitmap[288];
-                    if (getCachedIcon(hash, bitmap)) {
-                        memcpy(customIconBitmap, bitmap, 288);
-                        hasCustomIcon = true;
-                    } else {
-                        char reqBuf[64];
-                        snprintf(reqBuf, sizeof(reqBuf), "icon_req=%s", hashStr.c_str());
-                        pDeviceStatusChar->setValue(reqBuf);
-                        pDeviceStatusChar->notify();
-                    }
-                } else if (val.length() == 288) {
-                    memcpy(customIconBitmap, val.data(), 288);
-                    hasCustomIcon = true;
-                }
+        String data = String(val.c_str());
+        int navActive = -1;
+
+        int start = 0;
+        while (start < data.length()) {
+            int end = data.indexOf('\n', start);
+            if (end == -1) end = data.length();
+            String line = data.substring(start, end);
+            start = end + 1;
+
+            int eq = line.indexOf('=');
+            if (eq != -1) {
+                String k = line.substring(0, eq);
+                String v = line.substring(eq + 1);
+                k.trim(); v.trim();
+
+                if (k == "active" || k == "nav") navActive = v.toInt();
+                else if (k == "dist") distToNext = v;
+                else if (k == "title" || k == "street") nextStreet = v;
+                else if (k == "eta") eta = v;
+                else if (k == "ete") ete = v;
+                else if (k == "dir") navDirIdx = v.toInt();
+                else if (k == "total") totalDist = v;
             }
         }
-        else if (uuid == CHA_ICON_DATA_UUID) {
-            if (val.length() == 292) {
-                uint32_t hash;
-                memcpy(&hash, val.data(), 4);
-                const uint8_t* bitmap = (const uint8_t*)(val.data() + 4);
-                addIconToCache(hash, bitmap);
-                
-                if (hash == currentIconHash) {
-                    memcpy(customIconBitmap, bitmap, 288);
-                    hasCustomIcon = true;
-                }
-                
-                char ackBuf[64];
-                snprintf(ackBuf, sizeof(ackBuf), "icon_ack=%08X", hash);
-                pDeviceStatusChar->setValue(ackBuf);
-                pDeviceStatusChar->notify();
+
+        if (navActive == 0) {
+            // App tắt dẫn đường -> tự động về STATUS
+            currentMode = STATUS_MODE;
+            hasCustomIcon = false;
+        } else if (navActive == 1) {
+            if (currentMode != MAP_MODE) {
+                currentMode = HUD_MODE;
             }
         }
-        else if (uuid == CHA_GPS_SPEED_UUID) {
+        screenNeedsRedraw = true;
+    }
+};
+
+// Characterstic Callback: Icon TBT Bitmap
+class IconDataCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.size() >= 288) {
+            memcpy(customIconBitmap, val.data(), 288);
+            hasCustomIcon = true;
+            screenNeedsRedraw = true;
+        }
+    }
+};
+
+// Characterstic Callback: Tốc độ GPS
+class SpeedCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (!val.empty()) {
             gpsSpeed = atoi(val.c_str());
+            screenNeedsRedraw = true;
         }
-        else if (uuid == CHA_SETTINGS_UUID) {
-            String s = val.c_str();
-            int eqIdx = s.indexOf('=');
-            if (eqIdx != -1) {
-                String key = s.substring(0, eqIdx);
-                String value = s.substring(eqIdx + 1);
-                if (key == "brightness") {
-                    setOledContrast(value.toInt());
-                }
-            }
-        }
-        else if (uuid == CHA_TIME_UUID) {
-            if (val.length() == 4) {
-                uint32_t ts;
-                memcpy(&ts, val.data(), 4);
-                rtc.setTime(ts);
-            }
-        }
-        else if (uuid == CHA_WEATHER_UUID) {
-            JsonDocument doc;
-            DeserializationError error = deserializeJson(doc, val.c_str());
-            if (!error) {
-                weatherTemp = doc["t"] | 0.0;
-                weatherIcon = doc["i"] | "";
-            }
-        }
-        else if (uuid == CHA_OLED_IMAGE_UUID) {
-            if (!isReceivingOledImage) {
-                if (val.length() == 2) {
-                    uint16_t size;
-                    memcpy(&size, val.data(), 2);
-                    oledImageSize = size;
-                    oledImageWritten = 0;
-                    isReceivingOledImage = true;
-                }
-            } else {
-                memcpy(oledBuffer + oledImageWritten, val.data(), val.length());
-                oledImageWritten += val.length();
-                if (oledImageWritten >= oledImageSize) {
-                    isReceivingOledImage = false;
-                }
-            }
-        }
-        else if (uuid == CHA_REMOTE_CMD_UUID) {
-            if (val.length() == 1) {
-                uint8_t cmd = val[0];
-                if (cmd == 0x10) currentMode = HUD_MODE;
-                else if (cmd == 0x11) currentMode = MAP_MODE;
-                else if (cmd == 0x12) currentMode = STATUS_MODE;
-                else if (cmd == 0x20) sendDeviceStatus();
-                else if (cmd == 0x30) {
-                    pDeviceStatusChar->setValue("ping=ok");
-                    pDeviceStatusChar->notify();
-                }
-                else if (cmd == 0xFF) ESP.restart();
-            }
-        }
-        else if (uuid == CHA_NOTIFICATION_UUID) {
-            JsonDocument doc;
-            DeserializationError error = deserializeJson(doc, val.c_str());
-            if (!error) {
-                notifApp = doc["app"] | "";
-                notifTitle = doc["title"] | "";
-                notifMsg = doc["message"] | "";
-                notifTime = millis();
+    }
+};
+
+// Characterstic Callback: Thời gian
+class TimeCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.length() >= 10) {
+            long epoch = atol(val.c_str());
+            if (epoch > 1700000000) {
+                rtc.setTime(epoch);
+                timeSynced = true;
+                screenNeedsRedraw = true;
             }
         }
     }
 };
 
-// Vẽ custom icon 1bpp lên OLED
-void drawCustomIconOled(int xOffset, int yOffset, const uint8_t* bitmap) {
-    for (int y = 0; y < 48; y++) {
-        for (int x = 0; x < 48; x++) {
-            int byteIdx = (y * 48 + x) / 8;
-            int bitPos = 7 - (x % 8);
-            bool isPixel = (bitmap[byteIdx] & (1 << bitPos)) != 0;
-            if (isPixel) {
-                u8g2.drawPixel(xOffset + x, yOffset + y);
+// Characterstic Callback: Thời tiết
+class WeatherCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (!val.empty()) {
+            JsonDocument doc;
+            if (deserializeJson(doc, val.c_str()) == DeserializationError::Ok) {
+                if (doc["temp"].is<float>()) weatherTemp = doc["temp"].as<float>();
+                if (doc["icon"].is<const char*>()) weatherIcon = doc["icon"].as<String>();
+                screenNeedsRedraw = true;
             }
         }
     }
-}
+};
 
-// Vẽ Default Turn Icon lên OLED
-void drawDefaultTurnIconOled(uint8_t idx, int cx, int cy) {
-    u8g2.drawCircle(cx, cy, 20);
-    switch (idx) {
-        case 0: // Đi thẳng
-            u8g2.drawLine(cx, cy + 12, cx, cy - 12);
-            u8g2.drawLine(cx, cy - 12, cx - 4, cy - 8);
-            u8g2.drawLine(cx, cy - 12, cx + 4, cy - 8);
-            break;
-        case 1:
-        case 2:
-        case 3: // Rẽ trái (1: Slight Left, 2: Left, 3: Sharp Left)
-            u8g2.drawLine(cx + 8, cy + 8, cx + 8, cy);
-            u8g2.drawLine(cx + 8, cy, cx - 8, cy);
-            u8g2.drawLine(cx - 8, cy, cx - 4, cy - 4);
-            u8g2.drawLine(cx - 8, cy, cx - 4, cy + 4);
-            break;
-        case 4:
-        case 5:
-        case 6: // Rẽ phải (4: Slight Right, 5: Right, 6: Sharp Right)
-            u8g2.drawLine(cx - 8, cy + 8, cx - 8, cy);
-            u8g2.drawLine(cx - 8, cy, cx + 8, cy);
-            u8g2.drawLine(cx + 8, cy, cx + 4, cy - 4);
-            u8g2.drawLine(cx + 8, cy, cx + 4, cy + 4);
-            break;
-        case 7:
-        case 8: // Quay đầu
-            u8g2.drawCircle(cx, cy + 3, 6);
-            break;
-        default:
-            u8g2.drawCircle(cx, cy, 8);
-            break;
-    }
-}
-
-void drawHUD() {
-    u8g2.clearBuffer();
-    
-    // 1. Vẽ Icon rẽ
-    if (hasCustomIcon) {
-        drawCustomIconOled(4, 8, customIconBitmap);
-    } else {
-        drawDefaultTurnIconOled(staticIconIndex, 28, 32);
-    }
-    
-    // 2. Vẽ khoảng cách rẽ
-    u8g2.setFont(u8g2_font_7x14_tf);
-    u8g2.drawStr(60, 18, distToNext.c_str());
-    
-    // 3. Vẽ chỉ dẫn đường đi
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.drawUTF8(60, 32, nextStreet.substring(0, 11).c_str());
-    
-    // 4. Vẽ tốc độ và ETA
-    char speedBuf[32];
-    snprintf(speedBuf, sizeof(speedBuf), "%d km/h", gpsSpeed);
-    u8g2.drawStr(60, 48, speedBuf);
-    
-    u8g2.drawUTF8(48, 62, (ete.length() > 0 ? (ete + " | " + eta) : ("ETA " + eta)).c_str());
-    
-    u8g2.sendBuffer();
-}
-
-void drawSTATUS() {
-    u8g2.clearBuffer();
-    
-    // 1. Vẽ đồng hồ giờ
-    u8g2.setFont(u8g2_font_9x15B_tf);
-    u8g2.drawStr(32, 22, rtc.getTime("%H:%M:%S").c_str());
-    
-    // 2. Vẽ thời tiết và pin
-    u8g2.setFont(u8g2_font_6x10_tf);
-    char statusBuf[64];
-    snprintf(statusBuf, sizeof(statusBuf), "%.1f C | %.1f V", weatherTemp, batteryVoltage);
-    u8g2.drawUTF8(24, 38, statusBuf);
-    
-    // 3. Vẽ notification nếu có trong vòng 8 giây
-    if (notifApp.length() > 0 && millis() - notifTime < 8000) {
-        u8g2.drawFrame(0, 42, 128, 22);
-        u8g2.drawStr(4, 52, (notifApp + ": " + notifTitle).substring(0, 20).c_str());
-        u8g2.drawStr(4, 61, notifMsg.substring(0, 20).c_str());
-    } else {
-        u8g2.drawStr(12, 54, "Hệ thống TYMAP-C3");
-    }
-    
-    u8g2.sendBuffer();
-}
-
-void drawMenuOverlay() {
-    u8g2.clearBuffer();
-    u8g2.drawFrame(0, 0, 128, 64);
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.drawUTF8(24, 12, "CHỌN CHẾ ĐỘ");
-    
-    const char* options[] = {"1. HUD MODE", "2. MAP MODE", "3. STATUS MODE"};
-    for (int i = 0; i < 3; i++) {
-        if (i == menuSelectedIndex) {
-            u8g2.drawBox(4, 18 + i * 14, 120, 13);
-            u8g2.setDrawColor(0); // Chữ màu đen trên nền trắng highlight
-            u8g2.drawUTF8(8, 28 + i * 14, options[i]);
-            u8g2.setDrawColor(1);
-        } else {
-            u8g2.drawUTF8(8, 28 + i * 14, options[i]);
+// Characterstic Callback: Pin Điện Thoại
+class PhoneBatteryCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (!val.empty()) {
+            int sep = val.find(',');
+            if (sep != std::string::npos) {
+                phoneBatteryLevel = atoi(val.substr(0, sep).c_str());
+                phoneBatteryCharging = (atoi(val.substr(sep + 1).c_str()) == 1);
+            } else {
+                phoneBatteryLevel = atoi(val.c_str());
+            }
+            screenNeedsRedraw = true;
         }
     }
-    u8g2.sendBuffer();
-}
+};
 
-void setup() {
+// Characterstic Callback: Cảnh báo giao thông (Tốc độ & Camera)
+class WarningCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (!val.empty()) {
+            int sep = val.find(',');
+            if (sep != std::string::npos) {
+                trafficWarningType = atoi(val.substr(0, sep).c_str());
+                trafficWarningValue = atoi(val.substr(sep + 1).c_str());
+            } else {
+                trafficWarningType = atoi(val.c_str());
+                trafficWarningValue = 60;
+            }
+            isTrafficWarningActive = true;
+            trafficWarningStartTime = millis();
+            screenNeedsRedraw = true;
+        }
+    }
+};
+
+// Characterstic Callback: Thông Báo (Notification)
+class NotifCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.empty()) return;
+
+        JsonDocument doc;
+        if (deserializeJson(doc, val.c_str()) == DeserializationError::Ok) {
+            for (int i = 2; i > 0; i--) {
+                notifList[i] = notifList[i - 1];
+            }
+            notifList[0].app = doc["app"].as<String>();
+            notifList[0].title = doc["title"].as<String>();
+            notifList[0].msg = doc["msg"].as<String>();
+            notifList[0].time = millis();
+
+            if (notifCount < 3) notifCount++;
+            notifViewIndex = 0;
+
+            previousModeBeforeNotif = currentMode;
+            currentMode = NOTIF_MODE;
+            isNotifPopupTransient = true;
+            notifPopupStartTime = millis();
+            screenNeedsRedraw = true;
+        }
+    }
+};
+
+// Characterstic Callback: Lệnh Điều Khiển Từ Xa (Remote Command)
+class RemoteCmdCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.empty()) return;
+        uint8_t cmd = (uint8_t)val[0];
+
+        if (cmd == 0x10) currentMode = HUD_MODE;
+        else if (cmd == 0x11) currentMode = MAP_MODE;
+        else if (cmd == 0x12) {
+            currentMode = STATUS_MODE;
+            hasCustomIcon = false;
+            hasActiveOledImage = false;
+        }
+        else if (cmd == 0x13) currentMode = INFO_MODE;
+        else if (cmd == 0x20) sendDeviceStatus();
+
+        screenNeedsRedraw = true;
+    }
+};
+
+// Characterstic Callback: Nhận Ảnh OLED 128x64 1bpp
+class OledImageCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.size() < 4) return;
+
+        uint8_t pktType = (uint8_t)val[0];
+        if (pktType == 0x01) {
+            // Header: Bắt đầu truyền ảnh
+            oledImageSize = ((uint8_t)val[1] << 8) | (uint8_t)val[2];
+            oledImageWritten = 0;
+            isReceivingOledImage = true;
+        } else if (pktType == 0x02 && isReceivingOledImage) {
+            // Payload data
+            size_t len = val.size() - 1;
+            if (oledImageWritten + len <= 1024) {
+                memcpy(&oledBuffer[oledImageWritten], val.data() + 1, len);
+                oledImageWritten += len;
+            }
+            if (oledImageWritten >= oledImageSize && oledImageSize > 0) {
+                isReceivingOledImage = false;
+                hasActiveOledImage = true;
+                currentMode = MAP_MODE;
+                screenNeedsRedraw = true;
+            }
+        }
+    }
+};
+
+// Characterstic Callback: BLE OTA Firmware Update
+class OtaCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.empty()) return;
+
+        uint8_t cmd = (uint8_t)val[0];
+        if (cmd == 0x01 && val.size() >= 5) {
+            // START OTA
+            otaExpectedSize = ((uint8_t)val[1] << 24) | ((uint8_t)val[2] << 16) | ((uint8_t)val[3] << 8) | (uint8_t)val[4];
+            otaWritten = 0;
+            if (Update.begin(otaExpectedSize > 0 ? otaExpectedSize : UPDATE_SIZE_UNKNOWN)) {
+                isOtaMode = true;
+                screenNeedsRedraw = true;
+            }
+        } else if (cmd == 0x02 && isOtaMode) {
+            // WRITE OTA CHUNK
+            size_t len = val.size() - 1;
+            Update.write((uint8_t*)val.data() + 1, len);
+            otaWritten += len;
+            screenNeedsRedraw = true;
+        } else if (cmd == 0x03 && isOtaMode) {
+            // END OTA
+            if (Update.end(true)) {
+                ESP.restart();
+            }
+        }
+    }
+};
+
+void setup()
+{
     Serial.begin(115200);
-    
-    // Khởi động màn hình OLED qua I2C: SDA=8, SCL=9 cho ESP32-C3
-    Wire.begin(8, 9);
-    Wire.setClock(400000); // Tăng tốc I2C lên 400kHz (Fast Mode)
+    analogReadResolution(12);
+
+    // Khởi tạo I2C và U8g2 SH1106
+    Wire.begin(OLED_SDA, OLED_SCL);
     u8g2.begin();
-    u8g2.setFont(u8g2_font_6x10_tf);
-    
-    rtc.setTime(1719360000); // Mặc định 00:00:00
+    u8g2.setContrast(200);
 
-    // Khởi tạo BLE
-    NimBLEDevice::init("TYMAP-C3");
-    NimBLEServer* pServer = NimBLEDevice::createServer();
-    NimBLEService* pService = pServer->createService(SERVICE_UUID);
+    // Màn hình Splash Logo khởi động
+    drawLogoSplash(millis(), millis(), 1500);
+    delay(1200);
 
-    ServerCallbacks* sCallbacks = new ServerCallbacks();
-
-    pService->createCharacteristic(CHA_NAV_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    pService->createCharacteristic(CHA_NAV_TBT_ICON_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    pService->createCharacteristic(CHA_ICON_DATA_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    pService->createCharacteristic(CHA_GPS_SPEED_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    pService->createCharacteristic(CHA_SETTINGS_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    pService->createCharacteristic(CHA_TIME_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    pService->createCharacteristic(CHA_WEATHER_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    pService->createCharacteristic(CHA_OLED_IMAGE_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    
-    pDeviceCtrlChar = pService->createCharacteristic(CHA_DEVICE_CTRL_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
-    pDeviceCtrlChar->setCallbacks(sCallbacks);
-    
-    pService->createCharacteristic(CHA_REMOTE_CMD_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-    
-    pDeviceStatusChar = pService->createCharacteristic(CHA_DEVICE_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-    
-    pService->createCharacteristic(CHA_NOTIFICATION_UUID, NIMBLE_PROPERTY::WRITE)->setCallbacks(sCallbacks);
-
-    pService->start();
-    NimBLEDevice::getAdvertising()->start();
-
-    // Khởi tạo phím bấm
+    // Cấu hình Nút bấm
     btnMode.attachClick([]() {
-        if (!isMenuOpen) {
-            isMenuOpen = true;
-            menuSelectedIndex = (int)currentMode;
-            menuStartTime = millis();
-        } else {
-            menuSelectedIndex = (menuSelectedIndex + 1) % 3;
-            menuStartTime = millis();
-        }
+        if (currentMode == STATUS_MODE) currentMode = HUD_MODE;
+        else if (currentMode == HUD_MODE) currentMode = MAP_MODE;
+        else if (currentMode == MAP_MODE) currentMode = INFO_MODE;
+        else currentMode = STATUS_MODE;
+        screenNeedsRedraw = true;
     });
 
     btnMode.attachLongPressStart([]() {
-        if (isMenuOpen) {
-            selectedMode = (Mode)menuSelectedIndex;
-            currentMode = selectedMode;
-            isMenuOpen = false;
-            sendDeviceStatus();
-        }
+        // Đảo ngược màu hoặc Reset về STATUS
+        currentMode = STATUS_MODE;
+        screenNeedsRedraw = true;
     });
 
     btnZoom.attachClick([]() {
-        if (currentMode == MAP_MODE && pDeviceCtrlChar) {
-            uint8_t val = 1; // Zoom In
-            pDeviceCtrlChar->setValue(&val, 1);
-            pDeviceCtrlChar->notify();
+        if (notifCount > 0) {
+            notifViewIndex = (notifViewIndex + 1) % notifCount;
+            currentMode = NOTIF_MODE;
+            screenNeedsRedraw = true;
         }
     });
 
-    btnZoom.attachLongPressStart([]() {
-        if (currentMode == MAP_MODE && pDeviceCtrlChar) {
-            uint8_t val = 2; // Zoom Out
-            pDeviceCtrlChar->setValue(&val, 1);
-            pDeviceCtrlChar->notify();
-        }
-    });
+    // Khởi tạo NimBLE Server
+    NimBLEDevice::init("TYMAP-SH1106");
+    NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+    NimBLEServer *pServer = NimBLEDevice::createServer();
+    pServer->setCallbacks(new MyServerCallbacks());
+
+    NimBLEService *pService = pServer->createService(SERVICE_UUID);
+
+    NimBLECharacteristic *pNavChar = pService->createCharacteristic(CHA_NAV_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pNavChar->setCallbacks(new NavCallback());
+
+    NimBLECharacteristic *pIconDataChar = pService->createCharacteristic(CHA_ICON_DATA_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pIconDataChar->setCallbacks(new IconDataCallback());
+
+    NimBLECharacteristic *pSpeedChar = pService->createCharacteristic(CHA_GPS_SPEED_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pSpeedChar->setCallbacks(new SpeedCallback());
+
+    NimBLECharacteristic *pTimeChar = pService->createCharacteristic(CHA_TIME_UUID, NIMBLE_PROPERTY::WRITE);
+    pTimeChar->setCallbacks(new TimeCallback());
+
+    NimBLECharacteristic *pWeatherChar = pService->createCharacteristic(CHA_WEATHER_UUID, NIMBLE_PROPERTY::WRITE);
+    pWeatherChar->setCallbacks(new WeatherCallback());
+
+    NimBLECharacteristic *pPhoneBatChar = pService->createCharacteristic(CHA_PHONE_BATTERY_UUID, NIMBLE_PROPERTY::WRITE);
+    pPhoneBatChar->setCallbacks(new PhoneBatteryCallback());
+
+    NimBLECharacteristic *pWarningChar = pService->createCharacteristic(CHA_WARNING_UUID, NIMBLE_PROPERTY::WRITE);
+    pWarningChar->setCallbacks(new WarningCallback());
+
+    NimBLECharacteristic *pNotifChar = pService->createCharacteristic(CHA_NOTIFICATION_UUID, NIMBLE_PROPERTY::WRITE);
+    pNotifChar->setCallbacks(new NotifCallback());
+
+    NimBLECharacteristic *pRemoteCmdChar = pService->createCharacteristic(CHA_REMOTE_CMD_UUID, NIMBLE_PROPERTY::WRITE);
+    pRemoteCmdChar->setCallbacks(new RemoteCmdCallback());
+
+    NimBLECharacteristic *pOledImageChar = pService->createCharacteristic(CHA_OLED_IMAGE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pOledImageChar->setCallbacks(new OledImageCallback());
+
+    NimBLECharacteristic *pOtaChar = pService->createCharacteristic(CHA_OTA_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    pOtaChar->setCallbacks(new OtaCallback());
+
+    pDeviceStatusChar = pService->createCharacteristic(CHA_DEVICE_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+
+    pService->start();
+
+    NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(SERVICE_UUID);
+    pAdvertising->setScanResponse(true);
+    pAdvertising->start();
+
+    updateBatteryVoltage();
 }
 
-void loop() {
+void loop()
+{
     btnMode.tick();
     btnZoom.tick();
 
-    updateBatteryVoltage();
-
-    // Timeout 3s HUD
-    if (currentMode == HUD_MODE && millis() - lastNavUpdate > 3000) {
-        currentMode = STATUS_MODE;
-    }
-
-    // Timeout menu 5s
-    if (isMenuOpen && millis() - menuStartTime > 5000) {
-        isMenuOpen = false;
-    }
-
-    // Gửi status định kỳ 10s
-    if (millis() - lastStatusSent > 10000) {
-        sendDeviceStatus();
-    }
-
-    // Render giao diện
-    if (isMenuOpen) {
-        drawMenuOverlay();
-    } else {
-        switch (currentMode) {
-            case HUD_MODE:
-                drawHUD();
-                break;
-            case MAP_MODE:
-                // Ảnh OLED map được vẽ trực tiếp qua drawXBM khi nhận đủ qua BLE
-                u8g2.clearBuffer();
-                u8g2.drawXBM(0, 0, 128, 64, oledBuffer);
-                u8g2.sendBuffer();
-                break;
-            case STATUS_MODE:
-                drawSTATUS();
-                break;
+    // Tự động đóng popup thông báo sau 8 giây
+    if (isNotifPopupTransient && currentMode == NOTIF_MODE) {
+        if (millis() - notifPopupStartTime > 8000) {
+            isNotifPopupTransient = false;
+            currentMode = previousModeBeforeNotif;
+            screenNeedsRedraw = true;
         }
     }
 
-    delay(30);
+    // Định kỳ đo điện áp pin (mỗi 3 giây)
+    static unsigned long lastBatCheck = 0;
+    if (millis() - lastBatCheck > 3000) {
+        updateBatteryVoltage();
+        lastBatCheck = millis();
+    }
+
+    // Định kỳ gửi trạng thái BLE (mỗi 5 giây)
+    if (bleConnected && millis() - lastStatusSent > 5000) {
+        sendDeviceStatus();
+    }
+
+    // Redraw giao diện
+    unsigned long now = millis();
+    if (screenNeedsRedraw || (now - lastRedrawTime >= 200)) {
+        lastRedrawTime = now;
+        screenNeedsRedraw = false;
+
+        if (isOtaMode) {
+            drawOtaProgressScreen();
+        } else if (currentMode == HUD_MODE) {
+            drawHUD();
+        } else if (currentMode == MAP_MODE) {
+            drawMAP();
+        } else if (currentMode == NOTIF_MODE) {
+            drawNOTIF();
+        } else if (currentMode == INFO_MODE) {
+            drawINFO();
+        } else {
+            drawSTATUS();
+        }
+    }
+
+    delay(5);
 }

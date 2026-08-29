@@ -1,6 +1,6 @@
 .pio/build/esp32-c3-devkitm-1/FrameworkArduino/esp32-hal-cpu.c.o: \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-cpu.c \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/qio_qspi/include/sdkconfig.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/dio_qspi/include/sdkconfig.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/freertos/include/freertos/FreeRTOS.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/freertos/include/esp_additions/freertos/FreeRTOSConfig.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_compiler.h \

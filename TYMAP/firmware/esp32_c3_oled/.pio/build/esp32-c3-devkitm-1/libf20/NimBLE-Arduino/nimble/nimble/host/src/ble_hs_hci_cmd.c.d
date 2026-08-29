@@ -1,7 +1,7 @@
 .pio/build/esp32-c3-devkitm-1/libf20/NimBLE-Arduino/nimble/nimble/host/src/ble_hs_hci_cmd.c.o: \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimble/nimble/host/src/ble_hs_hci_cmd.c \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/newlib/platform_include/assert.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/qio_qspi/include/sdkconfig.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/dio_qspi/include/sdkconfig.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/newlib/platform_include/errno.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimble/porting/nimble/include/os/os.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimble/porting/nimble/include/os/../syscfg/syscfg.h \

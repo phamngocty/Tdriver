@@ -2,7 +2,7 @@
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimble/porting/nimble/src/os_mempool.c \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimble/porting/nimble/src/../include/os/os.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/newlib/platform_include/assert.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/qio_qspi/include/sdkconfig.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/dio_qspi/include/sdkconfig.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimble/porting/nimble/src/../include/os/../syscfg/syscfg.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimble/esp_port/port/include/esp_nimble_cfg.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimconfig.h \

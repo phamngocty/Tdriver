@@ -1,5 +1,6 @@
-fbiego/ESP32Time @ ^2.0.4
-olikraus/U8g2 @ ^2.35.19
 h2zero/NimBLE-Arduino @ ^1.4.1
+FontMaker
+olikraus/U8g2 @ ^2.35.19
 mathertel/OneButton @ ^2.5.0
+fbiego/ESP32Time @ ^2.0.4
 bblanchon/ArduinoJson @ ^7.0.4
