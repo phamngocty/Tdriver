@@ -98,47 +98,74 @@ void drawSTATUS()
 }
 
 // -------------------------------------------------------------
-// 2. MÀN HÌNH HUD (DẪN ĐƯỜNG TURN-BY-TURN)
+// 2. MÀN HÌNH HUD (DẪN ĐƯỜNG TURN-BY-TURN - BỐ CỤC CHUẨN)
 // -------------------------------------------------------------
 void drawHUD()
 {
     u8g2.clearBuffer();
 
-    // Phía trái: Icon rẽ (32x32 hoặc 48x48 scale)
+    // 1. Phía trên bên trái: Icon rẽ (40x40 / 48x48)
     if (hasCustomIcon) {
-        drawCustomIcon(customIconBitmap, 0, 4, 1);
+        drawCustomIcon(customIconBitmap, 0, 0, 1);
     } else {
-        // Vẽ icon định hướng cơ bản
-        u8g2.drawFrame(0, 4, 40, 40);
-        u8g2.drawTriangle(8, 30, 20, 10, 32, 30);
+        // Vẽ icon rẽ vector rõ nét
+        if (navDirIdx == 1 || navDirIdx == 4 || navDirIdx == 6) {
+            // Rẽ trái (Mũi tên bẻ góc 90 độ sang trái)
+            u8g2.drawBox(24, 10, 4, 28);
+            u8g2.drawBox(8, 10, 18, 4);
+            u8g2.drawTriangle(2, 12, 12, 4, 12, 20);
+        } else if (navDirIdx == 2 || navDirIdx == 5 || navDirIdx == 7) {
+            // Rẽ phải (Mũi tên bẻ góc 90 độ sang phải)
+            u8g2.drawBox(10, 10, 4, 28);
+            u8g2.drawBox(10, 10, 18, 4);
+            u8g2.drawTriangle(34, 12, 24, 4, 24, 20);
+        } else if (navDirIdx == 8 || navDirIdx == 9) {
+            // Quay đầu (U-Turn)
+            u8g2.drawBox(10, 16, 4, 22);
+            u8g2.drawBox(24, 16, 4, 22);
+            u8g2.drawBox(10, 10, 18, 4);
+            u8g2.drawTriangle(12, 40, 4, 30, 20, 30);
+        } else {
+            // Đi thẳng
+            u8g2.drawBox(16, 12, 4, 26);
+            u8g2.drawTriangle(18, 2, 8, 16, 28, 16);
+        }
     }
 
-    // Phía phải: Khoảng cách rẽ lớn
-    myFont.set_font(FONT_HUD_DIST);
-    String dStr = distToNext.length() > 0 ? distToNext : "0 m";
-    myFont.print(46, 2, dStr.c_str(), 1, 0);
+    // 2. Phía trên bên phải: Khung chữ nhật hiển thị tên đường (x=48, y=0, w=80, h=44)
+    u8g2.drawFrame(48, 0, 80, 44);
 
-    // Tên đường kế tiếp (Font tiếng Việt FontMaker)
-    myFont.set_font(FONT_HUD_STREET);
+    // Tên đường kế tiếp (Font tiếng Việt FontMaker, tự chia 2-3 dòng nếu dài)
+    myFont.set_font(vietnamtimes12);
     String street = nextStreet.length() > 0 ? nextStreet : "Đang dẫn đường...";
-    if (street.length() > 24) street = street.substring(0, 22) + "..";
-    myFont.print(46, 24, street.c_str(), 1, 0);
-
-    // Footer phân cách
-    u8g2.drawHLine(0, 48, 128);
-
-    // Tốc độ km/h & ETA
-    myFont.set_font(FONT_HUD_INFO);
-    char spdBuf[16];
-    snprintf(spdBuf, sizeof(spdBuf), "%d km/h", gpsSpeed);
-    myFont.print(0, 51, spdBuf, 1, 0);
-
-    if (eta.length() > 0) {
-        char etaBuf[20];
-        snprintf(etaBuf, sizeof(etaBuf), "Đến: %s", eta.c_str());
-        uint16_t etaLen = myFont.getLength(etaBuf);
-        myFont.print(128 - etaLen, 51, etaBuf, 1, 0);
+    if (street.length() <= 12) {
+        myFont.print(52, 14, street.c_str(), 1, 0);
+    } else if (street.length() <= 24) {
+        String l1 = street.substring(0, 12);
+        String l2 = street.substring(12);
+        myFont.print(52, 6, l1.c_str(), 1, 0);
+        myFont.print(52, 22, l2.c_str(), 1, 0);
+    } else {
+        String l1 = street.substring(0, 12);
+        String l2 = street.substring(12, 22) + "..";
+        myFont.print(52, 6, l1.c_str(), 1, 0);
+        myFont.print(52, 22, l2.c_str(), 1, 0);
     }
+
+    // 3. Hàng dưới cùng: Khoảng cách rẽ (Trái) & Tốc độ GPS (Phải)
+    // Khoảng cách rẽ (ví dụ: "200M", "1.5KM")
+    myFont.set_font(FONT_HUD_DIST);
+    String dStr = distToNext.length() > 0 ? distToNext : "0M";
+    dStr.toUpperCase();
+    myFont.print(0, 48, dStr.c_str(), 1, 0);
+
+    // Tốc độ xe (ví dụ: "70 KM/H")
+    char spdBuf[20];
+    snprintf(spdBuf, sizeof(spdBuf), "%d KM/H", gpsSpeed);
+    uint16_t spdLen = myFont.getLength(spdBuf);
+    int spdX = 128 - spdLen;
+    if (spdX < 60) spdX = 60;
+    myFont.print(spdX, 48, spdBuf, 1, 0);
 
     // Vẽ Overlay Cảnh báo giao thông (nếu có)
     drawTrafficWarningOverlay();
