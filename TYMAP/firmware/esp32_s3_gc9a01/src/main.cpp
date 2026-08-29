@@ -556,9 +556,9 @@ void sendDeviceStatus()
 
     int rssi = -55 - (random() % 15);
 
-    // Gửi thêm thông tin pin xe đạp và trạng thái thời gian
+    // Gửi thêm thông tin pin xe đạp, trạng thái thời gian và phiên bản Firmware
     snprintf(buffer, sizeof(buffer),
-             "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=GC9A01\ntimeSynced=%d\nnotifCount=%d",
+             "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=GC9A01\ntimeSynced=%d\nnotifCount=%d\nver=1.0.6\nfw_code=6",
              modeStr.c_str(), batteryVoltage, rssi,
              timeSynced ? 1 : 0, notifCount);
     pDeviceStatusChar->setValue((uint8_t*)buffer, strlen(buffer));

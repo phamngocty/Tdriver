@@ -1,14 +1,14 @@
 {
   "app": {
-    "versionCode": 1,
-    "versionName": "1.0.6",
-    "apkUrl": "http://192.168.1.114:3002/attachments/d24c2601-81a8-4f75-9753-df1890c143a6",
-    "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n\n sữ icon thời tiết"
+    "versionCode": 7,
+    "versionName": "1.0.7",
+    "apkUrl": "",
+    "changelog": "• Cập nhật ứng dụng TYMAP v1.0.6 & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n• Sửa icon thời tiết & tích hợp WeatherAPI."
   },
   "firmware": {
-    "versionCode": 1,
-    "versionName": "1.0.6",
-    "binUrl": "http://192.168.1.114:3002/attachments/91ffb639-4dcf-4d4d-8145-d24396321d27",
-    "changelog": "• Cập nhật ứng dụng TYMAP & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n\n sữ icon thời tiết"
+    "versionCode": 7,
+    "versionName": "1.0.7",
+    "binUrl": "",
+    "changelog": "• Cập nhật ứng dụng TYMAP v1.0.6 & Firmware ESP32 mới.\n• Tối ưu hóa Bluetooth BLE kết nối ổn định.\n• Sửa icon thời tiết & tích hợp WeatherAPI."
   }
 }

@@ -203,6 +203,18 @@ class MyBleManager(context: Context) : BleManager(context) {
         }
         NavigationRepository.updateDeviceStatus(statusMap)
         
+        // Tự động đồng bộ phiên bản Firmware thực tế đang chạy trên ESP32
+        statusMap["ver"]?.let { fwVer ->
+            if (fwVer.isNotEmpty()) {
+                com.example.tymap.utils.PrefsHelper.putString(context, "esp32_fw_version_name", fwVer)
+            }
+        }
+        statusMap["fw_code"]?.toIntOrNull()?.let { fwCode ->
+            if (fwCode > 0) {
+                com.example.tymap.utils.PrefsHelper.putInt(context, "esp32_fw_version_code", fwCode)
+            }
+        }
+
         // Đồng bộ trạng thái hiển thị bản đồ của app khớp với ESP32
         statusMap["mode"]?.let { mode ->
             val isMap = mode.equals("MAP", ignoreCase = true)

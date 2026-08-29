@@ -1316,8 +1316,22 @@ class SettingsFragment : Fragment() {
 
             if (ok) {
                 PrefsHelper.putInt(ctx, "esp32_fw_version_code", info.firmwareVersionCode)
+                PrefsHelper.putString(ctx, "esp32_fw_version_name", info.firmwareVersionName)
                 binding.tvUpdateStatus.text = "✅ Đã nạp thành công Firmware v${info.firmwareVersionName}! Đồng hồ ESP32 đang tự khởi động lại..."
                 binding.btnApplyFwUpdate.visibility = View.GONE
+
+                val appVerName = try {
+                    ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "1.0.6"
+                } catch (e: Exception) { "1.0.6" }
+                val appVerCode = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toInt()
+                    } else {
+                        @Suppress("DEPRECATION")
+                        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionCode
+                    }
+                } catch (e: Exception) { 6 }
+                binding.tvVersion.text = "Phiên bản App: v$appVerName (Build $appVerCode) • Firmware ESP32: v${info.firmwareVersionName}\n(Nhấp 5 lần để mở Tab Render)"
                 Toast.makeText(ctx, "Đã nạp Firmware ESP32 thành công!", Toast.LENGTH_LONG).show()
             } else {
                 binding.tvUpdateStatus.text = "❌ Thất bại khi truyền Firmware BLE sang ESP32! Vui lòng thử lại gần xe hơn."
