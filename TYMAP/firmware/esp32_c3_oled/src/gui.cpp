@@ -549,14 +549,37 @@ void drawOtaProgressScreen()
 }
 
 // -------------------------------------------------------------
-// 8. LOGO KHỞI ĐỘNG
+// 8. LOGO KHỞI ĐỘNG (KÈM THANH TIẾN TRÌNH LOADING 3 GIÂY)
 // -------------------------------------------------------------
 void drawLogoSplash(unsigned long currentTime, unsigned long startTime, unsigned long introDuration)
 {
     u8g2.clearBuffer();
 
-    // Vẽ Logo 64x64 căn giữa màn hình (x = 32, y = 0)
-    u8g2.drawXBMP(32, 0, 64, 64, logo_pnt_64x64);
+    // 1. Vẽ Logo 64x64 căn chính giữa màn hình (x = 32, y = -3)
+    u8g2.drawXBMP(32, -3, 64, 64, logo_pnt_64x64);
+
+    // 2. Tính toán tiến trình thanh Loading
+    float progress = 0.0f;
+    if (introDuration > 0 && currentTime >= startTime) {
+        progress = (float)(currentTime - startTime) / (float)introDuration;
+    }
+    if (progress > 1.0f) progress = 1.0f;
+    if (progress < 0.0f) progress = 0.0f;
+
+    // 3. Khung viền thanh Loading (x: 14, y: 57, w: 100, h: 5)
+    int barX = 14;
+    int barY = 57;
+    int barW = 100;
+    int barH = 5;
+
+    u8g2.setDrawColor(1);
+    u8g2.drawFrame(barX, barY, barW, barH);
+
+    int fillW = (int)(progress * (barW - 2));
+    if (fillW > (barW - 2)) fillW = barW - 2;
+    if (fillW > 0) {
+        u8g2.drawBox(barX + 1, barY + 1, fillW, barH - 2);
+    }
 
     u8g2.sendBuffer();
 }

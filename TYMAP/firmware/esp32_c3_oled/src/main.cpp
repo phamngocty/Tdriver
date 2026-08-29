@@ -484,9 +484,14 @@ void setup()
     u8g2.begin();
     u8g2.setContrast(200);
 
-    // Màn hình Splash Logo khởi động
-    drawLogoSplash(millis(), millis(), 1500);
-    delay(1200);
+    // Màn hình Splash Logo khởi động kèm Thanh Loading 3 Giây (3000ms)
+    unsigned long bootStartTime = millis();
+    unsigned long introDuration = 3000; // 3 giây
+    while (millis() - bootStartTime < introDuration)
+    {
+        drawLogoSplash(millis(), bootStartTime, introDuration);
+        delay(20);
+    }
 
     // Cấu hình Nút bấm
     btnMode.attachClick([]() {
