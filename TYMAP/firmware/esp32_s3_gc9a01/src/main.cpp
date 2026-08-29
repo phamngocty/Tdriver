@@ -16,6 +16,10 @@
 #define ZOOM_BTN 1
 #define BAT_ADC 3
 
+// Firmware Version
+#define FW_VERSION_STR "1.0.8"
+#define FW_VERSION_CODE 8
+
 // GATT Server UUIDs
 const char *SERVICE_UUID = "0000feed-0000-1000-8000-00805f9b34fb";
 const char *CHA_NAV_UUID = "0b11deef-1563-447f-aece-d3dfeb1c1f20";
@@ -558,12 +562,12 @@ void sendDeviceStatus()
 
     // Gửi thêm thông tin pin xe đạp, trạng thái thời gian và phiên bản Firmware
     snprintf(buffer, sizeof(buffer),
-             "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=GC9A01\ntimeSynced=%d\nnotifCount=%d\nver=1.0.6\nfw_code=6",
+             "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=GC9A01\ntimeSynced=%d\nnotifCount=%d\nver=%s\nfw_code=%d",
              modeStr.c_str(), batteryVoltage, rssi,
-             timeSynced ? 1 : 0, notifCount);
+             timeSynced ? 1 : 0, notifCount, FW_VERSION_STR, FW_VERSION_CODE);
     pDeviceStatusChar->setValue((uint8_t*)buffer, strlen(buffer));
     pDeviceStatusChar->notify();
-    Serial.printf("BLE: Sent status update notification, subscribers=%d\n", pDeviceStatusChar->getSubscribedCount());
+    Serial.printf("BLE: Sent status update notification (v%s, code=%d), subscribers=%d\n", FW_VERSION_STR, FW_VERSION_CODE, pDeviceStatusChar->getSubscribedCount());
     lastStatusSent = millis();
 }
 

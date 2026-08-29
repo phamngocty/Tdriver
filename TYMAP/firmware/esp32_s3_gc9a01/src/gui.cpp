@@ -1345,7 +1345,7 @@ void drawINFO()
     myFont.print(120 - cacheLen / 2, 160, cacheBuf, TFT_WHITE, TFT_BLACK);
 
     // 8. Phiên bản
-    String verStr = "TYMAP v1.0.6 | GC9A01";
+    String verStr = "TYMAP v1.0.8 | GC9A01";
     uint16_t verLen = myFont.getLength(verStr);
     myFont.print(120 - verLen / 2, 180, verStr, TFT_DARKGREY, TFT_BLACK);
 

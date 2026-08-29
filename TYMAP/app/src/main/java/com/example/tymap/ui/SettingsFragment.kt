@@ -366,8 +366,7 @@ class SettingsFragment : Fragment() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 permissionLauncher.launch(arrayOf(
                     Manifest.permission.BLUETOOTH_SCAN,
-                    Manifest.permission.BLUETOOTH_CONNECT,
-                    Manifest.permission.BLUETOOTH_ADVERTISE
+                    Manifest.permission.BLUETOOTH_CONNECT
                 ))
             } else {
                 Toast.makeText(context, "Phiên bản Android này đã được mặc định cấp quyền Bluetooth", Toast.LENGTH_SHORT).show()
