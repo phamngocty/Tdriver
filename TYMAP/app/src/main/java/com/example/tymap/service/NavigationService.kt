@@ -82,10 +82,24 @@ class NavigationService : Service() {
         val activeInstance: NavigationService? get() = instance
         val bleManager: MyBleManager? get() = instance?.bleManager
         val screenCaptureManager: ScreenCaptureManager? get() = instance?.screenCaptureManager
+
+        fun disconnectBle() {
+            NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Disconnected)
+            instance?.let { service ->
+                service.isManualDisconnect = true
+                try {
+                    service.bleManager.disconnect().enqueue()
+                } catch (e: Exception) {
+                    android.util.Log.e("NavigationService", "Error disconnecting: ${e.message}")
+                }
+                NavigationRepository.addLog("Đã ngắt kết nối BLE thủ công.")
+            }
+        }
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     lateinit var bleManager: MyBleManager
+    private var isManualDisconnect: Boolean = false
     private lateinit var gpsManager: GpsManager
     private lateinit var ttsManager: TtsManager
     private val httpClient = OkHttpClient()
@@ -261,42 +275,24 @@ class NavigationService : Service() {
             bitmapIcon = bitmap
         ))
 
-        // 1. Send Navigation Text Data (throttle frequency if in MAP mode or popup to prioritize map image)
-        var shouldSendNavData = true
-        if (isMapModeActive || isPopupActive) {
-            val now = System.currentTimeMillis()
-            if (now - lastMapNavDataSentTime < 10000 && eta == lastSentEta && ete == lastSentEte) {
-                shouldSendNavData = false
-            } else {
-                lastMapNavDataSentTime = now
-                lastSentEta = eta
-                lastSentEte = ete
-            }
-        }
-
-        if (shouldSendNavData) {
-            val cleanDist = cleanDistanceString(distance)
-            val bleData = "active=1\nnav=1\ndist=$cleanDist\ntitle=$instruction\nroad=$roadName\ndir=$iconIndex\neta=$eta\nete=$ete"
-            bleManager.writeNavigationData(bleData)
-        }
+        // 1. Luôn gửi dữ liệu điều hướng (khoảng cách + tên đường) tức thì sang ESP32
+        val cleanDist = cleanDistanceString(distance)
+        val bleData = "active=1\nnav=1\ndist=$cleanDist\ntitle=$instruction\nroad=$roadName\ndir=$iconIndex\neta=$eta\nete=$ete"
+        bleManager.writeNavigationData(bleData)
         
-        // 2. Send Icon Data - Send in Map Mode as well because MAP HUD needs it
-        if (!isPopupActive) {
-            if (finalIcon1bpp != null) {
-                // Priority: Bitmap/Hash Icon
-                if (iconHash != lastSentIconHash) {
-                    lastSentIconHash = iconHash
-                    val hashHex = String.format("%08X", iconHash)
-                    NavigationRepository.addLog("BLE: Sending icon hash = $hashHex")
-                    bleManager.writeNavIconHash(hashHex)
-                } else {
-                    NavigationRepository.addLog("BLE: Icon hash matches lastSentIconHash ($iconHash), skip sending hash")
-                }
+        // 2. Gửi Icon Data (luôn gửi icon bitmap/hash khi có ngã rẽ mới)
+        if (finalIcon1bpp != null) {
+            if (iconHash != lastSentIconHash) {
+                lastSentIconHash = iconHash
+                val hashHex = String.format("%08X", iconHash)
+                NavigationRepository.addLog("BLE: Sending icon hash = $hashHex")
+                bleManager.writeNavIconHash(hashHex)
             } else {
-                NavigationRepository.addLog("BLE: No icon1bpp available, clearing lastSentIconHash")
-                // If no bitmap available from notification, clear last hash
-                lastSentIconHash = -1
+                NavigationRepository.addLog("BLE: Icon hash matches lastSentIconHash ($iconHash), skip sending hash")
             }
+        } else {
+            NavigationRepository.addLog("BLE: No icon1bpp available, clearing lastSentIconHash")
+            lastSentIconHash = -1
         }
     }
 
@@ -366,7 +362,9 @@ class NavigationService : Service() {
 
                 if (imageBytes != null) {
                     val deviceDisplay = NavigationRepository.deviceStatus.value["display"] ?: "GC9A01"
-                    val isOled = deviceDisplay.contains("OLED")
+                    val isOled = deviceDisplay.contains("OLED", ignoreCase = true) || 
+                                 deviceDisplay.contains("SSD1306", ignoreCase = true) || 
+                                 deviceDisplay.contains("SH1106", ignoreCase = true)
                     if (isOled) {
                         val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                         if (bitmap != null) {
@@ -763,6 +761,7 @@ class NavigationService : Service() {
                         if (PrefsHelper.getBoolean(this@NavigationService, "esp_speed_warning", true)) {
                             if (now - lastEspSpeedWarningTime > intervalMs) {
                                 lastEspSpeedWarningTime = now
+                                bleManager.sendTrafficWarning(0x02.toByte(), threshold.toByte())
                                 bleManager.writeNotification(
                                     app = "CẢNH BÁO",
                                     title = "QUÁ TỐC ĐỘ: $currentSpeedKmh / $threshold KM/H",
@@ -1004,31 +1003,43 @@ class NavigationService : Service() {
 
     private fun connectToMac(mac: String, useAutoConnect: Boolean = false) {
         try {
+            isManualDisconnect = false
             val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager
             val device = bluetoothManager.adapter.getRemoteDevice(mac)
             
             val state = NavigationRepository.bleConnectionState.value
-            if (bleManager.bluetoothDevice == device && state != NavigationRepository.BleConnectionState.Disconnected) {
+            // Chỉ bỏ qua nếu ĐÃ kết nối và ở trạng thái Ready với đúng thiết bị này
+            if (bleManager.bluetoothDevice == device && state == NavigationRepository.BleConnectionState.Ready) {
                 return
             }
             
-            if (bleManager.bluetoothDevice != null && bleManager.bluetoothDevice != device) {
-                NavigationRepository.addLog("Đang kết nối thiết bị khác. Ngắt kết nối...")
-                bleManager.disconnect().enqueue()
+            if (bleManager.bluetoothDevice != null) {
+                try {
+                    bleManager.disconnect().enqueue()
+                } catch (e: Exception) {}
             }
+
+            NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Connecting)
             
             bleManager.connect(device)
-                .retry(3, 1000)
+                .timeout(10000)
+                .retry(2, 500)
                 .useAutoConnect(useAutoConnect)
+                .fail { _, status ->
+                    NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Disconnected)
+                    NavigationRepository.addLog("Kết nối BLE thất bại (Mã lỗi: $status)")
+                }
                 .enqueue()
             val deviceName = try { device.name ?: "Thiết bị không tên" } catch (e: SecurityException) { "Thiết bị" }
             NavigationRepository.addLog("Đang kết nối tới $deviceName ($mac)...")
         } catch (e: Exception) {
+            NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Disconnected)
             NavigationRepository.addLog("Lỗi kết nối: ${e.message}")
         }
     }
 
     private fun autoConnectBle() {
+        if (isManualDisconnect) return
         val state = NavigationRepository.bleConnectionState.value
         if (state != NavigationRepository.BleConnectionState.Disconnected) return
         val history = PrefsHelper.getPairedHistory(this)
@@ -1082,7 +1093,9 @@ class NavigationService : Service() {
                     val effectiveQuality = (userQuality - adaptiveQualityPenalty).coerceIn(15, 100)
                     
                     val deviceDisplay = NavigationRepository.deviceStatus.value["display"] ?: ""
-                    val isOled = deviceDisplay.contains("OLED")
+                    val isOled = deviceDisplay.contains("OLED", ignoreCase = true) || 
+                                 deviceDisplay.contains("SSD1306", ignoreCase = true) || 
+                                 deviceDisplay.contains("SH1106", ignoreCase = true)
                     val isTileStreamingEnabled = PrefsHelper.getBoolean(this@NavigationService, "tile_streaming", false)
                     val isTileStreamingActive = isTileStreamingEnabled && !isOled && captureMode == 3
 
@@ -1559,7 +1572,9 @@ class NavigationService : Service() {
     suspend fun sendImageToDevice(imageBytes: ByteArray) {
         if (!bleManager.isConnected) return
         val deviceDisplay = NavigationRepository.deviceStatus.value["display"] ?: ""
-        val isOled = deviceDisplay.contains("OLED")
+        val isOled = deviceDisplay.contains("OLED", ignoreCase = true) || 
+                     deviceDisplay.contains("SSD1306", ignoreCase = true) || 
+                     deviceDisplay.contains("SH1106", ignoreCase = true)
         if (isOled) {
             val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
             if (bitmap != null) {
@@ -1809,7 +1824,7 @@ class NavigationService : Service() {
         serviceScope.launch {
             while (isActive) {
                 delay(30000) // 30 seconds
-                if (NavigationRepository.bleConnectionState.value == NavigationRepository.BleConnectionState.Disconnected) {
+                if (!isManualDisconnect && NavigationRepository.bleConnectionState.value == NavigationRepository.BleConnectionState.Disconnected) {
                     val lastMac = PrefsHelper.getString(this@NavigationService, "last_device_mac", "")
                     if (lastMac.isNotEmpty()) {
                         android.util.Log.d("NavigationService", "Auto-reconnect loop triggering for $lastMac")

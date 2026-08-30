@@ -7,15 +7,17 @@
 #include <FontMaker.h>
 
 // ==================== CẤU HÌNH FONT CHỮ HỆ THỐNG ====================
-#define FONT_CLOCK f_to_vai               // Font đồng hồ lớn (STATUS)
-#define FONT_HUD_DIST h_to2               // Font khoảng cách rẽ (HUD)
-#define FONT_HUD_STREET vietnamtimes14x4b // Font tên đường / chỉ dẫn (HUD)
-#define FONT_HUD_INFO vietnamtimes12      // Font tốc độ & ETA (HUD)
-#define FONT_STATUS_INFO h_to1            // Font ngày tháng, thời tiết, điện áp (STATUS)
-#define FONT_NOTIF_TITLE h_to2            // Font tiêu đề thông báo
-#define FONT_NOTIF_BODY vietnamtimes12    // Font nội dung thông báo
-#define FONT_MENU_TITLE vietnamtimes12x2b // Font tiêu đề menu
-#define FONT_MENU_OPTION vietnamtimes12   // Font các mục chọn trong menu
+// Font tiếng Việt (FontMaker) - CHỈ DÙNG CHO TÊN ĐƯỜNG VÀ THÔNG BÁO
+#define FONT_VIETNAMESE_TITLE vietnamtimes12x2b // Tiêu đề thông báo / Tên ứng dụng
+#define FONT_VIETNAMESE_BODY  vietnamtimes12    // Nội dung thông báo & Tên đường
+
+// Font U8g2 chuẩn cho các thành phần số & giao diện (Không bị tràn màn hình)
+#define FONT_U8G2_BIG_CLOCK   u8g2_font_logisoso28_tn // Số đồng hồ lớn
+#define FONT_U8G2_MID_CLOCK   u8g2_font_logisoso22_tn // Số đồng hồ / tốc độ vừa
+#define FONT_U8G2_DIST        u8g2_font_helvB14_tf    // Khoảng cách rẽ (150M, 1.2KM)
+#define FONT_U8G2_LABEL_BOLD  u8g2_font_7x14B_tf      // Nhãn nổi bật (KM/H, MAX, TITLE)
+#define FONT_U8G2_SMALL       u8g2_font_6x10_tf       // Thông tin nhỏ (Ngày, Pin, V, ETA)
+#define FONT_U8G2_TINY        u8g2_font_helvB08_tf    // Thông tin phụ siêu nhỏ
 // ====================================================================
 
 // Khai báo chế độ hiển thị hệ thống
@@ -33,9 +35,16 @@ struct NotificationItem {
 extern Mode currentMode;
 extern Mode selectedMode;
 extern Mode previousModeBeforeNotif;
+extern bool isNavigating;
 extern U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2;
 extern MakeFont myFont;
 extern volatile bool bleConnected;
+
+// Tọa độ Clipping cửa sổ hiển thị
+extern int16_t clipMinX;
+extern int16_t clipMaxX;
+extern int16_t clipMinY;
+extern int16_t clipMaxY;
 
 // Trạng thái dữ liệu Dẫn đường HUD
 extern String nextStreet;
@@ -91,8 +100,17 @@ extern uint32_t otaWritten;
 extern uint8_t oledBuffer[1024];
 extern bool hasActiveOledImage;
 
+// Bộ đệm sóng Oscilloscope thời gian thực
+extern float voltHistory[80];
+extern uint8_t voltHistoryIdx;
+extern float voltMin;
+extern float voltMax;
+extern uint16_t autoSampleIntervalMs;
+void pushVoltSample(float v);
+
 // Các nguyên mẫu hàm vẽ GUI OLED
 void drawCustomIcon(const uint8_t *bitmap, int xOffset, int yOffset, int scale = 1);
+void drawWrappedTextMyFont(int startX, int startY, int maxW, int lineHeight, int maxLines, const String &text);
 void drawHUD();
 void drawSTATUS();
 void drawMAP();

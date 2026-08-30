@@ -121,9 +121,12 @@ class MyBleManager(context: Context) : BleManager(context) {
         }
 
         override fun initialize() {
-            requestMtu(512).enqueue()
-            requestConnectionPriority(no.nordicsemi.android.ble.ConnectionPriorityRequest.CONNECTION_PRIORITY_HIGH).enqueue()
-            setPreferredPhy(PhyRequest.PHY_LE_2M_MASK, PhyRequest.PHY_LE_2M_MASK, PhyRequest.PHY_OPTION_NO_PREFERRED).enqueue()
+            requestMtu(512)
+                .fail { _, _ -> log(Log.WARN, "MTU 512 request failed, falling back to default") }
+                .enqueue()
+            requestConnectionPriority(no.nordicsemi.android.ble.ConnectionPriorityRequest.CONNECTION_PRIORITY_HIGH)
+                .fail { _, _ -> log(Log.WARN, "Priority HIGH request failed") }
+                .enqueue()
             
             // Listen for device control (zoom, refresh request)
             deviceCtrlChar?.let { char ->
@@ -131,8 +134,13 @@ class MyBleManager(context: Context) : BleManager(context) {
                     val bitfield = data.getByte(0)?.toInt() ?: 0
                     handleDeviceCtrl(bitfield)
                 }
-                enableNotifications(char).enqueue()
+                enableNotifications(char)
+                    .fail { _, status -> log(Log.WARN, "Failed to enable deviceCtrl notifications: $status") }
+                    .enqueue()
             }
+
+            // Tự động đồng bộ thời gian ngay khi kết nối BLE thành công
+            syncTime()
 
             // Listen for device status (mode, voltage, rssi, ping)
             deviceStatusChar?.let { char ->
@@ -144,7 +152,9 @@ class MyBleManager(context: Context) : BleManager(context) {
                     Log.d("BleManager", "Received device status notification, rawText='$statusText', bytesCount=${rawBytes.size}")
                     handleDeviceStatus(statusText)
                 }
-                enableNotifications(char).enqueue()
+                enableNotifications(char)
+                    .fail { _, status -> log(Log.WARN, "Failed to enable deviceStatus notifications: $status") }
+                    .enqueue()
             }
 
             mapStatusChar?.let { char ->
@@ -155,7 +165,9 @@ class MyBleManager(context: Context) : BleManager(context) {
                     val statusText = String(cleanBytes, Charsets.UTF_8)
                     handleMapStatus(statusText)
                 }
-                enableNotifications(char).enqueue()
+                enableNotifications(char)
+                    .fail { _, status -> log(Log.WARN, "Failed to enable mapStatus notifications: $status") }
+                    .enqueue()
             }
         }
 
@@ -223,11 +235,27 @@ class MyBleManager(context: Context) : BleManager(context) {
             }
         }
 
+        // Tự động kích hoạt đồng bộ thời gian nếu thiết bị báo chưa đồng bộ
+        if (statusMap["timeSynced"] == "0") {
+            syncTime()
+        }
+
         // Đồng bộ trạng thái hiển thị bản đồ của app khớp với ESP32
         statusMap["mode"]?.let { mode ->
             val isMap = mode.equals("MAP", ignoreCase = true)
             NavigationRepository.setMapModeActive(isMap)
         }
+    }
+
+    fun syncTime() {
+        val char = timeChar ?: return
+        val epochSeconds = System.currentTimeMillis() / 1000
+        val buffer = java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.LITTLE_ENDIAN).putInt(epochSeconds.toInt()).array()
+        NavigationRepository.addLog("BLE OUT: Sync Time -> $epochSeconds")
+        writeCharacteristic(char, buffer, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            .done { log(Log.INFO, "Time synchronized with device: $epochSeconds") }
+            .fail { _, status -> log(Log.WARN, "Failed to sync time: $status") }
+            .enqueue()
     }
 
     fun writeHudData(json: String) {

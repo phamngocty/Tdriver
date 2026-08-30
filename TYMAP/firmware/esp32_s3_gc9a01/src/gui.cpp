@@ -2,9 +2,89 @@
 #include "logo.h"
 
 bool showMapHudCard = true;
-uint8_t statusStyle = 0;          // 0=S4 Cyber Dual Gauges (Mặc định), 1=S5 Classic Analog, 2=S3 Dual Pill
+uint8_t statusStyle = 0;          // 0=S4 Sport Chrono Radar (Mẫu 2 Mặc định), 1=S5 Classic Analog, 2=S3 Dual Pill
 uint8_t notifStyle = 1;           // 0=N1 Floating Card 3D, 1=N2 Fullscreen Focus (THUẦN NOTIF - Mặc định)
 uint8_t settingCategoryIndex = 0; // 0=Mặt đồng hồ (statusStyle), 1=HUD Bản đồ (mapHudStyle), 2=Thông báo (notifStyle)
+
+// Bộ đệm sóng Oscilloscope thời gian thực
+float voltHistory[200] = {0};
+uint16_t voltHistoryIdx = 0;
+float voltMin = 99.0f;
+float voltMax = 0.0f;
+uint16_t autoSampleIntervalMs = 30;
+static float prevSampleVoltS3 = 12.5f;
+static float avgSlewRateS3 = 0.0f;
+
+void pushVoltSample(float v)
+{
+    static bool bufferFilled = false;
+    if (!bufferFilled)
+    {
+        for (int k = 0; k < 200; k++)
+        {
+            voltHistory[k] = v;
+        }
+        bufferFilled = true;
+        prevSampleVoltS3 = v;
+    }
+
+    float delta = fabsf(v - prevSampleVoltS3);
+    prevSampleVoltS3 = v;
+    avgSlewRateS3 = avgSlewRateS3 + 0.12f * (delta - avgSlewRateS3);
+
+    if (avgSlewRateS3 > 0.35f) autoSampleIntervalMs = 15;
+    else if (avgSlewRateS3 > 0.12f) autoSampleIntervalMs = 25;
+    else if (avgSlewRateS3 > 0.05f) autoSampleIntervalMs = 35;
+    else autoSampleIntervalMs = 50;
+
+    voltHistory[voltHistoryIdx] = v;
+    voltHistoryIdx = (voltHistoryIdx + 1) % 200;
+    if (v < voltMin || voltMin > 50.0f)
+        voltMin = v;
+    if (v > voltMax)
+        voltMax = v;
+}
+
+// Hàm chuyển đổi màu Neon Gradient mượt mà liên tục theo điện áp (Không dùng màu đơn sắc)
+uint16_t getVoltNeonColor(float v)
+{
+    // Chuẩn hóa dải điện áp từ 10.8V (Sụt áp phanh) -> 14.6V (Sạc ga vọt áp)
+    float t = (v - 10.8f) / (14.6f - 10.8f);
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+
+    uint8_t r = 0, g = 0, b = 0;
+    if (t < 0.25f) // 10.8V -> 11.75V: Chuyển từ Neon Red (#FF0055) sang Neon Amber (#FF7700)
+    {
+        float f = t / 0.25f;
+        r = 255;
+        g = (uint8_t)(119.0f * f);
+        b = (uint8_t)(85.0f * (1.0f - f));
+    }
+    else if (t < 0.50f) // 11.75V -> 12.70V: Chuyển từ Neon Amber (#FF7700) sang Neon Cyan (#00F0FF)
+    {
+        float f = (t - 0.25f) / 0.25f;
+        r = (uint8_t)(255.0f * (1.0f - f));
+        g = (uint8_t)(119.0f + (240.0f - 119.0f) * f);
+        b = (uint8_t)(255.0f * f);
+    }
+    else if (t < 0.75f) // 12.70V -> 13.65V: Chuyển từ Neon Cyan (#00F0FF) sang Neon Lime (#00FF66)
+    {
+        float f = (t - 0.50f) / 0.25f;
+        r = 0;
+        g = (uint8_t)(240.0f + (255.0f - 240.0f) * f);
+        b = (uint8_t)(255.0f * (1.0f - f) + 102.0f * f);
+    }
+    else // 13.65V -> 14.60V: Chuyển từ Neon Lime (#00FF66) sang Ultra Neon Pink (#FF00D4)
+    {
+        float f = (t - 0.75f) / 0.25f;
+        r = (uint8_t)(255.0f * f);
+        g = (uint8_t)(255.0f * (1.0f - f));
+        b = (uint8_t)(102.0f + (212.0f - 102.0f) * f);
+    }
+
+    return color565(r, g, b);
+}
 
 // Vẽ icon 1bpp monochrome custom LÊN SPRITE (TỰ ĐỘNG KHÔNG VẼ NỀN ĐEN TRANSPARENT)
 void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset, int yOffset, int scale, uint16_t fgColor)
@@ -829,48 +909,115 @@ void drawSTATUS()
     }
     else if (statusStyle == 3)
     {
-        // ---------------- S6: CLASSIC ANALOG/DIGITAL ----------------
-        // 1. Date at top (y=30)
-        const char *dayOfWeekVi[] = {"CN", "T2", "T3", "T4", "T5", "T6", "T7"};
-        int dow = rtc.getDayofWeek();
-        if (dow < 0 || dow > 6)
-            dow = 0;
-        String dateStr = String(dayOfWeekVi[dow]) + ", " + rtc.getTime("%d/%m");
-        myFont.set_font(vietnamtimes12);
-        uint16_t dateLen = myFont.getLength(dateStr);
-        myFont.print(120 - dateLen / 2, 30, dateStr, TFT_CYAN, TFT_BLACK);
+        // ==================== MẪU 4: MINIMALIST LUXURY HORIZON (CYBER PINK VOLTAGE) ====================
+        // 1. Màu sắc điện áp (Chữ số ở giữa dùng Cyber Pink theo yêu cầu, sóng đổi màu Neon mượt mà)
+        uint16_t pinkColor = color565(255, 0, 127); // Cyber Pink (#FF007F)
 
-        // 2. Time at center-top (y=70)
+        // 2. Header: Đồng hồ thời gian lớn (y = 12, Font lớn rõ nét) + Ngày & Thời tiết (y = 36)
         String timeStr = rtc.getTime("%H:%M");
-        myFont.set_font(FONT_CLOCK);
+        myFont.set_font(FONT_HUD_DIST);
         uint16_t timeLen = myFont.getLength(timeStr);
-        myFont.print(120 - timeLen / 2, 70, timeStr, TFT_WHITE, TFT_BLACK);
+        myFont.print(120 - timeLen / 2, 12, timeStr, TFT_WHITE, TFT_BLACK);
 
-        // 3. Dual Battery Bars (y=140)
-        // Bike Battery
-        canvasSprite.drawRect(50, 140, 50, 12, color565(71, 85, 105));
-        canvasSprite.fillRect(52, 142, (int)((batteryVoltage / 15.0f) * 46), 8, TFT_GREEN);
+        char wxBuf[16];
+        if (weatherTemp > -50.0f && weatherTemp < 60.0f)
+            snprintf(wxBuf, sizeof(wxBuf), "%.0f°C", weatherTemp);
+        else
+            snprintf(wxBuf, sizeof(wxBuf), "28°C");
+
+        String dateStr = rtc.getTime("%d/%m");
+        char subHeaderBuf[32];
+        snprintf(subHeaderBuf, sizeof(subHeaderBuf), "%s | %s", dateStr.c_str(), wxBuf);
         myFont.set_font(vietnamtimes12);
-        myFont.print(50, 155, "XE", TFT_GREEN, TFT_BLACK);
+        uint16_t shLen = myFont.getLength(subHeaderBuf);
+        myFont.print(120 - shLen / 2, 36, subHeaderBuf, color565(148, 163, 184), TFT_BLACK);
 
-        // Phone Battery
-        canvasSprite.drawRect(140, 140, 50, 12, color565(71, 85, 105));
-        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
-        canvasSprite.fillRect(142, 142, (int)((pBat / 100.0f) * 46), 8, TFT_CYAN);
-        myFont.print(140, 155, "ĐT", TFT_CYAN, TFT_BLACK);
+        // 3. Chữ số điện áp nổi lơ lửng ở giữa (Màu Cyber Pink theo yêu cầu) (y = 52..88)
+        char vBuf[16];
+        snprintf(vBuf, sizeof(vBuf), "%.2f", batteryVoltage);
+        myFont.set_font(FONT_CLOCK);
+        uint16_t vLen = myFont.getLength(vBuf);
+        myFont.print(112 - vLen / 2, 52, vBuf, pinkColor, TFT_BLACK);
 
-        // 4. Brand at bottom (y=200)
+        myFont.set_font(FONT_STATUS_INFO);
+        myFont.print(118 + vLen / 2, 62, "V", pinkColor, TFT_BLACK);
+
+        // 4. Đường sóng tràn viền an toàn tuyệt đối, không đè chữ, không lẹm viền tròn (x = 24, y = 96, w = 192, h = 82)
+        int ox = 24, oy = 96, ow = 192, oh = 82;
+
+        // Thuật toán Auto-Zoom
+        float localMin = 99.0f, localMax = -99.0f;
+        for (int i = 0; i < 200; i++)
+        {
+            float val = voltHistory[i];
+            if (val < localMin) localMin = val;
+            if (val > localMax) localMax = val;
+        }
+        if (localMin > 50.0f) localMin = batteryVoltage - 0.5f;
+        if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
+
+        float span = localMax - localMin;
+        if (span < 1.2f)
+        {
+            float mid = (localMax + localMin) * 0.5f;
+            localMin = mid - 0.6f;
+            localMax = mid + 0.6f;
+        }
+        else
+        {
+            float margin = span * 0.18f;
+            localMin -= margin;
+            localMax += margin;
+        }
+
+        static float smoothMinM4 = 10.5f, smoothMaxM4 = 15.5f;
+        smoothMinM4 += 0.15f * (localMin - smoothMinM4);
+        smoothMaxM4 += 0.15f * (localMax - smoothMaxM4);
+        if (smoothMaxM4 - smoothMinM4 < 1.0f) smoothMaxM4 = smoothMinM4 + 1.0f;
+
+        // Vẽ đường sóng tràn viền đổi màu Neon Gradient mượt mà theo từng điểm (Smooth Neon Wave)
+        int plotW = ow - 4; // 188 điểm nằm an toàn trong màn hình tròn
+        int prevPx = -1, prevPy = -1;
+        for (int i = 0; i < plotW; i++)
+        {
+            int bufIdx = (voltHistoryIdx + (200 - plotW) + i) % 200;
+            float val = voltHistory[bufIdx];
+            uint16_t segColor = getVoltNeonColor(val);
+
+            int py = oy + oh - 4 - (int)(((val - smoothMinM4) / (smoothMaxM4 - smoothMinM4)) * (oh - 8));
+            if (py < oy + 2) py = oy + 2;
+            if (py > oy + oh - 2) py = oy + oh - 2;
+            int px = ox + 2 + i;
+
+            if (i == 0)
+            {
+                prevPx = px;
+                prevPy = py;
+            }
+            else
+            {
+                canvasSprite.drawLine(prevPx, prevPy, px, py, segColor);
+                canvasSprite.drawLine(prevPx, prevPy + 1, px, py + 1, segColor);
+                prevPx = px;
+                prevPy = py;
+            }
+        }
+
+        // 5. Footer tối giản sang trọng phân tầng cân đối (y = 198 - An toàn 100% trong đường tròn)
+        char minMaxBuf[32];
+        snprintf(minMaxBuf, sizeof(minMaxBuf), "MIN:%.1fV   MAX:%.1fV", (voltMin > 50.0f) ? batteryVoltage : voltMin, (voltMax < 5.0f) ? batteryVoltage : voltMax);
         myFont.set_font(vietnamtimes12);
-        myFont.print(95, 200, "TYMAP", color565(71, 85, 105), TFT_BLACK);
+        uint16_t mmLen = myFont.getLength(minMaxBuf);
+        myFont.print(120 - mmLen / 2, 198, minMaxBuf, color565(148, 163, 184), TFT_BLACK);
     }
     else if (statusStyle == 4)
     {
         // ---------------- S7: SPORT ACTIVITY ----------------
-        // 1. Time at top (y=25) in Cyan
+        // 1. Time at top (y=16) in Cyan
         String timeStr = rtc.getTime("%H:%M");
-        myFont.set_font(vietnamtimes12);
+        myFont.set_font(FONT_HUD_DIST);
         uint16_t timeLen = myFont.getLength(timeStr);
-        myFont.print(120 - timeLen / 2, 25, timeStr, TFT_CYAN, TFT_BLACK);
+        myFont.print(120 - timeLen / 2, 16, timeStr, TFT_CYAN, TFT_BLACK);
 
         // 2. Speed at center (y=70)
         char spdBuf[16];
@@ -895,9 +1042,339 @@ void drawSTATUS()
         uint16_t batLen = myFont.getLength(batBuf);
         myFont.print(120 - batLen / 2, 180, batBuf, TFT_WHITE, TFT_BLACK);
     }
+    else if (statusStyle == 5)
+    {
+        // ==================== MẪU 1: SPORT CHRONO & REALTIME VOLTAGE RADAR (TỐI ƯU CÂN ĐỐI) ====================
+        // 1. Vành cung Analog đo điện áp ngoài cùng (R = 112, 135° -> 405°)
+        float vNorm = (batteryVoltage - 10.0f) / 6.0f;
+        if (vNorm < 0.0f) vNorm = 0.0f;
+        if (vNorm > 1.0f) vNorm = 1.0f;
+
+        drawArcSegment(canvasSprite, 120, 120, 112, 135, 405, color565(20, 30, 45)); // Nền vành
+        
+        uint16_t voltColor = getVoltNeonColor(batteryVoltage); // Màu Neon mượt mà theo điện áp
+        int curAngle = 135 + (int)(vNorm * 270.0f);
+        drawArcSegment(canvasSprite, 120, 120, 112, 135, curAngle, voltColor);
+
+        // 2. 12 Cọc số thể thao quanh viền (Bỏ cọc 12h và 6h để không đè vào chữ trên/dưới)
+        for (int i = 0; i < 12; i++)
+        {
+            if (i == 0 || i == 6) continue; // Tránh đè giờ ở đỉnh và footer ở đáy
+            float rad = (i * 30.0f - 90.0f) * 0.0174532925f;
+            bool isMajor = (i % 3 == 0);
+            int rInner = isMajor ? 100 : 104;
+            int x1 = 120 + (int)(rInner * cos(rad));
+            int y1 = 120 + (int)(rInner * sin(rad));
+            int x2 = 120 + (int)(110.0f * cos(rad));
+            int y2 = 120 + (int)(110.0f * sin(rad));
+            uint16_t tCol = isMajor ? TFT_CYAN : color565(51, 65, 85);
+            canvasSprite.drawLine(x1, y1, x2, y2, tCol);
+        }
+
+        // 3. Top Header: Đồng hồ thời gian lớn (y = 12) + Ngày | Thời tiết | Pin ĐT (y = 36)
+        String timeStr = rtc.getTime("%H:%M");
+        myFont.set_font(FONT_HUD_DIST);
+        uint16_t timeLen = myFont.getLength(timeStr);
+        myFont.print(120 - timeLen / 2, 12, timeStr, TFT_WHITE, TFT_BLACK);
+
+        char wxBuf[16];
+        if (weatherTemp > -50.0f && weatherTemp < 60.0f)
+            snprintf(wxBuf, sizeof(wxBuf), "%.0f°C", weatherTemp);
+        else
+            snprintf(wxBuf, sizeof(wxBuf), "28°C");
+
+        String dateStr = rtc.getTime("%d/%m");
+        char pBuf[16];
+        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
+        snprintf(pBuf, sizeof(pBuf), "%d%%", pBat);
+
+        char subHdrBuf[48];
+        snprintf(subHdrBuf, sizeof(subHdrBuf), "%s | %s | %s", dateStr.c_str(), wxBuf, pBuf);
+        myFont.set_font(vietnamtimes12);
+        uint16_t shLen = myFont.getLength(subHdrBuf);
+        myFont.print(120 - shLen / 2, 36, subHdrBuf, color565(148, 163, 184), TFT_BLACK);
+
+        // 4. Cụm điện áp trung tâm (y = 52..88)
+        char vBuf[16];
+        snprintf(vBuf, sizeof(vBuf), "%.2f", batteryVoltage);
+        myFont.set_font(FONT_CLOCK);
+        uint16_t vLen = myFont.getLength(vBuf);
+        myFont.print(112 - vLen / 2, 52, vBuf, TFT_WHITE, TFT_BLACK);
+
+        myFont.set_font(FONT_STATUS_INFO);
+        myFont.print(118 + vLen / 2, 62, "V", voltColor, TFT_BLACK);
+
+        // 5. Cửa sổ sóng Oscilloscope Radar mở rộng (x=26, y=96, w=188, h=80)
+        int ox = 26, oy = 96, ow = 188, oh = 80;
+        canvasSprite.fillRoundRect(ox, oy, ow, oh, 6, color565(8, 16, 28));
+        canvasSprite.drawRoundRect(ox, oy, ow, oh, 6, color565(30, 45, 68));
+
+        // THUẬT TOÁN AUTO-ZOOM (DYNAMIC DSO AUTO-SCALING):
+        float localMin = 99.0f, localMax = -99.0f;
+        for (int i = 0; i < 200; i++)
+        {
+            float val = voltHistory[i];
+            if (val < localMin) localMin = val;
+            if (val > localMax) localMax = val;
+        }
+        if (localMin > 50.0f) localMin = batteryVoltage - 0.5f;
+        if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
+
+        float span = localMax - localMin;
+        if (span < 1.2f)
+        {
+            float mid = (localMax + localMin) * 0.5f;
+            localMin = mid - 0.6f;
+            localMax = mid + 0.6f;
+        }
+        else
+        {
+            float margin = span * 0.18f;
+            localMin -= margin;
+            localMax += margin;
+        }
+
+        static float smoothMinS3 = 10.5f, smoothMaxS3 = 15.5f;
+        smoothMinS3 += 0.15f * (localMin - smoothMinS3);
+        smoothMaxS3 += 0.15f * (localMax - smoothMaxS3);
+        if (smoothMaxS3 - smoothMinS3 < 1.0f) smoothMaxS3 = smoothMinS3 + 1.0f;
+
+        // Tâm định vị toạ độ Graticule tinh tế (Subtle Center Crosshair)
+        int cx = ox + ow / 2;
+        int cy = oy + oh / 2;
+        canvasSprite.drawPixel(cx, cy, color565(80, 110, 150));
+        canvasSprite.drawPixel(cx - 1, cy, color565(80, 110, 150));
+        canvasSprite.drawPixel(cx + 1, cy, color565(80, 110, 150));
+        canvasSprite.drawPixel(cx, cy - 1, color565(80, 110, 150));
+        canvasSprite.drawPixel(cx, cy + 1, color565(80, 110, 150));
+
+        // Vẽ đường sóng liên tục chuyển màu Neon Gradient mượt mà theo từng điểm sóng (Smooth Spectrum Wave)
+        int plotW = ow - 4; // 184 điểm
+        int prevPx = -1, prevPy = -1;
+        for (int i = 0; i < plotW; i++)
+        {
+            int bufIdx = (voltHistoryIdx + (200 - plotW) + i) % 200;
+            float val = voltHistory[bufIdx];
+            uint16_t segColor = getVoltNeonColor(val);
+
+            int py = oy + oh - 3 - (int)(((val - smoothMinS3) / (smoothMaxS3 - smoothMinS3)) * (oh - 6));
+            if (py < oy + 2) py = oy + 2;
+            if (py > oy + oh - 2) py = oy + oh - 2;
+            int px = ox + 2 + i;
+
+            if (i == 0)
+            {
+                prevPx = px;
+                prevPy = py;
+            }
+            else
+            {
+                canvasSprite.drawLine(prevPx, prevPy, px, py, segColor);
+                canvasSprite.drawLine(prevPx, prevPy + 1, px, py + 1, segColor);
+                prevPx = px;
+                prevPy = py;
+            }
+        }
+
+        // 6. Footer Min / Max Tracker (y = 198 - Căn chỉnh an toàn bên trong đường tròn)
+        char minMaxBuf[32];
+        snprintf(minMaxBuf, sizeof(minMaxBuf), "MIN:%.1fV   MAX:%.1fV", (voltMin > 50.0f) ? batteryVoltage : voltMin, (voltMax < 5.0f) ? batteryVoltage : voltMax);
+        myFont.set_font(vietnamtimes12);
+        uint16_t mmLen = myFont.getLength(minMaxBuf);
+        myFont.print(120 - mmLen / 2, 198, minMaxBuf, color565(148, 163, 184), TFT_BLACK);
+    }
+    else if (statusStyle == 6)
+    {
+        // ==================== MẪU 4A CHÍNH THỨC: CYBER SUPERBIKE 3D PRO (SMOOTH NEON VOLTAGE COLOR) ====================
+        // 1. Dynamic Voltage Color (Chuyển tiếp mượt mà dải màu Neon RGB)
+        uint16_t voltColor = getVoltNeonColor(batteryVoltage);
+
+        // 2. Viền Bezel ngoài cùng phát sáng
+        canvasSprite.drawCircle(120, 120, 118, voltColor);
+        canvasSprite.drawCircle(120, 120, 117, color565(15, 23, 42));
+
+        // 3. Header: Đồng hồ thời gian lớn (y = 12) + Ngày | Thời tiết | Pin ĐT (y = 36)
+        String timeStr = rtc.getTime("%H:%M");
+        myFont.set_font(FONT_HUD_DIST);
+        uint16_t timeLen = myFont.getLength(timeStr);
+        myFont.print(120 - timeLen / 2, 12, timeStr, TFT_WHITE, TFT_BLACK);
+
+        char wxBuf[16];
+        if (weatherTemp > -50.0f && weatherTemp < 60.0f)
+            snprintf(wxBuf, sizeof(wxBuf), "%.0f°C", weatherTemp);
+        else
+            snprintf(wxBuf, sizeof(wxBuf), "28°C");
+
+        String dateStr = rtc.getTime("%d/%m");
+        char pBuf[16];
+        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
+        snprintf(pBuf, sizeof(pBuf), "%d%%", pBat);
+
+        char subHdrBuf[48];
+        snprintf(subHdrBuf, sizeof(subHdrBuf), "%s | %s | %s", dateStr.c_str(), wxBuf, pBuf);
+        myFont.set_font(vietnamtimes12);
+        uint16_t shLen = myFont.getLength(subHdrBuf);
+        myFont.print(120 - shLen / 2, 36, subHdrBuf, color565(148, 163, 184), TFT_BLACK);
+
+        // BLE status dot
+        canvasSprite.fillCircle(120 + shLen / 2 + 6, 40, 2, bleConnected ? TFT_CYAN : color565(71, 85, 105));
+
+        // 4. Đường lưới 3D Perspective Road Grid chuyển động theo tốc độ GPS
+        const int horizonY = 104;
+        static float gridOffsetS3 = 0.0f;
+        float speedFactor = (gpsSpeed / 60.0f) * 3.5f;
+        if (speedFactor < 0.2f && gpsSpeed > 0) speedFactor = 0.2f;
+        gridOffsetS3 = fmodf(gridOffsetS3 + speedFactor, 22.0f);
+
+        // Các tia lưới không gian tỏa ra từ tâm (120, horizonY)
+        for (int x = 10; x <= 230; x += 24)
+        {
+            canvasSprite.drawLine(120, horizonY, x, 240, color565(15, 30, 50));
+        }
+        // Các vạch ngang chuyển động theo tốc độ
+        for (int y = horizonY + 8; y < 240; y += 18)
+        {
+            int actualY = y + (int)(gridOffsetS3 * ((float)(y - horizonY) / 135.0f));
+            if (actualY <= 238)
+            {
+                canvasSprite.drawLine(20, actualY, 220, actualY, color565(20, 40, 65));
+            }
+        }
+
+        // 5. Thang đo cao độ điện áp dọc 2 bên sườn (Ladder Scales: 11V..15V)
+        for (int ly = 48; ly <= 118; ly += 14)
+        {
+            canvasSprite.drawLine(18, ly, 26, ly, voltColor);
+            canvasSprite.drawLine(214, ly, 222, ly, voltColor);
+        }
+
+        // 6. Cụm điện áp trung tâm (y = 52..88)
+        char vBuf[16];
+        snprintf(vBuf, sizeof(vBuf), "%.2f", batteryVoltage);
+        myFont.set_font(FONT_CLOCK);
+        uint16_t vLen = myFont.getLength(vBuf);
+        myFont.print(112 - vLen / 2, 50, vBuf, TFT_WHITE, TFT_BLACK);
+
+        myFont.set_font(FONT_STATUS_INFO);
+        myFont.print(118 + vLen / 2, 60, "V", voltColor, TFT_BLACK);
+
+        // 7. Vẽ Xe Moto Phân Khối Lớn 3D Siêu Chi Tiết (Kawasaki Ninja H2 Cyberpunk)
+        const int bx = 120, by = 172;
+        // Bóng đổ xe
+        canvasSprite.fillEllipse(bx, by + 14, 24, 5, color565(6, 12, 20));
+
+        // Tia lửa phản lực ống pô khi xe đang chạy
+        if (gpsSpeed > 0)
+        {
+            int flameH = (int)((gpsSpeed / 120.0f) * 18.0f) + (millis() % 4);
+            canvasSprite.fillTriangle(bx - 12, by + 6, bx - 9, by + 6 + flameH, bx - 6, by + 6, voltColor);
+            canvasSprite.fillTriangle(bx + 6, by + 6, bx + 9, by + 6 + flameH, bx + 12, by + 6, voltColor);
+        }
+
+        // Lốp béo thể thao 200/55
+        canvasSprite.fillRoundRect(bx - 9, by - 5, 18, 20, 4, color565(15, 23, 42));
+        canvasSprite.drawRoundRect(bx - 9, by - 5, 18, 20, 4, color565(30, 41, 59));
+        // Rãnh lốp
+        canvasSprite.drawLine(bx - 5, by - 1, bx + 5, by - 1, voltColor);
+        canvasSprite.drawLine(bx - 5, by + 5, bx + 5, by + 5, voltColor);
+
+        // Ống pô kép Titanium Carbon
+        canvasSprite.fillRect(bx - 14, by - 2, 5, 10, color565(51, 65, 85));
+        canvasSprite.fillRect(bx + 9, by - 2, 5, 10, color565(51, 65, 85));
+
+        // Khung sườn xe khí động học Ninja H2
+        canvasSprite.fillTriangle(bx, by - 24, bx - 15, by - 6, bx + 15, by - 6, color565(15, 23, 42));
+        canvasSprite.drawLine(bx, by - 22, bx - 13, by - 5, voltColor);
+        canvasSprite.drawLine(bx, by - 22, bx + 13, by - 5, voltColor);
+
+        // Đèn hậu LED cánh én chữ V
+        uint16_t tailCol = (batteryVoltage < 11.8f) ? TFT_RED : TFT_RED;
+        canvasSprite.drawLine(bx - 12, by - 10, bx - 2, by - 7, tailCol);
+        canvasSprite.drawLine(bx - 12, by - 9, bx - 2, by - 6, tailCol);
+        canvasSprite.drawLine(bx + 12, by - 10, bx + 2, by - 7, tailCol);
+        canvasSprite.drawLine(bx + 12, by - 9, bx + 2, by - 6, tailCol);
+
+        // Nón bảo hiểm Rider Cyber Visor
+        canvasSprite.fillCircle(bx, by - 28, 5, color565(30, 41, 59));
+        canvasSprite.drawCircle(bx, by - 28, 4, voltColor);
+
+        // 8. Cửa sổ sóng Oscilloscope Radar 3D (x=24, y=100, w=192, oh=64)
+        int ox = 24, oy = 100, ow = 192, oh = 64;
+
+        // Auto-Zoom Calculation
+        float localMin = 99.0f, localMax = -99.0f;
+        for (int i = 0; i < 200; i++)
+        {
+            float val = voltHistory[i];
+            if (val < localMin) localMin = val;
+            if (val > localMax) localMax = val;
+        }
+        if (localMin > 50.0f) localMin = batteryVoltage - 0.5f;
+        if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
+
+        float span = localMax - localMin;
+        if (span < 1.2f)
+        {
+            float mid = (localMax + localMin) * 0.5f;
+            localMin = mid - 0.6f;
+            localMax = mid + 0.6f;
+        }
+        else
+        {
+            float margin = span * 0.18f;
+            localMin -= margin;
+            localMax += margin;
+        }
+
+        static float smoothMinM4A = 10.5f, smoothMaxM4A = 15.5f;
+        smoothMinM4A += 0.15f * (localMin - smoothMinM4A);
+        smoothMaxM4A += 0.15f * (localMax - smoothMaxM4A);
+        if (smoothMaxM4A - smoothMinM4A < 1.0f) smoothMaxM4A = smoothMinM4A + 1.0f;
+
+        // Sóng Oscilloscope 3D chuyển màu Neon Gradient mượt mà từng điểm sóng (Smooth Spectrum Wave)
+        int plotW = ow - 4; // 188 điểm
+        int prevPx = -1, prevPy = -1;
+        for (int i = 0; i < plotW; i++)
+        {
+            int bufIdx = (voltHistoryIdx + (200 - plotW) + i) % 200;
+            float val = voltHistory[bufIdx];
+            uint16_t segColor = getVoltNeonColor(val);
+
+            int py = oy + oh - 3 - (int)(((val - smoothMinM4A) / (smoothMaxM4A - smoothMinM4A)) * (oh - 6));
+            if (py < oy + 2) py = oy + 2;
+            if (py > oy + oh - 2) py = oy + oh - 2;
+            int px = ox + 2 + i;
+
+            if (i == 0)
+            {
+                prevPx = px;
+                prevPy = py;
+            }
+            else
+            {
+                canvasSprite.drawLine(prevPx, prevPy, px, py, segColor);
+                canvasSprite.drawLine(prevPx, prevPy + 1, px, py + 1, segColor);
+                prevPx = px;
+                prevPy = py;
+            }
+        }
+
+        // 9. Footer Telemetry phân tầng thoáng đãng (y = 184 & 202 - Tuyệt đối không chồng lấn!)
+        char spdBuf[16];
+        snprintf(spdBuf, sizeof(spdBuf), "%d KM/H", gpsSpeed);
+        myFont.set_font(vietnamtimes12);
+        uint16_t spdLen = myFont.getLength(spdBuf);
+        myFont.print(120 - spdLen / 2, 184, spdBuf, TFT_WHITE, TFT_BLACK);
+
+        char minMaxBuf[32];
+        snprintf(minMaxBuf, sizeof(minMaxBuf), "MIN:%.1fV   MAX:%.1fV", (voltMin > 50.0f) ? batteryVoltage : voltMin, (voltMax < 5.0f) ? batteryVoltage : voltMax);
+        myFont.set_font(vietnamtimes12);
+        uint16_t mmLen = myFont.getLength(minMaxBuf);
+        myFont.print(120 - mmLen / 2, 202, minMaxBuf, color565(148, 163, 184), TFT_BLACK);
+    }
     else
     {
-        // ---------------- S4a: CYBER DUAL ARC GAUGES (MATCH EXACT WEB SKETCH) ----------------
+        // ---------------- S4a: CYBER DUAL ARC GAUGES (MÀN HÌNH GỐC S1/S4) ----------------
         // 1. Cung vạch Ắc-quy xe (Trái: 130°..230°, R=110px, Xanh Lá Neon)
         int vSpan = (int)((batteryVoltage / 15.0f) * 100.0f);
         if (vSpan > 100)
@@ -1196,13 +1673,19 @@ void drawSETTINGS()
         statusName = "S3: Dual Pill";
         break;
     case 3:
-        statusName = "S6: Classic Digital";
+        statusName = "M4: Luxury Horizon";
         break;
     case 4:
         statusName = "S7: Sport Dynamic";
         break;
+    case 5:
+        statusName = "M2: Sport Radar (Scope)";
+        break;
+    case 6:
+        statusName = "M4A: Cyber Superbike 3D";
+        break;
     default:
-        statusName = "S4: Cyber Dual";
+        statusName = "M4A: Cyber Superbike 3D";
         break;
     }
     myFont.print(26, 62, statusName, TFT_WHITE, bg0);

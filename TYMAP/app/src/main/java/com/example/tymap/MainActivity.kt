@@ -88,7 +88,9 @@ class MainActivity : AppCompatActivity() {
                     state == NavigationRepository.BleConnectionState.Ready
                 val display = status["display"] ?: ""
                 connected && (display.contains("OLED", ignoreCase = true) ||
-                    display.contains("SSD1306", ignoreCase = true))
+                    display.contains("SSD1306", ignoreCase = true) ||
+                    display.contains("SH1106", ignoreCase = true) ||
+                    display.contains("TYMAP", ignoreCase = true))
             }.collect { isOled ->
                 oledDeviceConnected = isOled
                 updateRenderTabVisibility()

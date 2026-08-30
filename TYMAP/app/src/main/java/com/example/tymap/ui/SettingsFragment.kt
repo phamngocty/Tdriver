@@ -185,7 +185,9 @@ class SettingsFragment : Fragment() {
 
         binding.btnDisconnect.setOnClickListener {
             PrefsHelper.putString(requireContext(), "last_device_mac", "")
-            NavigationService.bleManager?.disconnect()?.enqueue()
+            NavigationService.disconnectBle()
+            NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Disconnected)
+            Toast.makeText(requireContext(), "Đã ngắt kết nối BLE", Toast.LENGTH_SHORT).show()
         }
 
         binding.btnSyncTime.setOnClickListener {
@@ -301,7 +303,19 @@ class SettingsFragment : Fragment() {
                 binding.layoutDeviceInfo.visibility = if (status.isNotEmpty()) View.VISIBLE else View.GONE
                 binding.tvDeviceName.text = status["name"] ?: "HUD ESP32"
                 binding.tvRssi.text = "RSSI: ${status["rssi"] ?: "--"} dBm"
-                binding.tvVoltage.text = "Pin xe: ${status["voltage"] ?: "--"}V"
+                val voltVal = status["voltage"]?.toFloatOrNull()
+                if (voltVal != null && voltVal > 0f) {
+                    val (statusLabel, colorHex) = when {
+                        voltVal >= 13.5f -> "⚡ Đang sạc" to "#10B981"
+                        voltVal in 12.0f..13.49f -> "🟢 Chuẩn" to "#06B6D4"
+                        voltVal in 5.0f..11.99f -> "⚠️ Sụt áp" to "#EF4444"
+                        else -> "" to "#64748B"
+                    }
+                    binding.tvVoltage.text = "Ắc quy: %.2fV %s".format(voltVal, statusLabel)
+                    binding.tvVoltage.setTextColor(android.graphics.Color.parseColor(colorHex))
+                } else {
+                    binding.tvVoltage.text = "Ắc quy: ${status["voltage"] ?: "--"}V"
+                }
                 binding.tvEspMode.text = "Mode: ${status["mode"] ?: "--"}"
             }
         }
@@ -730,11 +744,19 @@ class SettingsFragment : Fragment() {
             PrefsHelper.putInt(context, "units", it)
         }
 
-        val statusStyles = arrayOf("Mẫu S4: Cyber Dual Gauges (Mặc định)", "Mẫu S5: Classic Analog Watch", "Mẫu S3: Dual Energy Pill", "Mẫu S6: Classic", "Mẫu S7: Sport")
-        setupSpinner(binding.spinnerStatusStyle, statusStyles, PrefsHelper.getInt(context, "status_style", 0)) { styleIdx ->
+        val statusStyles = arrayOf(
+            "Mẫu S4: Cyber Dual Gauges",
+            "Mẫu S5: Classic Analog Watch",
+            "Mẫu S3: Dual Energy Pill",
+            "Mẫu M4: Minimalist Luxury Horizon (Mẫu mới)",
+            "Mẫu S7: Sport Dynamic",
+            "Mẫu 1: Sport Chrono Radar (Oscilloscope)",
+            "Mẫu 4A: Cyber Superbike 3D Pro (Mặc định)"
+        )
+        setupSpinner(binding.spinnerStatusStyle, statusStyles, PrefsHelper.getInt(context, "status_style", 6)) { styleIdx ->
             PrefsHelper.putInt(context, "status_style", styleIdx)
             NavigationService.bleManager?.writeSettings("statusStyle=$styleIdx")
-            Toast.makeText(context, "Đã gửi cấu hình Mẫu STATUS!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Đã gửi cấu hình: ${statusStyles[styleIdx]}", Toast.LENGTH_SHORT).show()
         }
 
         val notifStyles = arrayOf("Mẫu N1: Floating Card 3D", "Mẫu N2: Fullscreen Focus (Mặc định)", "Mẫu N3: Mini Popup", "Mẫu N4: Thẻ cuộn")
@@ -995,35 +1017,34 @@ class SettingsFragment : Fragment() {
         // 5.5. OLED OPTIONS
         // OLED HUD Styles
         val oledHudStyles = arrayOf(
-            "H1: Classic Boxed (Khung tên đường)",
-            "H2: Split Cyber Dash (Tốc độ lớn trái)",
-            "H3: Big Arrow Focus (Mũi tên 48px)",
-            "H4: Racing Telemetry (Thanh RPM)",
-            "H5: Top Street Banner (Dải băng)",
-            "H6: Minimalist Dual Pill (Khối thẻ)"
+            "H1: Dẫn đường tập trung (Tên đường 3 dòng + Icon 48px)",
+            "H2: Tốc độ thể thao (Speedometer lớn trái + HUD phải)",
+            "H3: Mũi tên lớn & ETA (Big Arrow Focus)",
+            "H4: Racing Telemetry (Thanh RPM + Điện áp xe)"
         )
         setupSpinner(binding.spinnerOledHudStyle, oledHudStyles, PrefsHelper.getInt(context, "oled_hud_style", 0)) { styleIdx ->
             PrefsHelper.putInt(context, "oled_hud_style", styleIdx)
             NavigationService.bleManager?.writeSettings("{\"hud_style\":$styleIdx}")
-            Toast.makeText(context, "Đã gửi cấu hình Kiểu HUD: ${oledHudStyles[styleIdx]}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Đã chọn Kiểu HUD: ${oledHudStyles[styleIdx]}", Toast.LENGTH_SHORT).show()
         }
 
         // OLED STATUS Styles
         val oledStatusStyles = arrayOf(
-            "S1: Classic Digital (Đồng hồ to + thời tiết)",
-            "S2: Dual Gauges (Chia đôi giờ & tốc độ)",
-            "S3: Elegant Minimalist (Thanh lịch tối giản)",
-            "S4: Sport Activity (Thể thao đường đua)"
+            "S1: Chú trọng Thời gian (Đồng hồ 28pt - Mặc định)",
+            "S2: Chú trọng Tốc độ (Speedometer 28pt + Vạch 128px)",
+            "S3: Chú trọng Điện áp (Ắc quy 28pt + Thước đo 10-14.8V)",
+            "S4: Chú trọng Thời tiết (Icon Vector + Nhiệt độ lớn)",
+            "M2: Sport Radar Scope (Máy hiện sóng Oscilloscope)"
         )
         setupSpinner(binding.spinnerOledStatusStyle, oledStatusStyles, PrefsHelper.getInt(context, "oled_status_style", 0)) { styleIdx ->
             PrefsHelper.putInt(context, "oled_status_style", styleIdx)
             NavigationService.bleManager?.writeSettings("{\"status_style\":$styleIdx}")
-            Toast.makeText(context, "Đã gửi cấu hình Mặt Đồng Hồ OLED!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Đã chọn Mặt Đồng Hồ: ${oledStatusStyles[styleIdx]}", Toast.LENGTH_SHORT).show()
         }
 
         // OLED NOTIF Styles
         val oledNotifStyles = arrayOf(
-            "N1: Rounded Focus Card (Khung thẻ)",
+            "N1: Rounded Focus Card (Khung thẻ bo góc)",
             "N2: Split App Icon Focus (Icon 32px)",
             "N3: Top Navigation Banner (Popup nổi)"
         )

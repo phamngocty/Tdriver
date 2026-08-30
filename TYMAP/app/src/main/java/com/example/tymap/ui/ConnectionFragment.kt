@@ -261,7 +261,9 @@ class ConnectionFragment : Fragment() {
 
         binding.btnDisconnect.setOnClickListener {
             PrefsHelper.putString(requireContext(), "last_device_mac", "")
-            NavigationService.bleManager?.disconnect()?.enqueue()
+            NavigationService.disconnectBle()
+            NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Disconnected)
+            Toast.makeText(requireContext(), "Đã ngắt kết nối BLE", Toast.LENGTH_SHORT).show()
         }
 
         binding.btnNotificationAccess?.setOnClickListener {
@@ -431,7 +433,19 @@ class ConnectionFragment : Fragment() {
             NavigationRepository.deviceStatus.collectLatest { status ->
                 binding.layoutDeviceInfo.visibility = if (status.isNotEmpty()) View.VISIBLE else View.GONE
                 binding.tvRssi.text = "RSSI: ${status["rssi"] ?: "--"} dBm"
-                binding.tvVoltage.text = "Battery: ${status["voltage"] ?: "--"}V"
+                val voltVal = status["voltage"]?.toFloatOrNull()
+                if (voltVal != null && voltVal > 0f) {
+                    val (statusLabel, colorHex) = when {
+                        voltVal >= 13.5f -> "⚡ Đang sạc" to "#10B981"
+                        voltVal in 12.0f..13.49f -> "🟢 Chuẩn" to "#06B6D4"
+                        voltVal in 5.0f..11.99f -> "⚠️ Sụt áp" to "#EF4444"
+                        else -> "" to "#64748B"
+                    }
+                    binding.tvVoltage.text = "Ắc quy: %.2fV %s".format(voltVal, statusLabel)
+                    binding.tvVoltage.setTextColor(android.graphics.Color.parseColor(colorHex))
+                } else {
+                    binding.tvVoltage.text = "Ắc quy: ${status["voltage"] ?: "--"}V"
+                }
                 binding.tvEspMode.text = "Mode: ${status["mode"] ?: "--"}"
                 status["mode"]?.let { mode ->
                     val targetButtonId = when (mode) {

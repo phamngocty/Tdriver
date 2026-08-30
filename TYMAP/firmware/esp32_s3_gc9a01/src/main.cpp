@@ -12,8 +12,8 @@
 #include <Update.h>
 #include "gui.h"
 
-#define MODE_BTN 0
-#define ZOOM_BTN 1
+#define MODE_BTN 1
+#define ZOOM_BTN 2
 #define BAT_ADC 3
 
 // Firmware Version
@@ -136,14 +136,15 @@ volatile bool advertisingPending = false;
 
 class MyServerCallbacks : public NimBLEServerCallbacks
 {
-    void onConnect(NimBLEServer *pServer) override
+    void onConnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override
     {
         bleConnected = true;
         needClearScreen = true;
         screenNeedsRedraw = true;
+        pServer->updateConnParams(desc->conn_handle, 6, 12, 0, 400);
         Serial.println("BLE: Client Connected!");
     }
-    void onDisconnect(NimBLEServer *pServer) override
+    void onDisconnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override
     {
         bleConnected = false;
         Serial.println("BLE: Client Disconnected!");
@@ -156,6 +157,7 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         jpegSize = 0;
         jpegWritten = 0;
         hasActiveTile = false;
+        hasCustomIcon = false;
         needClearScreen = true;
         screenNeedsRedraw = true;
         advertisingPending = true;
@@ -562,7 +564,7 @@ void sendDeviceStatus()
 
     // Gửi thêm thông tin pin xe đạp, trạng thái thời gian và phiên bản Firmware
     snprintf(buffer, sizeof(buffer),
-             "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=GC9A01\ntimeSynced=%d\nnotifCount=%d\nver=%s\nfw_code=%d",
+             "mode=%s\nvoltage=%.2f\nrssi=%d\ndisplay=GC9A01\ntimeSynced=%d\nnotifCount=%d\nver=%s\nfw_code=%d",
              modeStr.c_str(), batteryVoltage, rssi,
              timeSynced ? 1 : 0, notifCount, FW_VERSION_STR, FW_VERSION_CODE);
     pDeviceStatusChar->setValue((uint8_t*)buffer, strlen(buffer));
@@ -571,13 +573,62 @@ void sendDeviceStatus()
     lastStatusSent = millis();
 }
 
-// Đo điện áp pin
+// Đo điện áp pin / ắc quy xe với độ nhạy Oscilloscope & chống nhiễu bugi
 void updateBatteryVoltage()
 {
-    int adcVal = analogRead(BAT_ADC);
-    // Cầu phân áp R1=100k, R2=27k. Attenuation 11dB (0 - 3.1V)
-    float vAdc = (adcVal / 4095.0) * 3.1;
-    batteryVoltage = vAdc * (127.0 / 27.0);
+    static unsigned long lastSampleTime = 0;
+    unsigned long now = millis();
+    if (now - lastSampleTime < autoSampleIntervalMs && lastSampleTime != 0)
+    {
+        return; // Auto-Time: Tự động điều chỉnh chu kỳ lấy mẫu 15ms - 50ms theo động lực học tín hiệu
+    }
+    lastSampleTime = now;
+
+    // Lấy 16 mẫu nhanh và lọc cắt tỉa ngoại lai (Trimmed-Mean Filter triệt tiêu xung bugi)
+    const int NUM_SAMPLES = 16;
+    uint32_t samples[NUM_SAMPLES];
+    for (int i = 0; i < NUM_SAMPLES; i++)
+    {
+        samples[i] = analogReadMilliVolts(BAT_ADC);
+    }
+
+    for (int i = 0; i < NUM_SAMPLES - 1; i++)
+    {
+        for (int j = i + 1; j < NUM_SAMPLES; j++)
+        {
+            if (samples[i] > samples[j])
+            {
+                uint32_t temp = samples[i];
+                samples[i] = samples[j];
+                samples[j] = temp;
+            }
+        }
+    }
+
+    // Bỏ qua 4 mẫu thấp nhất và 4 mẫu cao nhất, lấy trung bình 8 mẫu ở giữa
+    uint32_t sumMv = 0;
+    for (int i = 4; i < 12; i++)
+    {
+        sumMv += samples[i];
+    }
+    float rawMv = (float)sumMv / 8.0f;
+
+    // Cầu phân áp R1 = 100k, R2 = 10k => Hệ số: (100k + 10k) / 10k = 11.0f
+    float instantVoltage = (rawMv / 1000.0f) * 11.0f;
+
+    // Khởi tạo giá trị ban đầu
+    if (batteryVoltage <= 0.5f)
+    {
+        batteryVoltage = instantVoltage;
+        pushVoltSample(batteryVoltage);
+        return;
+    }
+
+    // 1. Cập nhật điện áp hiển thị số (Lọc mượt mà êm dịu, không rung số lẻ)
+    batteryVoltage = batteryVoltage + 0.12f * (instantVoltage - batteryVoltage);
+
+    // 2. Đẩy trực tiếp điện áp tức thời vào máy hiện sóng (bảo toàn 100% hình dáng uốn cong tự nhiên, không bị hãm bẹp đầu)
+    pushVoltSample(instantVoltage);
 }
 
 // Thiết lập độ sáng màn hình
@@ -1358,6 +1409,8 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks
 void setup()
 {
     Serial.begin(115200);
+    analogReadResolution(12);
+    analogSetPinAttenuation(BAT_ADC, ADC_11db);
     psramInit();
 
     // Cấp phát buffer JPEG (32KB: đủ cho 240x240 JPEG quality 60, an toàn SRAM)
@@ -1472,7 +1525,7 @@ void setup()
     hudTimeout = preferences.getInt("hudTimeout", 0); // Mặc định 0 = Vĩnh viễn (Không tự đóng)
     popupDuration = preferences.getInt("popupDuration", 5);
     brightness = preferences.getInt("brightness", 80);
-    statusStyle = preferences.getUChar("statusStyle", 0); // Mặc định Mẫu S4 (Cyber Dual Gauges)
+    statusStyle = preferences.getUChar("statusStyle", 6); // Mặc định Mẫu M4A (Cyber Superbike 3D Pro)
     notifStyle = preferences.getUChar("notifStyle", 1); // Mặc định Mẫu N2 (THUẦN NOTIF - Fullscreen Focus)
     mapHudStyle = preferences.getUChar("mapHudStyle", 0); // Mặc định Mẫu MH1 (Compact Pill)
     setDisplayBrightness(brightness);
@@ -1537,7 +1590,14 @@ void setup()
     pOtaChar->setCallbacks(sCallbacks);
 
     pService->start();
-    NimBLEDevice::getAdvertising()->start();
+
+    NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(SERVICE_UUID);
+    pAdvertising->setScanResponse(true);
+    pAdvertising->setMinPreferred(0x06);
+    pAdvertising->setMaxPreferred(0x12);
+    NimBLEDevice::startAdvertising();
+    Serial.println("BLE Advertising Started: TYMAP-S3");
 
     // Khởi tạo phím bấm
     btnMode.attachClick([]()
@@ -1575,7 +1635,7 @@ void setup()
         if (currentMode == SETTINGS_MODE) {
             // Thay đổi giá trị (style) của mục đang chọn (0: statusStyle, 1: mapHudStyle, 2: notifStyle)
             if (settingCategoryIndex == 0) {
-                statusStyle = (statusStyle + 1) % 5;
+                statusStyle = (statusStyle + 1) % 7;
                 preferences.putUChar("statusStyle", statusStyle);
             } else if (settingCategoryIndex == 1) {
                 mapHudStyle = (mapHudStyle + 1) % 5;
@@ -1710,8 +1770,17 @@ void loop()
     // Cập nhật pin
     updateBatteryVoltage();
 
-    // Kiểm tra và cập nhật thời gian ở STATUS hoặc INFO mode để vẽ lại mỗi giây
-    if ((currentMode == STATUS_MODE || currentMode == INFO_MODE) && !isMenuOpen && !isPopupActive)
+    // Cập nhật và vẽ lại STATUS_MODE mượt mà (35ms ~ 28 FPS) cho sóng Oscilloscope & kim giây
+    static unsigned long lastStatusRenderTime = 0;
+    if (currentMode == STATUS_MODE && !isMenuOpen && !isPopupActive)
+    {
+        if (millis() - lastStatusRenderTime >= 35)
+        {
+            lastStatusRenderTime = millis();
+            screenNeedsRedraw = true;
+        }
+    }
+    else if (currentMode == INFO_MODE && !isMenuOpen && !isPopupActive)
     {
         int currentSecond = rtc.getSecond();
         if (currentSecond != lastRenderedSecond)

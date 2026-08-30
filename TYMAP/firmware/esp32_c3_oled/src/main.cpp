@@ -7,7 +7,10 @@
 #include <ArduinoJson.h>
 #include <FontMaker.h>
 #include <Update.h>
+#include <Preferences.h>
 #include "gui.h"
+
+Preferences preferences;
 
 #ifndef OLED_SDA
 #define OLED_SDA 6
@@ -17,9 +20,9 @@
 #define OLED_SCL 7
 #endif
 
-#define MODE_BTN 2
-#define ZOOM_BTN 3
-#define BAT_ADC 0
+#define MODE_BTN 1
+#define ZOOM_BTN 2
+#define BAT_ADC 3
 
 // Firmware Version
 #define FW_VERSION_STR "1.0.9"
@@ -34,7 +37,7 @@ const char *CHA_GPS_SPEED_UUID = "98b6073a-5cf3-4e73-b6d3-f8e05fa018a9";
 const char *CHA_SETTINGS_UUID = "9d37a346-63d3-4df6-8eee-f0242949f59f";
 const char *CHA_TIME_UUID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
 const char *CHA_WEATHER_UUID = "b2c3d4e5-f6a7-4890-b123-456789abcdef";
-const char *CHA_OLED_IMAGE_UUID = "e1f2a3b4-c5d6-4789-a012-3456789abcdef";
+const char *CHA_OLED_IMAGE_UUID = "e1f2a3b4-c5d6-4789-a012-3456789abcde";
 const char *CHA_MAP_IMAGE_UUID = "c3d4e5f6-a7b8-4901-c234-567890abcdef";
 const char *CHA_DEVICE_CTRL_UUID = "d4e5f6a7-b8c9-4012-d345-678901bcdef0";
 const char *CHA_REMOTE_CMD_UUID = "f1a2b3c4-d5e6-4789-a012-3456789abcde";
@@ -50,12 +53,18 @@ const char *CHA_MAP_STATUS_UUID = "f3a4b5c6-d7e8-4901-f234-567890abcdef";
 // Khởi tạo phần cứng U8g2 SH1106 I2C 128x64
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
-// Callback vẽ pixel cho FontMaker
+// Tọa độ Giới hạn Cửa sổ vẽ (Clipping Window)
+int16_t clipMinX = 0;
+int16_t clipMaxX = 128;
+int16_t clipMinY = 0;
+int16_t clipMaxY = 64;
+
+// Callback vẽ pixel cho FontMaker với hỗ trợ Clipping chống lem viền
 void drawPixelOnOled(int16_t x, int16_t y, uint16_t color)
 {
-    if (x >= 0 && x < 128 && y >= 0 && y < 64)
+    if (color != 0 && x >= clipMinX && x < clipMaxX && y >= clipMinY && y < clipMaxY)
     {
-        u8g2.setDrawColor(color != 0 ? 1 : 0);
+        u8g2.setDrawColor(1);
         u8g2.drawPixel(x, y);
     }
 }
@@ -73,6 +82,10 @@ NimBLECharacteristic *pDeviceCtrlChar = nullptr;
 Mode currentMode = STATUS_MODE;
 Mode selectedMode = STATUS_MODE;
 Mode previousModeBeforeNotif = STATUS_MODE;
+bool isNavigating = false;
+unsigned long lastNavDataTime = 0;
+unsigned long lastMapFrameTime = 0;
+unsigned long lastUserInteractionTime = 0;
 volatile bool bleConnected = false;
 
 String nextStreet = "";
@@ -134,7 +147,7 @@ void sendDeviceStatus()
     int rssi = -55 - (random() % 15);
 
     snprintf(buffer, sizeof(buffer),
-             "mode=%s\nvoltage=%.1f\nrssi=%d\ndisplay=SH1106\ntimeSynced=%d\nnotifCount=%d\nver=%s\nfw_code=%d",
+             "mode=%s\nvoltage=%.2f\nrssi=%d\ndisplay=SH1106\ntimeSynced=%d\nnotifCount=%d\nver=%s\nfw_code=%d",
              modeStr.c_str(), batteryVoltage, rssi,
              timeSynced ? 1 : 0, notifCount, FW_VERSION_STR, FW_VERSION_CODE);
 
@@ -143,13 +156,62 @@ void sendDeviceStatus()
     lastStatusSent = millis();
 }
 
-// Đo điện áp pin xe
+// Đo điện áp pin / ắc quy xe với độ nhạy Oscilloscope & chống nhiễu bugi
 void updateBatteryVoltage()
 {
-    int adcVal = analogRead(BAT_ADC);
-    // Cầu phân áp R1=100k, R2=27k, Attenuation 11dB (0 - 3.1V)
-    float vAdc = (adcVal / 4095.0f) * 3.1f;
-    batteryVoltage = vAdc * (127.0f / 27.0f);
+    static unsigned long lastSampleTime = 0;
+    unsigned long now = millis();
+    if (now - lastSampleTime < autoSampleIntervalMs && lastSampleTime != 0)
+    {
+        return; // Auto-Time: Tự động điều chỉnh chu kỳ lấy mẫu 15ms - 50ms theo động lực học tín hiệu
+    }
+    lastSampleTime = now;
+
+    // Lấy 16 mẫu nhanh và lọc cắt tỉa ngoại lai (Trimmed-Mean Filter triệt tiêu xung bugi)
+    const int NUM_SAMPLES = 16;
+    uint32_t samples[NUM_SAMPLES];
+    for (int i = 0; i < NUM_SAMPLES; i++)
+    {
+        samples[i] = analogReadMilliVolts(BAT_ADC);
+    }
+
+    for (int i = 0; i < NUM_SAMPLES - 1; i++)
+    {
+        for (int j = i + 1; j < NUM_SAMPLES; j++)
+        {
+            if (samples[i] > samples[j])
+            {
+                uint32_t temp = samples[i];
+                samples[i] = samples[j];
+                samples[j] = temp;
+            }
+        }
+    }
+
+    // Bỏ qua 4 mẫu thấp nhất và 4 mẫu cao nhất, lấy trung bình 8 mẫu ở giữa
+    uint32_t sumMv = 0;
+    for (int i = 4; i < 12; i++)
+    {
+        sumMv += samples[i];
+    }
+    float rawMv = (float)sumMv / 8.0f;
+
+    // Cầu phân áp R1 = 100k, R2 = 10k => Hệ số: (100k + 10k) / 10k = 11.0f
+    float instantVoltage = (rawMv / 1000.0f) * 11.0f;
+
+    // Khởi tạo giá trị ban đầu
+    if (batteryVoltage <= 0.5f)
+    {
+        batteryVoltage = instantVoltage;
+        pushVoltSample(batteryVoltage);
+        return;
+    }
+
+    // 1. Cập nhật điện áp hiển thị số (Lọc mượt mà êm dịu, không rung số lẻ)
+    batteryVoltage = batteryVoltage + 0.12f * (instantVoltage - batteryVoltage);
+
+    // 2. Đẩy trực tiếp điện áp tức thời vào máy hiện sóng (bảo toàn 100% hình dáng uốn cong tự nhiên, không bị hãm bẹp đầu)
+    pushVoltSample(instantVoltage);
 }
 
 volatile bool advertisingPending = false;
@@ -163,17 +225,73 @@ class MyServerCallbacks : public NimBLEServerCallbacks
         screenNeedsRedraw = true;
         sendDeviceStatus();
     }
+    void onConnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override
+    {
+        bleConnected = true;
+        screenNeedsRedraw = true;
+        sendDeviceStatus();
+    }
     void onDisconnect(NimBLEServer *pServer) override
     {
         bleConnected = false;
+        isNavigating = false;
+        hasActiveOledImage = false;
+        hasCustomIcon = false;
         if (currentMode == HUD_MODE || currentMode == MAP_MODE) {
             currentMode = STATUS_MODE;
         }
+        screenNeedsRedraw = true;
+        advertisingPending = true;
+    }
+    void onDisconnect(NimBLEServer *pServer, ble_gap_conn_desc *desc) override
+    {
+        bleConnected = false;
+        isNavigating = false;
         hasActiveOledImage = false;
+        hasCustomIcon = false;
+        if (currentMode == HUD_MODE || currentMode == MAP_MODE) {
+            currentMode = STATUS_MODE;
+        }
         screenNeedsRedraw = true;
         advertisingPending = true;
     }
 };
+
+// Cấu trúc và bộ nhớ Cache Icon TBT
+struct CachedIcon {
+    uint32_t hash;
+    uint8_t bitmap[288];
+};
+CachedIcon iconCache[20];
+int cacheSize = 0;
+uint32_t currentIconHash = 0;
+
+bool getCachedIcon(uint32_t hash, uint8_t *outBitmap) {
+    for (int i = 0; i < cacheSize; i++) {
+        if (iconCache[i].hash == hash) {
+            memcpy(outBitmap, iconCache[i].bitmap, 288);
+            return true;
+        }
+    }
+    return false;
+}
+
+void addIconToCache(uint32_t hash, const uint8_t *bitmap) {
+    for (int i = 0; i < cacheSize; i++) {
+        if (iconCache[i].hash == hash) return;
+    }
+    if (cacheSize < 20) {
+        iconCache[cacheSize].hash = hash;
+        memcpy(iconCache[cacheSize].bitmap, bitmap, 288);
+        cacheSize++;
+    } else {
+        for (int i = 0; i < 19; i++) {
+            iconCache[i] = iconCache[i + 1];
+        }
+        iconCache[19].hash = hash;
+        memcpy(iconCache[19].bitmap, bitmap, 288);
+    }
+}
 
 // Characterstic Callback: Dẫn đường HUD
 class NavCallback : public NimBLECharacteristicCallbacks
@@ -200,34 +318,94 @@ class NavCallback : public NimBLECharacteristicCallbacks
                 k.trim(); v.trim();
 
                 if (k == "active" || k == "nav") navActive = v.toInt();
-                else if (k == "dist") distToNext = v;
+                else if (k == "dist" || k == "distance" || k == "d") distToNext = v;
                 else if (k == "inst" || k == "title" || k == "street") nextStreet = v;
+                else if (k == "road" || k == "roadName") {
+                    if (nextStreet.length() == 0) nextStreet = v;
+                    totalDist = v;
+                }
                 else if (k == "eta") eta = v;
                 else if (k == "ete") ete = v;
-                else if (k == "dir") navDirIdx = v.toInt();
-                else if (k == "road" || k == "total") totalDist = v;
+                else if (k == "dir" || k == "iconIndex") navDirIdx = v.toInt();
+                else if (k == "total") totalDist = v;
             }
         }
 
         if (navActive == 0) {
-            currentMode = STATUS_MODE;
+            isNavigating = false;
             hasCustomIcon = false;
+            currentMode = STATUS_MODE;
         } else if (navActive == 1) {
-            if (currentMode != MAP_MODE) {
+            isNavigating = true;
+            lastNavDataTime = millis();
+            if (currentMode != MAP_MODE && currentMode != NOTIF_MODE) {
                 currentMode = HUD_MODE;
+            }
+        } else {
+            // Có dữ liệu dẫn đường gửi đến (dist hoặc street)
+            if (distToNext.length() > 0 || nextStreet.length() > 0) {
+                isNavigating = true;
+                lastNavDataTime = millis();
+                if (currentMode == STATUS_MODE) {
+                    currentMode = HUD_MODE;
+                }
             }
         }
         screenNeedsRedraw = true;
     }
 };
 
-// Characterstic Callback: Icon TBT Bitmap
+// Characterstic Callback: Nhận mã băm Icon TBT từ Google Maps
+class NavIconCallback : public NimBLECharacteristicCallbacks
+{
+    void onWrite(NimBLECharacteristic *pChar) override
+    {
+        std::string val = pChar->getValue();
+        if (val.empty()) return;
+
+        String strVal = String(val.c_str());
+        if (strVal.startsWith("hash=")) {
+            String hashStr = strVal.substring(5);
+            uint32_t hash = strtoul(hashStr.c_str(), nullptr, 16);
+            currentIconHash = hash;
+
+            uint8_t bitmap[288];
+            if (getCachedIcon(hash, bitmap)) {
+                memcpy(customIconBitmap, bitmap, 288);
+                hasCustomIcon = true;
+                screenNeedsRedraw = true;
+            } else {
+                hasCustomIcon = false; // Tạm dùng icon vector trong lúc yêu cầu app gửi bitmap
+                if (pDeviceStatusChar) {
+                    char reqBuf[64];
+                    snprintf(reqBuf, sizeof(reqBuf), "icon_req=%s", hashStr.c_str());
+                    pDeviceStatusChar->setValue((uint8_t*)reqBuf, strlen(reqBuf));
+                    pDeviceStatusChar->notify();
+                }
+            }
+        } else if (val.size() == 288) {
+            memcpy(customIconBitmap, val.data(), 288);
+            hasCustomIcon = true;
+            screenNeedsRedraw = true;
+        }
+    }
+};
+
+// Characterstic Callback: Nhận dữ liệu Icon Bitmap 1bpp (288 bytes / 292 bytes kèm hash)
 class IconDataCallback : public NimBLECharacteristicCallbacks
 {
     void onWrite(NimBLECharacteristic *pChar) override
     {
         std::string val = pChar->getValue();
-        if (val.size() >= 288) {
+        if (val.size() == 292) {
+            uint32_t hash;
+            memcpy(&hash, val.data(), 4);
+            const uint8_t *bitmap = (const uint8_t *)(val.data() + 4);
+            memcpy(customIconBitmap, bitmap, 288);
+            addIconToCache(hash, bitmap);
+            hasCustomIcon = true;
+            screenNeedsRedraw = true;
+        } else if (val.size() >= 288) {
             memcpy(customIconBitmap, val.data(), 288);
             hasCustomIcon = true;
             screenNeedsRedraw = true;
@@ -343,16 +521,42 @@ class WarningCallback : public NimBLECharacteristicCallbacks
     {
         std::string val = pChar->getValue();
         if (!val.empty()) {
-            int sep = val.find(',');
-            if (sep != std::string::npos) {
-                trafficWarningType = atoi(val.substr(0, sep).c_str());
-                trafficWarningValue = atoi(val.substr(sep + 1).c_str());
+            if (val.size() >= 2 && (uint8_t)val[0] <= 10) {
+                trafficWarningType = (uint8_t)val[0];
+                trafficWarningValue = (uint8_t)val[1];
             } else {
-                trafficWarningType = atoi(val.c_str());
-                trafficWarningValue = 60;
+                int sep = val.find(',');
+                if (sep != std::string::npos) {
+                    trafficWarningType = atoi(val.substr(0, sep).c_str());
+                    trafficWarningValue = atoi(val.substr(sep + 1).c_str());
+                } else {
+                    trafficWarningType = atoi(val.c_str());
+                    trafficWarningValue = 60;
+                }
             }
             isTrafficWarningActive = true;
             trafficWarningStartTime = millis();
+
+            // Nếu đang ở chế độ thường (STATUS_MODE hoặc INFO_MODE), kích hoạt popup thông báo
+            if (currentMode == STATUS_MODE || currentMode == INFO_MODE) {
+                for (int i = 2; i > 0; i--) {
+                    notifList[i] = notifList[i - 1];
+                }
+                notifList[0].app = "CẢNH BÁO";
+                char tBuf[32], mBuf[64];
+                snprintf(tBuf, sizeof(tBuf), "QUÁ TỐC ĐỘ: %d KM/H", gpsSpeed);
+                snprintf(mBuf, sizeof(mBuf), "Giới hạn: %d km/h | Hiện tại: %d km/h", trafficWarningValue, gpsSpeed);
+                notifList[0].title = tBuf;
+                notifList[0].msg = mBuf;
+                notifList[0].time = millis();
+                if (notifCount < 3) notifCount++;
+                notifViewIndex = 0;
+                previousModeBeforeNotif = currentMode;
+                currentMode = NOTIF_MODE;
+                isNotifPopupTransient = true;
+                notifPopupStartTime = millis();
+            }
+
             screenNeedsRedraw = true;
         }
     }
@@ -368,18 +572,46 @@ class NotifCallback : public NimBLECharacteristicCallbacks
 
         JsonDocument doc;
         if (deserializeJson(doc, val.c_str()) == DeserializationError::Ok) {
+            String app = doc["app"] | "";
+            String title = doc["title"] | "";
+            String msg = doc["msg"] | "";
+
+            bool isSpeedWarning = (app.indexOf("CẢNH BÁO") != -1 || title.indexOf("QUÁ TỐC ĐỘ") != -1 || title.indexOf("TỐC ĐỘ") != -1);
+            if (isSpeedWarning) {
+                isTrafficWarningActive = true;
+                trafficWarningStartTime = millis();
+
+                int slashIdx = title.indexOf('/');
+                if (slashIdx != -1) {
+                    int valParsed = title.substring(slashIdx + 1).toInt();
+                    if (valParsed > 0) trafficWarningValue = valParsed;
+                } else if (trafficWarningValue <= 0) {
+                    trafficWarningValue = 60;
+                }
+
+                // Khi đang ở chế độ HUD hoặc đang dẫn đường:
+                // KHÔNG hiển thị popup NOTIF_MODE làm che màn hình điều hướng,
+                // để HUD tự nhấp nháy cảnh báo giới hạn tốc độ.
+                if (currentMode == HUD_MODE || isNavigating) {
+                    screenNeedsRedraw = true;
+                    return;
+                }
+            }
+
             for (int i = 2; i > 0; i--) {
                 notifList[i] = notifList[i - 1];
             }
-            notifList[0].app = doc["app"].as<String>();
-            notifList[0].title = doc["title"].as<String>();
-            notifList[0].msg = doc["msg"].as<String>();
+            notifList[0].app = app;
+            notifList[0].title = title;
+            notifList[0].msg = msg;
             notifList[0].time = millis();
 
             if (notifCount < 3) notifCount++;
             notifViewIndex = 0;
 
-            previousModeBeforeNotif = currentMode;
+            if (currentMode != NOTIF_MODE) {
+                previousModeBeforeNotif = currentMode;
+            }
             currentMode = NOTIF_MODE;
             isNotifPopupTransient = true;
             notifPopupStartTime = millis();
@@ -388,6 +620,7 @@ class NotifCallback : public NimBLECharacteristicCallbacks
     }
 };
 
+
 // Characterstic Callback: Cài Đặt (Settings - JSON & Key-Value)
 class SettingsCallback : public NimBLECharacteristicCallbacks
 {
@@ -395,23 +628,49 @@ class SettingsCallback : public NimBLECharacteristicCallbacks
     {
         std::string val = pChar->getValue();
         if (val.empty()) return;
+        lastUserInteractionTime = millis();
 
         String s = val.c_str();
         if (s.startsWith("{")) {
             JsonDocument doc;
             if (deserializeJson(doc, s.c_str()) == DeserializationError::Ok) {
-                if (doc["hud_style"].is<int>()) hudStyle = doc["hud_style"].as<int>() % 6;
-                else if (doc["hudStyle"].is<int>()) hudStyle = doc["hudStyle"].as<int>() % 6;
+                if (doc["hud_style"].is<int>()) {
+                    hudStyle = doc["hud_style"].as<int>() % 4;
+                    preferences.putUChar("hudStyle", hudStyle);
+                    currentMode = HUD_MODE;
+                } else if (doc["hudStyle"].is<int>()) {
+                    hudStyle = doc["hudStyle"].as<int>() % 4;
+                    preferences.putUChar("hudStyle", hudStyle);
+                    currentMode = HUD_MODE;
+                }
 
-                if (doc["status_style"].is<int>()) statusStyle = doc["status_style"].as<int>() % 4;
-                else if (doc["statusStyle"].is<int>()) statusStyle = doc["statusStyle"].as<int>() % 4;
+                if (doc["status_style"].is<int>()) {
+                    statusStyle = doc["status_style"].as<int>() % 5;
+                    preferences.putUChar("statusStyle", statusStyle);
+                    currentMode = STATUS_MODE;
+                } else if (doc["statusStyle"].is<int>()) {
+                    statusStyle = doc["statusStyle"].as<int>() % 5;
+                    preferences.putUChar("statusStyle", statusStyle);
+                    currentMode = STATUS_MODE;
+                }
 
-                if (doc["notif_style"].is<int>()) notifStyle = doc["notif_style"].as<int>() % 3;
-                else if (doc["notifStyle"].is<int>()) notifStyle = doc["notifStyle"].as<int>() % 3;
+                if (doc["notif_style"].is<int>()) {
+                    notifStyle = doc["notif_style"].as<int>() % 3;
+                    preferences.putUChar("notifStyle", notifStyle);
+                } else if (doc["notifStyle"].is<int>()) {
+                    notifStyle = doc["notifStyle"].as<int>() % 3;
+                    preferences.putUChar("notifStyle", notifStyle);
+                }
+
+                if (doc["mode"].is<int>()) {
+                    currentMode = (Mode)(doc["mode"].as<int>() % 5);
+                }
 
                 if (doc["brightness"].is<int>()) {
                     brightness = doc["brightness"].as<int>();
-                    u8g2.setContrast((brightness * 255) / 100);
+                    preferences.putInt("brightness", brightness);
+                    uint8_t cVal = (brightness <= 100) ? (uint8_t)((brightness * 255) / 100) : (uint8_t)(brightness > 255 ? 255 : brightness);
+                    u8g2.setContrast(cVal);
                 }
                 screenNeedsRedraw = true;
             }
@@ -431,13 +690,23 @@ class SettingsCallback : public NimBLECharacteristicCallbacks
 
                     if (key == "brightness") {
                         brightness = value.toInt();
-                        u8g2.setContrast((brightness * 255) / 100);
+                        preferences.putInt("brightness", brightness);
+                        uint8_t cVal = (brightness <= 100) ? (uint8_t)((brightness * 255) / 100) : (uint8_t)(brightness > 255 ? 255 : brightness);
+                        u8g2.setContrast(cVal);
                     } else if (key == "statusStyle" || key == "status_style") {
-                        statusStyle = (uint8_t)(value.toInt() % 4);
+                        statusStyle = (uint8_t)(value.toInt() % 5);
+                        preferences.putUChar("statusStyle", statusStyle);
+                        currentMode = STATUS_MODE;
                     } else if (key == "hudStyle" || key == "hud_style") {
-                        hudStyle = (uint8_t)(value.toInt() % 6);
+                        hudStyle = (uint8_t)(value.toInt() % 4);
+                        preferences.putUChar("hudStyle", hudStyle);
+                        currentMode = HUD_MODE;
                     } else if (key == "notifStyle" || key == "notif_style") {
                         notifStyle = (uint8_t)(value.toInt() % 3);
+                        preferences.putUChar("notifStyle", notifStyle);
+                    } else if (key == "mode") {
+                        int m = value.toInt();
+                        currentMode = (Mode)(m % 5);
                     }
                     screenNeedsRedraw = true;
                 }
@@ -454,19 +723,25 @@ class RemoteCmdCallback : public NimBLECharacteristicCallbacks
         std::string val = pChar->getValue();
         if (val.empty()) return;
         uint8_t cmd = (uint8_t)val[0];
+        lastUserInteractionTime = millis();
 
         if (cmd == 0x10) currentMode = HUD_MODE;
         else if (cmd == 0x11) currentMode = MAP_MODE;
         else if (cmd == 0x12) {
             currentMode = STATUS_MODE;
+            isNavigating = false;
             hasCustomIcon = false;
             hasActiveOledImage = false;
         }
         else if (cmd == 0x13) currentMode = INFO_MODE;
+        else if (cmd == 0x14) {
+            if (notifCount > 0) currentMode = NOTIF_MODE;
+        }
         else if (cmd == 0x20) sendDeviceStatus();
         else if (cmd == 0x30) {
             // Chuyển kiểu HUD
             hudStyle = (hudStyle + 1) % 4;
+            preferences.putUChar("hudStyle", hudStyle);
         }
 
         screenNeedsRedraw = true;
@@ -479,16 +754,26 @@ class OledImageCallback : public NimBLECharacteristicCallbacks
     void onWrite(NimBLECharacteristic *pChar) override
     {
         std::string val = pChar->getValue();
-        if (val.size() < 4) return;
+        if (val.empty()) return;
 
-        uint8_t pktType = (uint8_t)val[0];
-        if (pktType == 0x01) {
-            // Header: Bắt đầu truyền ảnh
-            oledImageSize = ((uint8_t)val[1] << 8) | (uint8_t)val[2];
+        // 1. Gói Header 2 byte kích thước (Little Endian Size: 1024 bytes -> 0x00, 0x04)
+        if (val.size() == 2) {
+            oledImageSize = (uint8_t)val[0] | ((uint8_t)val[1] << 8);
+            if (oledImageSize > 1024 || oledImageSize == 0) oledImageSize = 1024;
             oledImageWritten = 0;
             isReceivingOledImage = true;
+            return;
+        }
+
+        // 2. Gói có tiền tố phân loại 0x01 (Header) hoặc 0x02 (Data)
+        uint8_t pktType = (uint8_t)val[0];
+        if (pktType == 0x01 && val.size() >= 3) {
+            oledImageSize = ((uint8_t)val[1] << 8) | (uint8_t)val[2];
+            if (oledImageSize > 1024 || oledImageSize == 0) oledImageSize = 1024;
+            oledImageWritten = 0;
+            isReceivingOledImage = true;
+            return;
         } else if (pktType == 0x02 && isReceivingOledImage) {
-            // Payload data
             size_t len = val.size() - 1;
             if (oledImageWritten + len <= 1024) {
                 memcpy(&oledBuffer[oledImageWritten], val.data() + 1, len);
@@ -497,9 +782,43 @@ class OledImageCallback : public NimBLECharacteristicCallbacks
             if (oledImageWritten >= oledImageSize && oledImageSize > 0) {
                 isReceivingOledImage = false;
                 hasActiveOledImage = true;
-                currentMode = MAP_MODE;
+                lastMapFrameTime = millis();
+                if (currentMode != NOTIF_MODE) {
+                    currentMode = MAP_MODE;
+                }
                 screenNeedsRedraw = true;
             }
+            return;
+        }
+
+        // 3. Gói dữ liệu thô (Raw chunks) sau Header 2 byte
+        if (isReceivingOledImage) {
+            size_t len = val.size();
+            if (oledImageWritten + len <= 1024) {
+                memcpy(&oledBuffer[oledImageWritten], val.data(), len);
+                oledImageWritten += len;
+            }
+            if (oledImageWritten >= oledImageSize && oledImageSize > 0) {
+                isReceivingOledImage = false;
+                hasActiveOledImage = true;
+                lastMapFrameTime = millis();
+                if (currentMode != NOTIF_MODE) {
+                    currentMode = MAP_MODE;
+                }
+                screenNeedsRedraw = true;
+            }
+            return;
+        }
+
+        // 4. Nhận trọn vẹn 1024 bytes trong 1 MTU duy nhất
+        if (val.size() == 1024) {
+            memcpy(oledBuffer, val.data(), 1024);
+            hasActiveOledImage = true;
+            lastMapFrameTime = millis();
+            if (currentMode != NOTIF_MODE) {
+                currentMode = MAP_MODE;
+            }
+            screenNeedsRedraw = true;
         }
     }
 };
@@ -540,14 +859,26 @@ void setup()
 {
     Serial.begin(115200);
     analogReadResolution(12);
+    analogSetPinAttenuation(BAT_ADC, ADC_11db);
 
-    // Khởi tạo I2C và U8g2 SH1106
+    // 0. Khởi tạo bộ nhớ NVS Flash và đọc cấu hình người dùng đã lưu
+    preferences.begin("tymap", false);
+    brightness = preferences.getInt("brightness", 80);
+    hudStyle = preferences.getUChar("hudStyle", 0);
+    statusStyle = preferences.getUChar("statusStyle", 0);
+    notifStyle = preferences.getUChar("notifStyle", 0);
+
+    // Khởi tạo I2C và U8g2 SH1106 ở tốc độ cao 400kHz
     Wire.begin(OLED_SDA, OLED_SCL);
     u8g2.begin();
-    u8g2.setContrast(200);
+    u8g2.setBusClock(400000);
+    Wire.setClock(400000);
+    uint8_t cVal = (brightness <= 100) ? (uint8_t)((brightness * 255) / 100) : (uint8_t)(brightness > 255 ? 255 : brightness);
+    u8g2.setContrast(cVal);
 
     // 1. Khởi tạo NimBLE Server ngay từ đầu để phát Bluetooth tức thì khi cấp nguồn
     NimBLEDevice::init("TYMAP-SH1106");
+    NimBLEDevice::setMTU(517);
     NimBLEServer *pServer = NimBLEDevice::createServer();
     pServer->setCallbacks(new MyServerCallbacks());
 
@@ -557,7 +888,7 @@ void setup()
     pNavChar->setCallbacks(new NavCallback());
 
     NimBLECharacteristic *pNavIconChar = pService->createCharacteristic(CHA_NAV_TBT_ICON_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
-    pNavIconChar->setCallbacks(new NavCallback());
+    pNavIconChar->setCallbacks(new NavIconCallback());
 
     NimBLECharacteristic *pSettingsChar = pService->createCharacteristic(CHA_SETTINGS_UUID, NIMBLE_PROPERTY::WRITE);
     pSettingsChar->setCallbacks(new SettingsCallback());
@@ -589,6 +920,8 @@ void setup()
     pDeviceCtrlChar = pService->createCharacteristic(CHA_DEVICE_CTRL_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
     pDeviceCtrlChar->setCallbacks(new RemoteCmdCallback());
 
+    pDeviceStatusChar = pService->createCharacteristic(CHA_DEVICE_STATUS_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::NOTIFY);
+
     NimBLECharacteristic *pOledImageChar = pService->createCharacteristic(CHA_OLED_IMAGE_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
     pOledImageChar->setCallbacks(new OledImageCallback());
 
@@ -606,8 +939,6 @@ void setup()
 
     NimBLECharacteristic *pMapStatusChar = pService->createCharacteristic(CHA_MAP_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
-    pDeviceStatusChar = pService->createCharacteristic(CHA_DEVICE_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-
     pService->start();
 
     NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
@@ -615,7 +946,7 @@ void setup()
     pAdvertising->setScanResponse(true);
     pAdvertising->setMinPreferred(0x06);
     pAdvertising->setMinPreferred(0x12);
-    NimBLEDevice::startAdvertising();
+    pAdvertising->start();
 
     Serial.println("BLE Advertising Started: TYMAP-SH1106");
 
@@ -630,26 +961,55 @@ void setup()
 
     // 3. Cấu hình Nút bấm
     btnMode.attachClick([]() {
-        if (currentMode == STATUS_MODE) currentMode = HUD_MODE;
-        else if (currentMode == HUD_MODE) currentMode = MAP_MODE;
-        else if (currentMode == MAP_MODE) currentMode = INFO_MODE;
-        else currentMode = STATUS_MODE;
+        lastUserInteractionTime = millis();
+        // Nếu đang hiện popup thông báo, bấm nút sẽ đóng thông báo ngay lập tức
+        if (isNotifPopupTransient && currentMode == NOTIF_MODE) {
+            isNotifPopupTransient = false;
+            currentMode = previousModeBeforeNotif;
+            screenNeedsRedraw = true;
+            return;
+        }
+
+        // Chuyển chế độ thông minh theo ngữ cảnh:
+        if (currentMode == STATUS_MODE) {
+            currentMode = isNavigating ? HUD_MODE : INFO_MODE;
+        } else if (currentMode == HUD_MODE) {
+            currentMode = hasActiveOledImage ? MAP_MODE : INFO_MODE;
+        } else if (currentMode == MAP_MODE) {
+            currentMode = INFO_MODE;
+        } else if (currentMode == INFO_MODE) {
+            currentMode = isNavigating ? HUD_MODE : STATUS_MODE;
+        } else {
+            currentMode = STATUS_MODE;
+        }
         screenNeedsRedraw = true;
     });
 
-    // Double click nút Mode: Chuyển đổi nhanh 4 kiểu HUD (H1, H2, H3, H4)
+    // Double click nút Mode: Chuyển đổi nhanh 4 kiểu HUD (H1, H2, H3, H4) và lưu bộ nhớ
     btnMode.attachDoubleClick([]() {
+        lastUserInteractionTime = millis();
         hudStyle = (hudStyle + 1) % 4;
+        preferences.putUChar("hudStyle", hudStyle);
         screenNeedsRedraw = true;
     });
 
     btnMode.attachLongPressStart([]() {
-        // Đảo ngược màu hoặc Reset về STATUS
-        currentMode = STATUS_MODE;
+        lastUserInteractionTime = millis();
+        // Giữ nút Mode: Chuyển thẳng về STATUS_MODE hoặc HUD_MODE
+        currentMode = isNavigating ? HUD_MODE : STATUS_MODE;
         screenNeedsRedraw = true;
     });
 
     btnZoom.attachClick([]() {
+        lastUserInteractionTime = millis();
+        // Đóng popup thông báo nếu đang mở
+        if (isNotifPopupTransient && currentMode == NOTIF_MODE) {
+            isNotifPopupTransient = false;
+            currentMode = previousModeBeforeNotif;
+            screenNeedsRedraw = true;
+            return;
+        }
+
         if (notifCount > 0) {
             notifViewIndex = (notifViewIndex + 1) % notifCount;
             currentMode = NOTIF_MODE;
@@ -657,9 +1017,16 @@ void setup()
         }
     });
 
-    // Double click nút Zoom: Chuyển đổi kiểu HUD
+    // Double click nút Zoom: Chuyển đổi kiểu giao diện và lưu bộ nhớ
     btnZoom.attachDoubleClick([]() {
-        hudStyle = (hudStyle + 1) % 4;
+        lastUserInteractionTime = millis();
+        if (currentMode == STATUS_MODE) {
+            statusStyle = (statusStyle + 1) % 5;
+            preferences.putUChar("statusStyle", statusStyle);
+        } else {
+            hudStyle = (hudStyle + 1) % 4;
+            preferences.putUChar("hudStyle", hudStyle);
+        }
         screenNeedsRedraw = true;
     });
 
@@ -671,36 +1038,61 @@ void loop()
     btnMode.tick();
     btnZoom.tick();
 
+    unsigned long now = millis();
+
     // Khởi động lại BLE advertising an toàn khi bị ngắt kết nối
     if (advertisingPending) {
         advertisingPending = false;
         NimBLEDevice::getAdvertising()->start();
     }
 
-    // Tự động đóng popup thông báo sau 8 giây
+    // 1. Tự động đóng popup thông báo sau 8 giây
     if (isNotifPopupTransient && currentMode == NOTIF_MODE) {
-        if (millis() - notifPopupStartTime > 8000) {
+        if (now - notifPopupStartTime > 8000) {
             isNotifPopupTransient = false;
             currentMode = previousModeBeforeNotif;
             screenNeedsRedraw = true;
         }
     }
 
-    // Định kỳ đo điện áp pin (mỗi 3 giây)
-    static unsigned long lastBatCheck = 0;
-    if (millis() - lastBatCheck > 3000) {
-        updateBatteryVoltage();
-        lastBatCheck = millis();
+    // 2. Tự động quay về HUD khi đang dẫn đường (nếu người dùng bấm xem INFO hoặc STATUS tạm thời) sau 15s rảnh
+    if (isNavigating && (currentMode == INFO_MODE || currentMode == STATUS_MODE)) {
+        if (now - lastUserInteractionTime > 15000) {
+            currentMode = HUD_MODE;
+            screenNeedsRedraw = true;
+        }
     }
 
+    // 3. Tự động hoàn về HUD/STATUS nếu đang ở MAP_MODE mà mất stream bản đồ (quá 20s không có frame mới)
+    if (currentMode == MAP_MODE && hasActiveOledImage) {
+        if (now - lastMapFrameTime > 20000) {
+            hasActiveOledImage = false;
+            currentMode = isNavigating ? HUD_MODE : STATUS_MODE;
+            screenNeedsRedraw = true;
+        }
+    }
+
+    // 4. Timeout tự động kết thúc trạng thái dẫn đường nếu không có dữ liệu dẫn đường mới trong 60 giây
+    if (isNavigating && (now - lastNavDataTime > 60000)) {
+        isNavigating = false;
+        hasCustomIcon = false;
+        if (currentMode == HUD_MODE || currentMode == MAP_MODE) {
+            currentMode = STATUS_MODE;
+            screenNeedsRedraw = true;
+        }
+    }
+
+    // Cập nhật pin & đẩy mẫu sóng Oscilloscope liên tục (bên trong hàm đã có timer 30ms)
+    updateBatteryVoltage();
+
     // Định kỳ gửi trạng thái BLE (mỗi 5 giây)
-    if (bleConnected && millis() - lastStatusSent > 5000) {
+    if (bleConnected && now - lastStatusSent > 5000) {
         sendDeviceStatus();
     }
 
-    // Redraw giao diện
-    unsigned long now = millis();
-    if (screenNeedsRedraw || (now - lastRedrawTime >= 200)) {
+    // Redraw giao diện mượt mà (35ms ~ 28 FPS trong HUD_MODE và STATUS_MODE cho sóng và chuyển động cực mượt)
+    unsigned long frameInterval = (currentMode == HUD_MODE || currentMode == STATUS_MODE) ? 35 : 60;
+    if (screenNeedsRedraw || (now - lastRedrawTime >= frameInterval)) {
         lastRedrawTime = now;
         screenNeedsRedraw = false;
 

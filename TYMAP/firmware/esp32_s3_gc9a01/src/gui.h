@@ -103,6 +103,14 @@ extern uint32_t otaWritten;
 extern bool hasCustomLayoutConfig;
 void parseAndApplyLayoutJson(const String& jsonStr);
 
+// Bộ đệm sóng Oscilloscope thời gian thực
+extern float voltHistory[200];
+extern uint16_t voltHistoryIdx;
+extern float voltMin;
+extern float voltMax;
+extern uint16_t autoSampleIntervalMs;
+void pushVoltSample(float v);
+
 // Các nguyên mẫu hàm vẽ GUI
 void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset,
                     int yOffset, int scale = 2, uint16_t fgColor = TFT_WHITE);

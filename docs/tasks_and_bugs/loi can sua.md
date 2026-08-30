@@ -11,3 +11,8 @@ app báo lỗi api key required carto.com Nhược điểm (Giới hạn Rate Li
 
 
 Carto Dark Matter  mỗi app 1 api   sẽ giải quết được vấn đề  không dùng chuing api chỉ dùng chung nasBắt khách hàng tự đăng ký tài khoản Carto và nhập Key vào App.vây cơ ché hiện tại của app dang là gì
+
+
+
+
+ESP32C3 CHƯA KẾT NỐI ĐƯỢC APP ANDROID VÀ LOGO SAI HIÊỂ THỊ
