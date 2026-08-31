@@ -66,10 +66,15 @@ object SpeedLimitEngine {
 
         scope.launch {
             try {
-                // TẦNG 1: Overpass API (NAS Server & OpenStreetMap - Miễn phí)
-                var result = queryOverpassApi(context, location.latitude, location.longitude)
+                // TẦNG 1: NAS Fusion Engine (Cơ sở dữ liệu biển báo & camera tốc độ nội bộ)
+                var result = queryFusionEngine(context, location.latitude, location.longitude)
 
-                // TẦNG 2: HERE Location Services API (Nếu Overpass không có & có Key HERE)
+                // TẦNG 2: Overpass API (OpenStreetMap Quốc Tế - Miễn phí)
+                if (result == null) {
+                    result = queryOverpassApi(context, location.latitude, location.longitude)
+                }
+
+                // TẦNG 3: HERE Location Services API (Nếu Overpass không có & có Key HERE)
                 if (result == null) {
                     val hereKey = PrefsHelper.getSecureString(context, "api_key_here", "").trim()
                     if (hereKey.isNotEmpty()) {
@@ -77,7 +82,7 @@ object SpeedLimitEngine {
                     }
                 }
 
-                // TẦNG 3: TomTom API (Nếu HERE/Overpass không có & có Key TomTom)
+                // TẦNG 4: TomTom API (Nếu HERE/Overpass không có & có Key TomTom)
                 if (result == null) {
                     val tomtomKey = PrefsHelper.getSecureString(context, "api_key_tomtom", "").trim()
                     if (tomtomKey.isNotEmpty()) {
@@ -115,7 +120,57 @@ object SpeedLimitEngine {
     }
 
     /**
-     * Truy vấn TẦNG 1: Overpass API (NAS Server & OpenStreetMap)
+     * Truy vấn TẦNG 1: NAS Fusion Engine (Port 8088 / https://alert.domain)
+     */
+    private fun queryFusionEngine(context: Context, lat: Double, lon: Double): SpeedLimitResult? {
+        if (!NasConnectionManager.isNasPotentiallyAvailable(context)) return null
+        try {
+            val fusionBaseUrl = NasConnectionManager.getFusionEngineBaseUrl(context)
+            val url = "$fusionBaseUrl/api/warnings/nearby?lat=$lat&lon=$lon&radius=300"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "TYMAP-Android/1.0 (contact@tymap.local)")
+                .build()
+            val response = NasConnectionManager.nasHttpClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: return null
+                val json = JSONObject(body)
+                val points = json.optJSONArray("points") ?: return null
+                var bestSpeed = 0
+                var bestDesc = ""
+                var hasCam = false
+                for (i in 0 until points.length()) {
+                    val pt = points.getJSONObject(i)
+                    val spd = pt.optInt("speedLimit", 0)
+                    val type = pt.optInt("type", 1)
+                    val desc = pt.optString("description", "")
+                    if (type == 1) hasCam = true
+                    if (spd > 0) {
+                        bestSpeed = spd
+                        bestDesc = desc
+                        break
+                    }
+                }
+                if (bestSpeed > 0) {
+                    NasConnectionManager.markNasSuccess()
+                    return SpeedLimitResult(
+                        speedLimit = bestSpeed,
+                        source = "NAS Fusion Engine ($bestDesc)",
+                        roadName = bestDesc,
+                        hasCamera = hasCam
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            if (NasConnectionManager.isConnectionFailure(e)) {
+                NasConnectionManager.markNasFailed(e.message)
+            }
+        }
+        return null
+    }
+
+    /**
+     * Truy vấn TẦNG 2: Overpass API (OpenStreetMap)
      */
     private fun queryOverpassApi(context: Context, lat: Double, lon: Double): SpeedLimitResult? {
         val query = """
@@ -124,19 +179,15 @@ object SpeedLimitEngine {
             out tags;
         """.trimIndent()
 
-        val endpoints = mutableListOf<String>()
-        if (NasConnectionManager.isNasPotentiallyAvailable(context)) {
-            val fusionBaseUrl = NasConnectionManager.getFusionEngineBaseUrl(context)
-            endpoints.add("$fusionBaseUrl/api/interpreter?data=")
-        }
-        endpoints.add("https://overpass-api.de/api/interpreter?data=")
-        endpoints.add("https://overpass.kumi.systems/api/interpreter?data=")
-        endpoints.add("https://maps.mail.ru/osm/tools/overpass/api/interpreter?data=")
+        val endpoints = listOf(
+            "https://overpass-api.de/api/interpreter?data=",
+            "https://overpass.kumi.systems/api/interpreter?data=",
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter?data="
+        )
 
         for (endpoint in endpoints) {
             try {
-                val isNas = NasConnectionManager.isNasEndpoint(endpoint)
-                val client = if (isNas) NasConnectionManager.nasHttpClient else NasConnectionManager.publicHttpClient
+                val client = NasConnectionManager.publicHttpClient
                 val url = endpoint + URLEncoder.encode(query, "UTF-8")
                 val request = Request.Builder().url(url).build()
                 val response = client.newCall(request).execute()
@@ -182,14 +233,7 @@ object SpeedLimitEngine {
                 }
 
                 if (bestSpeed > 0) {
-                    if (isNas) {
-                        NasConnectionManager.markNasSuccess()
-                    }
-                    val sourceStr = if (isNas) {
-                        if (isExplicitMaxSpeed) "NAS Fusion Engine (maxspeed)" else "NAS Fusion Engine (theo loại đường)"
-                    } else {
-                        if (isExplicitMaxSpeed) "Overpass OSM (maxspeed)" else "Overpass OSM (theo loại đường)"
-                    }
+                    val sourceStr = if (isExplicitMaxSpeed) "Overpass OSM (maxspeed)" else "Overpass OSM (theo loại đường)"
                     return SpeedLimitResult(
                         speedLimit = bestSpeed,
                         source = sourceStr,
@@ -197,9 +241,6 @@ object SpeedLimitEngine {
                     )
                 }
             } catch (e: Exception) {
-                if (NasConnectionManager.isNasEndpoint(endpoint) && NasConnectionManager.isConnectionFailure(e)) {
-                    NasConnectionManager.markNasFailed(e.message)
-                }
                 Log.w(TAG, "Overpass endpoint $endpoint lỗi: ${e.message}")
             }
         }

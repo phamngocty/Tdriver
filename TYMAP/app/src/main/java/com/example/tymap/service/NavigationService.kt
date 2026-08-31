@@ -377,7 +377,7 @@ class NavigationService : Service() {
                 }
             }
         } 
-        // 2. Khi khoảng cách > activeTriggerDist (HẾT NGÃ RẼ): TẮT POPUP MAP, QUAY VỀ MÀN HÌNH HUD NGAY LẬP TỨC
+        // 2. Khi khoảng cách > activeTriggerDist (HẾT NGÃ RẼ): TẮT POPUP MAP, QUAY VỀ MÀN HÌNH CHÍNH
         else if (isPopupActive && distMeters > activeTriggerDist) {
             isPopupActive = false
             lastPopupTriggerLevel = 0
@@ -385,10 +385,14 @@ class NavigationService : Service() {
             lastMapNavDataSentTime = 0L // Reset throttle để gửi ngay thông tin nav mới
             lastSentIconHash = -1L // Reset hash để gửi ngay icon mới
 
-            android.util.Log.d("NavigationService", "Turn finished ($distMeters m > $activeTriggerDist m). Exiting Popup MAP, restoring HUD.")
+            android.util.Log.d("NavigationService", "Turn finished ($distMeters m > $activeTriggerDist m). Exiting Popup MAP.")
 
             if (bleManager.isConnected) {
-                bleManager.sendRemoteCommand(0x10.toByte()) // Khôi phục HUD MODE trên ESP32
+                if (isMapModeActive || captureMode == 1) {
+                    bleManager.sendRemoteCommand(0x11.toByte()) // Giữ MAP MODE
+                } else {
+                    bleManager.sendRemoteCommand(0x10.toByte()) // Khôi phục HUD MODE trên ESP32
+                }
             }
         } else if (distMeters > maxOf(trigger1, trigger2) + 50) {
             lastPopupTriggerLevel = 0
@@ -762,19 +766,12 @@ class NavigationService : Service() {
                             if (now - lastEspSpeedWarningTime > intervalMs) {
                                 lastEspSpeedWarningTime = now
                                 bleManager.sendTrafficWarning(0x02.toByte(), threshold.toByte())
-                                bleManager.writeNotification(
-                                    app = "CẢNH BÁO",
-                                    title = "QUÁ TỐC ĐỘ: $currentSpeedKmh / $threshold KM/H",
-                                    msg = "Hiện tại: $currentSpeedKmh km/h | Giới hạn: $threshold km/h"
-                                )
                             }
                         }
                     }
                 }
-                // Only write speed to BLE when HUD is active (not in MAP mode and no Popup is active)
-                if (!isMapModeActive && !isPopupActive) {
-                    bleManager.writeSpeed((location.speed * 3.6).toInt())
-                }
+                // Luôn đồng bộ tốc độ GPS sang BLE ở mọi chế độ (HUD, MAP, STATUS) để phát hiện quá tốc độ và hiển thị đồng hồ
+                bleManager.writeSpeed(currentSpeedKmh)
 
                 // Process Route tracking only if navigation is running
                 if (NavigationRepository.navigationState.value) {
@@ -1194,11 +1191,15 @@ class NavigationService : Service() {
                             lastSentIconHash = -1L
                             android.util.Log.d("NavigationService", "Continuous Popup map stream finished (distToTurn=$distToTurn m > $activeTriggerDist m). Restoring HUD.")
                             if (bleManager.isConnected) {
-                                val isNavigating = isGmapsActive || NavigationRepository.navigationState.value
-                                if (isNavigating) {
-                                    bleManager.sendRemoteCommand(0x10.toByte()) // Giữ HUD_MODE để tiếp tục hiện chữ/icon HUD
+                                if (isMapModeActive || captureMode == 1) {
+                                    bleManager.sendRemoteCommand(0x11.toByte()) // Giữ MAP MODE
                                 } else {
-                                    bleManager.sendRemoteCommand(0x12.toByte()) // Về STATUS_MODE
+                                    val isNavigating = isGmapsActive || NavigationRepository.navigationState.value
+                                    if (isNavigating) {
+                                        bleManager.sendRemoteCommand(0x10.toByte()) // Giữ HUD_MODE để tiếp tục hiện chữ/icon HUD
+                                    } else {
+                                        bleManager.sendRemoteCommand(0x12.toByte()) // Về STATUS_MODE
+                                    }
                                 }
                             }
                         }

@@ -1684,7 +1684,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     binding.tvGpsSpeedValue.text = "$speedKmh"
 
                     val isSpeedWarningEnabled = PrefsHelper.getBoolean(requireContext(), "speed_warning", true)
-                    val speedLimit = PrefsHelper.getInt(requireContext(), "speed_threshold", 60)
+                    val dynamicLimit = NavigationRepository.currentSpeedLimit.value
+                    val speedLimit = if (dynamicLimit > 0) dynamicLimit else PrefsHelper.getInt(requireContext(), "speed_threshold", 60)
                     
                     if (isSpeedWarningEnabled && speedLimit > 0) {
                         binding.cardSpeedLimitSign.visibility = View.VISIBLE

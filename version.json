@@ -1,14 +1,21 @@
 {
   "app": {
-    "versionCode": 12,
-    "versionName": "1.0.12",
-    "apkUrl": "http://192.168.1.114:3002/attachments/985130f7-0a35-4f30-8cc1-3986ce6755e8",
-    "changelog": "• Tối ưu hóa chạy nền 100% không bị ngắt kết nối khi tắt màn hình.\n• Tự động phản hồi và kiểm tra phiên bản 2 chiều giữa ESP32 & App.\n• Dọn dẹp và tối ưu hóa quyền ứng dụng.\n\nthêm mang hinh"
+    "versionCode": 14,
+    "versionName": "1.0.14",
+    "apkUrl": "",
+    "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
   },
   "firmware": {
-    "versionCode": 12,
-    "versionName": "1.0.12",
-    "binUrl": "http://192.168.1.114:3002/attachments/9c6f427a-25d0-4ffc-b68b-a161a650f636",
-    "changelog": "• Tối ưu hóa chạy nền 100% không bị ngắt kết nối khi tắt màn hình.\n• Tự động phản hồi và kiểm tra phiên bản 2 chiều giữa ESP32 & App.\n• Dọn dẹp và tối ưu hóa quyền ứng dụng.\n\nthêm mang hinh"
+    "versionCode": 14,
+    "versionName": "1.0.14",
+    "binUrl": "",
+    "oledBinUrl": "",
+    "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
+  },
+  "firmware_oled": {
+    "versionCode": 14,
+    "versionName": "1.0.14",
+    "binUrl": "",
+    "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
   }
 }

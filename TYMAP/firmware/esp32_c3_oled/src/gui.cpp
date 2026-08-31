@@ -1117,20 +1117,17 @@ void drawTrafficWarningOverlay()
         return;
     }
 
-    // Nhấp nháy mỗi 400ms
-    if ((millis() / 400) % 2 == 0)
-        return;
-
+    bool isBlink = ((millis() - trafficWarningStartTime) / 250) % 2 == 0;
     u8g2.setFontPosTop();
 
     // Hộp cảnh báo góc trên phải
-    u8g2.setDrawColor(0);
+    u8g2.setDrawColor(isBlink ? 1 : 0);
     u8g2.drawBox(74, 0, 54, 22);
-    u8g2.setDrawColor(1);
+    u8g2.setDrawColor(isBlink ? 0 : 1);
     u8g2.drawFrame(74, 0, 54, 22);
 
     u8g2.setFont(FONT_U8G2_LABEL_BOLD);
-    if (trafficWarningType == 2)
+    if (trafficWarningType == 1 || trafficWarningType == 3)
     {
         int w = u8g2.getStrWidth("CAMERA");
         u8g2.drawStr(74 + (54 - w) / 2, 4, "CAMERA");
@@ -1142,6 +1139,7 @@ void drawTrafficWarningOverlay()
         int w = u8g2.getStrWidth(spdWarn);
         u8g2.drawStr(74 + (54 - w) / 2, 4, spdWarn);
     }
+    u8g2.setDrawColor(1);
 }
 
 // -------------------------------------------------------------

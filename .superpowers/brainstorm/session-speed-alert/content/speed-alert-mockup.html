@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TYMAP GC9A01 - Phác Thảo Cảnh Báo Tốc Độ & Biển Báo Giao Thông</title>
+<style>
+  :root {
+    --bg-dark: #090d16;
+    --card-bg: #131b2e;
+    --card-border: #1e293b;
+    --accent-cyan: #00f2fe;
+    --accent-blue: #4facfe;
+    --neon-green: #00ff87;
+    --warning-red: #ff3344;
+    --warning-amber: #ffb703;
+    --text-main: #f8fafc;
+    --text-sub: #94a3b8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(circle at top, #141e33 0%, #080c14 100%);
+    color: var(--text-main);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  header p {
+    color: var(--text-sub);
+    font-size: 14px;
+  }
+
+  .badge-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 242, 254, 0.1);
+    border: 1px solid rgba(0, 242, 254, 0.3);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    color: var(--accent-cyan);
+    margin-top: 10px;
+  }
+
+  /* Control Panel */
+  .control-bar {
+    max-width: 900px;
+    margin: 0 auto 28px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .control-label {
+    font-size: 13px;
+    color: var(--text-sub);
+    font-weight: 600;
+  }
+  .btn-pill {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-pill:hover {
+    background: #334155;
+  }
+  .btn-pill.active {
+    background: linear-gradient(135deg, #0072ff, #00c6ff);
+    color: #fff;
+    border-color: #38bdf8;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  }
+  .btn-pill.warning-active {
+    background: linear-gradient(135deg, #e11d48, #ff3344);
+    color: #fff;
+    border-color: #f43f5e;
+    box-shadow: 0 0 12px rgba(244, 63, 94, 0.5);
+  }
+
+  /* Grid of Circular Displays */
+  .display-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 28px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .screen-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    transition: transform 0.2s;
+  }
+  .screen-card:hover {
+    transform: translateY(-4px);
+    border-color: #334155;
+  }
+  .screen-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .screen-desc {
+    font-size: 12px;
+    color: var(--text-sub);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  /* Real 240x240 GC9A01 Circular Bezel */
+  .gc9a01-bezel {
+    width: 260px;
+    height: 260px;
+    background: #0f172a;
+    border-radius: 50%;
+    padding: 10px;
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 0 0 25px rgba(0,0,0,0.6);
+    border: 3px solid #334155;
+    position: relative;
+  }
+  .gc9a01-screen {
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+    color: #fff;
+    user-select: none;
+  }
+
+  /* Overspeed Blink Ring */
+  .gc9a01-screen.overspeed-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 4px solid var(--warning-red);
+    box-shadow: inset 0 0 12px var(--warning-red), 0 0 12px var(--warning-red);
+    pointer-events: none;
+    animation: ring-pulse 0.8s infinite alternate;
+  }
+  @keyframes ring-pulse {
+    from { opacity: 0.2; transform: scale(0.99); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Traffic Sign Badge Components */
+  .speed-badge-mini {
+    position: absolute;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #fff;
+    border: 4px solid #ff1744;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  .speed-badge-mini .num {
+    font-size: 15px;
+    font-weight: 900;
+    color: #000;
+    line-height: 1;
+  }
+  .speed-badge-mini .unit {
+    font-size: 7px;
+    font-weight: 700;
+    color: #64748b;
+    line-height: 1;
+    margin-top: 1px;
+  }
+
+  .cam-badge-mini {
+    position: absolute;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #1e1b4b;
+    border: 3px solid #ff0055;
+    box-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    animation: pop-in 0.3s ease-out;
+  }
+  .cam-badge-mini svg {
+    width: 16px;
+    height: 16px;
+    fill: #ff3366;
+  }
+  .cam-badge-mini span {
+    font-size: 7px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 0.5px;
+  }
+
+  @keyframes pop-in {
+    0% { transform: scale(0.4); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Badge Positions */
+  .pos-top-right { top: 22px; right: 30px; }
+  .pos-top-left { top: 22px; left: 30px; }
+  .pos-bottom-right { bottom: 24px; right: 34px; }
+  .pos-top-center { top: 16px; left: calc(50% - 19px); }
+
+  /* HUD Screen Internals */
+  .hud-turn-icon {
+    position: absolute;
+    top: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 60px;
+  }
+  .hud-street-name {
+    position: absolute;
+    top: 126px;
+    left: 10px;
+    right: 10px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #ffffff;
+  }
+  .hud-dist-box {
+    position: absolute;
+    top: 154px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent-cyan);
+    letter-spacing: 0.5px;
+  }
+  .hud-speed-pill {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    border: 1.5px solid var(--neon-green);
+    border-radius: 12px;
+    padding: 3px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--neon-green);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .hud-speed-pill.overspeed {
+    border-color: var(--warning-red);
+    color: var(--warning-red);
+    background: rgba(255, 51, 68, 0.15);
+    animation: speed-blink 0.5s infinite alternate;
+  }
+  @keyframes speed-blink {
+    from { transform: translateX(-50%) scale(1); }
+    to { transform: translateX(-50%) scale(1.06); }
+  }
+
+  /* MAP Screen Internals */
+  .map-canvas-sim {
+    position: absolute;
+    inset: 0;
+    background: #111a2e;
+    background-image: 
+      radial-gradient(#1e2c4a 15%, transparent 16%),
+      radial-gradient(#1e2c4a 15%, transparent 16%);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+  }
+  .map-road-poly {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+  .vehicle-marker {
+    position: absolute;
+    top: 120px;
+    left: 120px;
+    width: 22px;
+    height: 22px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    z-index: 10;
+  }
+  .vehicle-marker svg {
+    filter: drop-shadow(0 0 6px #00f2fe);
+  }
+  .map-speed-overlay {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(4px);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 3px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #38bdf8;
+    z-index: 15;
+  }
+
+  /* STATUS Screen Internals */
+  .status-time {
+    position: absolute;
+    top: 52px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+  }
+  .status-date {
+    position: absolute;
+    top: 106px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-sub);
+    letter-spacing: 0.5px;
+  }
+  .status-weather {
+    position: absolute;
+    top: 134px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fde047;
+  }
+  .status-bottom-bar {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+
+  /* MAP + HUD (Split / Overlay) */
+  .map-hud-card {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 190px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1.5px solid #38bdf8;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.7);
+    border-radius: 16px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 15;
+  }
+  .map-hud-card-icon {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+  .map-hud-card-info {
+    flex: 1;
+    overflow: hidden;
+  }
+  .map-hud-card-dist {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--accent-cyan);
+    line-height: 1.1;
+  }
+  .map-hud-card-street {
+    font-size: 10px;
+    color: #cbd5e1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Comparison Box */
+  .solution-box {
+    max-width: 1200px;
+    margin: 32px auto 0;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .solution-box h2 {
+    font-size: 18px;
+    color: var(--accent-cyan);
+    margin-bottom: 12px;
+  }
+  .solution-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .solution-item {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .solution-item h4 {
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: #e2e8f0;
+  }
+  .solution-item p {
+    font-size: 12px;
+    color: var(--text-sub);
+    line-height: 1.5;
+  }
+  .tag-ok {
+    color: var(--neon-green);
+    font-weight: 700;
+  }
+  .tag-bad {
+    color: var(--warning-red);
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TYMAP ESP32-S3 (GC9A01) — Phác Thảo Cảnh Báo Tốc Độ</h1>
+  <p>Giải pháp: Giữ nguyên chế độ hiển thị (không nhảy mode / không popup chữ) + Biển báo mini 38px chuẩn thẩm mỹ</p>
+  <div class="badge-summary">
+    <span>🛡️ Chế độ: Giữ nguyên Mode hiện tại</span> • 
+    <span>🚫 Loại bỏ Popup văn bản toàn màn hình</span> • 
+    <span>⚡ Biển báo Mini Icon góc màn hình</span>
+  </div>
+</header>
+
+<!-- Interactive Control Panel -->
+<div class="control-bar">
+  <div class="control-group">
+    <span class="control-label">Tốc độ hiện tại:</span>
+    <button class="btn-pill" onclick="setSpeed(45)">45 km/h (Bình thường)</button>
+    <button class="btn-pill warning-active" onclick="setSpeed(68)">68 km/h (Quá tốc độ ⚠️)</button>
+  </div>
+
+  <div class="control-group">
+    <span class="control-label">Loại cảnh báo:</span>
+    <button class="btn-pill active" id="btn-type-limit" onclick="setWarningType('limit')">Biển Giới Hạn 50/60</button>
+    <button class="btn-pill" id="btn-type-cam" onclick="setWarningType('cam')">Camera Phạt Nguội 📷</button>
+    <button class="btn-pill" id="btn-type-off" onclick="setWarningType('off')">Tắt Cảnh Báo</button>
+  </div>
+
+  <div class="control-group">
+    <span class="control-label">Vị trí Biển báo:</span>
+    <button class="btn-pill active" id="btn-pos-tr" onclick="setBadgePos('pos-top-right')">Góc Phải (Khuyên dùng)</button>
+    <button class="btn-pill" id="btn-pos-tl" onclick="setBadgePos('pos-top-left')">Góc Trái</button>
+    <button class="btn-pill" id="btn-pos-tc" onclick="setBadgePos('pos-top-center')">Trên đỉnh</button>
+  </div>
+</div>
+
+<!-- Grid of Screens -->
+<div class="display-grid">
+
+  <!-- 1. MAP MODE -->
+  <div class="screen-card">
+    <div class="screen-title">1. MAP MODE (Bản đồ)</div>
+    <div class="screen-desc">Giữ nguyên bản đồ, không che icon xe & lộ trình</div>
+    <div class="gc9a01-bezel">
+      <div class="gc9a01-screen" id="screen-map">
+        <div class="map-canvas-sim"></div>
+        <svg class="map-road-poly" viewBox="0 0 240 240">
+          <path d="M 40 200 Q 120 160 120 120 T 190 40" fill="none" stroke="#2563eb" stroke-width="10" stroke-linecap="round" />
+          <path d="M 40 200 Q 120 160 120 120 T 190 40" fill="none" stroke="#60a5fa" stroke-width="6" stroke-linecap="round" />
+        </svg>
+        <div class="vehicle-marker">
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path d="M12 2 L22 21 L12 17 L2 21 Z" fill="#00f2fe" stroke="#fff" stroke-width="1.5" />
+          </svg>
+        </div>
+        <div class="map-speed-overlay" id="map-speed-text">68 km/h</div>
+        
+        <!-- Speed Badge Placement -->
+        <div class="speed-badge-mini pos-top-right" id="badge-map">
+          <span class="num">60</span>
+          <span class="unit">km/h</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. HUD MODE -->
+  <div class="screen-card">
+    <div class="screen-title">2. HUD MODE (Dẫn đường GPS)</div>
+    <div class="screen-desc">Mũi tên rẽ lớn chính giữa + Biển báo mini góc phải</div>
+    <div class="gc9a01-bezel">
+      <div class="gc9a01-screen" id="screen-hud">
+        <svg class="hud-turn-icon" viewBox="0 0 64 64">
+          <path d="M 32 54 L 32 26 A 12 12 0 0 1 44 14 L 52 14" fill="none" stroke="#00f2fe" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+          <polyline points="44,6 54,14 44,22" fill="none" stroke="#00f2fe" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <div class="hud-street-name">Nguyễn Hữu Thọ</div>
+        <div class="hud-dist-box">250 m</div>
+        <div class="hud-speed-pill overspeed" id="hud-speed-text">
+          <span>⚡</span> <span id="hud-speed-val">68 km/h</span>
+        </div>
+
+        <!-- Speed Badge Placement -->
+        <div class="speed-badge-mini pos-top-right" id="badge-hud">
+          <span class="num">60</span>
+          <span class="unit">km/h</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. STATUS MODE -->
+  <div class="screen-card">
+    <div class="screen-title">3. STATUS MODE (Đồng hồ)</div>
+    <div class="screen-desc">Giờ kỹ thuật số + Thời tiết + Biển báo gọn gàng</div>
+    <div class="gc9a01-bezel">
+      <div class="gc9a01-screen" id="screen-status">
+        <div class="status-time">14:35</div>
+        <div class="status-date">THỨ HAI, 31 THÁNG 8</div>
+        <div class="status-weather">
+          <span>🌤️</span> 31°C Nắng
+        </div>
+        <div class="status-bottom-bar">
+          <span>🔋 85%</span>
+          <span>•</span>
+          <span id="status-speed-val" style="color: var(--warning-red); font-weight: 700;">68 km/h</span>
+        </div>
+
+        <!-- Speed Badge Placement -->
+        <div class="speed-badge-mini pos-top-right" id="badge-status">
+          <span class="num">60</span>
+          <span class="unit">km/h</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. MAP + HUD MODE -->
+  <div class="screen-card">
+    <div class="screen-title">4. MAP + HUD MODE (Bản đồ + Thẻ rẽ)</div>
+    <div class="screen-desc">Bản đồ nền + Thẻ nổi HUD mini phía dưới</div>
+    <div class="gc9a01-bezel">
+      <div class="gc9a01-screen" id="screen-maphud">
+        <div class="map-canvas-sim"></div>
+        <svg class="map-road-poly" viewBox="0 0 240 240">
+          <path d="M 60 210 Q 110 150 130 110 T 180 30" fill="none" stroke="#2563eb" stroke-width="10" stroke-linecap="round" />
+          <path d="M 60 210 Q 110 150 130 110 T 180 30" fill="none" stroke="#60a5fa" stroke-width="6" stroke-linecap="round" />
+        </svg>
+        <div class="vehicle-marker" style="top: 95px; left: 120px;">
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path d="M12 2 L22 21 L12 17 L2 21 Z" fill="#00f2fe" stroke="#fff" stroke-width="1.5" />
+          </svg>
+        </div>
+
+        <!-- Floating HUD Card -->
+        <div class="map-hud-card">
+          <svg class="map-hud-card-icon" viewBox="0 0 32 32">
+            <path d="M 16 28 L 16 14 A 6 6 0 0 1 22 8 L 26 8" fill="none" stroke="#00f2fe" stroke-width="3.5" stroke-linecap="round" />
+            <polyline points="22,4 28,8 22,12" fill="none" stroke="#00f2fe" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <div class="map-hud-card-info">
+            <div class="map-hud-card-dist">250m</div>
+            <div class="map-hud-card-street">Nguyễn Hữu Thọ</div>
+          </div>
+          <div style="font-size: 11px; font-weight: 800; color: var(--warning-red);" id="maphud-speed-val">68k</div>
+        </div>
+
+        <!-- Speed Badge Placement -->
+        <div class="speed-badge-mini pos-top-right" id="badge-maphud">
+          <span class="num">60</span>
+          <span class="unit">km/h</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Implementation Analysis Box -->
+<div class="solution-box">
+  <h2>📋 Phân Tích Lỗi & Phương Án Khắc Phục Triệt Để</h2>
+  <div class="solution-grid">
+    <div class="solution-item">
+      <h4>1. Nguyên Nhân Gây Nhảy Mode & Hiện Văn Bản</h4>
+      <p><span class="tag-bad">Lỗi 1 (Android App):</span> Trong <code>NavigationService.kt</code> dòng 765-769, khi phát hiện quá tốc độ, app gọi <code>writeNotification("CẢNH BÁO", "QUÁ TỐC ĐỘ: ...")</code> -> ép ESP32 nhảy vào <code>NOTIF_MODE</code>.</p>
+      <p><span class="tag-bad">Lỗi 2 (Firmware ESP32):</span> Khi hết thời gian popup NOTIF (5s), trong <code>main.cpp</code> dòng 1826 hardcode chuyển về <code>currentMode = STATUS_MODE;</code> làm mất luôn chế độ MAP ban đầu.</p>
+    </div>
+
+    <div class="solution-item">
+      <h4>2. Giải Pháp Xử Lý Logic (Firmware & App)</h4>
+      <p><span class="tag-ok">Sửa App:</span> Tắt lệnh gửi <code>writeNotification()</code> cho cảnh báo tốc độ. Chỉ gửi 2 bytes qua <code>CHA_WARNING_UUID</code> (Byte 0 = Type, Byte 1 = Limit).</p>
+      <p><span class="tag-ok">Sửa ESP32:</span> Cảnh báo tốc độ / Camera chỉ vẽ một <strong>Badge nhỏ 38x38px</strong> (hoặc viền nhấp nháy đỏ) đè lên góc màn hình của chế độ đang chạy, <strong>tuyệt đối không đổi <code>currentMode</code></strong>.</p>
+    </div>
+
+    <div class="solution-item">
+      <h4>3. Ưu Điểm Của Biển Báo Mini 38px</h4>
+      <p><span class="tag-ok">Không che thông tin:</span> Đặt tại vị trí góc trên phải (x: 185, y: 40) hoặc góc trên trái giúp người lái nhìn thấy ngay lập tức mà không che mũi tên dẫn đường, đồng hồ hay vị trí xe.</p>
+      <p><span class="tag-ok">Hiệu ứng Viền Đỏ (Overspeed Aura):</span> Khi vượt quá tốc độ, viền ngoài cùng màn hình nhấp nháy đỏ nhẹ nhàng, tài xế nhận biết trực quan mà không bị rối mắt.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentSpeed = 68;
+  let currentLimit = 60;
+  let currentWarningType = 'limit'; // 'limit' | 'cam' | 'off'
+  let currentPosition = 'pos-top-right';
+
+  function setSpeed(spd) {
+    currentSpeed = spd;
+    document.getElementById('hud-speed-val').innerText = spd + ' km/h';
+    document.getElementById('map-speed-text').innerText = spd + ' km/h';
+    document.getElementById('status-speed-val').innerText = spd + ' km/h';
+    document.getElementById('maphud-speed-val').innerText = spd + 'k';
+
+    const isOver = currentSpeed > currentLimit && currentWarningType !== 'off';
+    const screens = ['screen-map', 'screen-hud', 'screen-status', 'screen-maphud'];
+    screens.forEach(id => {
+      const el = document.getElementById(id);
+      if (isOver) {
+        el.classList.add('overspeed-ring');
+      } else {
+        el.classList.remove('overspeed-ring');
+      }
+    });
+
+    const hudPill = document.getElementById('hud-speed-text');
+    if (isOver) {
+      hudPill.classList.add('overspeed');
+    } else {
+      hudPill.classList.remove('overspeed');
+    }
+  }
+
+  function setWarningType(type) {
+    currentWarningType = type;
+    document.getElementById('btn-type-limit').classList.toggle('active', type === 'limit');
+    document.getElementById('btn-type-cam').classList.toggle('active', type === 'cam');
+    document.getElementById('btn-type-off').classList.toggle('active', type === 'off');
+
+    const badges = ['badge-map', 'badge-hud', 'badge-status', 'badge-maphud'];
+    badges.forEach(id => {
+      const el = document.getElementById(id);
+      if (type === 'off') {
+        el.style.display = 'none';
+      } else if (type === 'limit') {
+        el.style.display = 'flex';
+        el.className = 'speed-badge-mini ' + currentPosition;
+        el.innerHTML = '<span class="num">' + currentLimit + '</span><span class="unit">km/h</span>';
+      } else if (type === 'cam') {
+        el.style.display = 'flex';
+        el.className = 'cam-badge-mini ' + currentPosition;
+        el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg><span>CAM</span>';
+      }
+    });
+    setSpeed(currentSpeed);
+  }
+
+  function setBadgePos(posClass) {
+    currentPosition = posClass;
+    document.getElementById('btn-pos-tr').classList.toggle('active', posClass === 'pos-top-right');
+    document.getElementById('btn-pos-tl').classList.toggle('active', posClass === 'pos-top-left');
+    document.getElementById('btn-pos-tc').classList.toggle('active', posClass === 'pos-top-center');
+    setWarningType(currentWarningType);
+  }
+
+  // Init
+  setWarningType('limit');
+  setSpeed(68);
+</script>
+
+</body>
+</html>

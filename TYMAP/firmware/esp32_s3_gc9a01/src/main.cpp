@@ -17,8 +17,8 @@
 #define BAT_ADC 3
 
 // Firmware Version
-#define FW_VERSION_STR "1.0.9"
-#define FW_VERSION_CODE 9
+#define FW_VERSION_STR "1.0.13"
+#define FW_VERSION_CODE 13
 
 // GATT Server UUIDs
 const char *SERVICE_UUID = "0000feed-0000-1000-8000-00805f9b34fb";
@@ -1811,8 +1811,8 @@ void loop()
         screenNeedsRedraw = true;
     }
 
-    // Tự động tắt Popup Cảnh báo Giao thông sau 3 giây (3000ms)
-    if (isTrafficWarningActive && (millis() - trafficWarningStartTime > 3000))
+    // Tự động tắt Cảnh báo Giao thông sau 6 giây (6000ms) nếu không có gói tin mới
+    if (isTrafficWarningActive && (millis() - trafficWarningStartTime > 6000))
     {
         isTrafficWarningActive = false;
         screenNeedsRedraw = true;
@@ -1885,6 +1885,11 @@ void loop()
     }
     else
     {
+        if (isTrafficWarningActive)
+        {
+            screenNeedsRedraw = true;
+        }
+
         if (currentMode == HUD_MODE || currentMode == MAP_HUD_MODE || currentMode == MAP_MODE)
         {
             myFont.set_font(FONT_HUD_STREET);
@@ -1920,6 +1925,15 @@ void loop()
                     else if (screenNeedsRedraw && jpegSizeRender > 0)
                     {
                         renderJpegImage(jpegBufferRender, jpegSizeRender);
+                    }
+                    else if (screenNeedsRedraw)
+                    {
+                        canvasSprite.fillSprite(color565(15, 23, 42));
+                        if (currentMode == MAP_HUD_MODE || (currentMode == MAP_MODE && showMapHudCard))
+                            drawMapHudOverlay();
+                        else
+                            drawMapOverlay();
+                        canvasSprite.pushSprite(0, 0);
                     }
                 }
                 break;

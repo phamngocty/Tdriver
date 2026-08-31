@@ -25,8 +25,8 @@ Preferences preferences;
 #define BAT_ADC 3
 
 // Firmware Version
-#define FW_VERSION_STR "1.0.9"
-#define FW_VERSION_CODE 9
+#define FW_VERSION_STR "1.0.13"
+#define FW_VERSION_CODE 13
 
 // GATT Server UUIDs
 const char *SERVICE_UUID = "0000feed-0000-1000-8000-00805f9b34fb";

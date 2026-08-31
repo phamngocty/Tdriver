@@ -306,8 +306,8 @@ object TrafficWarningManager {
     fun checkGpsLocation(context: Context, location: Location, bleManager: MyBleManager?) {
         val isNavigating = NavigationRepository.navigationState.value
 
-        // Nếu không trong chế độ dẫn đường (Chạy xe tự do), kích hoạt kiểm tra lân cận
-        if (!isNavigating) {
+        // Nếu không trong chế độ dẫn đường hoặc RAM Cache đang trống, kích hoạt quét lân cận
+        if (!isNavigating || warningCache.isEmpty()) {
             checkAndFetchSpatialOverpass(context, location)
         }
 
@@ -352,6 +352,12 @@ object TrafficWarningManager {
                             message = logMsg
                         )
                     )
+
+                    // Cập nhật giới hạn tốc độ và biển báo vào Repository nếu là biển tốc độ
+                    if (point.type == WarningType.SPEED_LIMIT && point.speedLimit > 0) {
+                        NavigationRepository.updateSpeedLimit(point.speedLimit, point.description)
+                        PrefsHelper.putInt(context, "speed_threshold", point.speedLimit)
+                    }
 
                     // Gửi tín hiệu BLE Hex nhị phân tới ESP32
                     if (bleManager != null && bleManager.isConnected) {

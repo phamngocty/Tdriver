@@ -92,10 +92,33 @@ object UpdateManager {
                     val appChangelog = appObj.optString("changelog", "Bản cập nhật mới cho TYMAP.")
 
                     val fwObj = json.optJSONObject("firmware") ?: JSONObject()
-                    val fwVerCode = fwObj.optInt("versionCode", 0)
-                    val fwVerName = fwObj.optString("versionName", "")
+                    var fwVerCode = fwObj.optInt("versionCode", 0)
+                    var fwVerName = fwObj.optString("versionName", "")
                     var fwBinUrl = fwObj.optString("binUrl", "")
-                    val fwChangelog = fwObj.optString("changelog", "Bản nâng cấp firmware mới cho ESP32 HUD.")
+                    var fwChangelog = fwObj.optString("changelog", "Bản nâng cấp firmware mới cho ESP32 HUD.")
+
+                    // Tự động nhận diện thiết bị đang kết nối (GC9A01 hay OLED SH1106 / SSD1306)
+                    val deviceDisplay = NavigationRepository.deviceStatus.value["display"]
+                        ?: PrefsHelper.getString(context, "connected_device_display", "GC9A01")
+                    val isOled = deviceDisplay.contains("OLED", ignoreCase = true) ||
+                                 deviceDisplay.contains("SH1106", ignoreCase = true) ||
+                                 deviceDisplay.contains("SSD1306", ignoreCase = true)
+
+                    if (isOled) {
+                        val fwOledObj = json.optJSONObject("firmware_oled")
+                        val oledUrl = fwOledObj?.optString("binUrl", "") ?: fwObj.optString("oledBinUrl", "")
+                        if (oledUrl.isNotEmpty()) {
+                            fwBinUrl = oledUrl
+                            if (fwOledObj != null) {
+                                val oledVerCode = fwOledObj.optInt("versionCode", 0)
+                                val oledVerName = fwOledObj.optString("versionName", "")
+                                if (oledVerCode > 0) fwVerCode = oledVerCode
+                                if (oledVerName.isNotEmpty()) fwVerName = oledVerName
+                                val oledChangelog = fwOledObj.optString("changelog", "")
+                                if (oledChangelog.isNotEmpty()) fwChangelog = oledChangelog
+                            }
+                        }
+                    }
 
                     // Resolve relative URLs based on the active server URL
                     val baseUrl = updateUrl.substringBeforeLast("/")
@@ -125,6 +148,7 @@ object UpdateManager {
                     val currentFwVerName = PrefsHelper.getString(context, "esp32_fw_version_name", "1.0.0")
                     val hasFirmwareUpdate = (fwVerCode > currentFwVerCode || isVersionHigher(fwVerName, currentFwVerName)) && fwBinUrl.isNotEmpty()
 
+                    val displayLabel = if (isOled) "OLED (SH1106)" else "GC9A01"
                     val info = UpdateInfo(
                         hasAppUpdate = hasAppUpdate,
                         appVersionCode = appVerCode,
@@ -135,9 +159,9 @@ object UpdateManager {
                         firmwareVersionCode = fwVerCode,
                         firmwareVersionName = fwVerName,
                         firmwareBinUrl = fwBinUrl,
-                        firmwareChangelog = fwChangelog
+                        firmwareChangelog = "[$displayLabel] $fwChangelog"
                     )
-                    NavigationRepository.addLog("UpdateManager: Kết nối thành công tới máy chủ: $updateUrl")
+                    NavigationRepository.addLog("UpdateManager: Kết nối thành công ($displayLabel) tới: $updateUrl")
                     return@withContext UpdateCheckResult.Success(info)
                 }
             } catch (e: Exception) {

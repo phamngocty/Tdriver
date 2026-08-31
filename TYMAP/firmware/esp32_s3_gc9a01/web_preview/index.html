@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TYMAP ESP32-S3 GC9A01 (240x240) - Thiết Kế Biển Báo Nhỏ Gọn Không Che Khuất</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #070a11;
+            --bg-card: #0f172a;
+            --bg-panel: #1e293b;
+            --border-color: #334155;
+            --accent-cyan: #00f0ff;
+            --accent-green: #00ff66;
+            --accent-pink: #ff007f;
+            --accent-red: #ff0055;
+            --accent-amber: #ff7700;
+            --accent-blue: #3b82f6;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            min-height: 100vh;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            max-width: 900px;
+            margin-bottom: 24px;
+        }
+
+        .badge-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 14px;
+            border-radius: 9999px;
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            color: var(--accent-cyan);
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #fff 40%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-dim);
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 1240px;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 28px;
+            align-items: start;
+        }
+
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+        }
+
+        /* Round Screen Simulator Bezel */
+        .simulator-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .watch-bezel-outer {
+            width: 360px;
+            height: 360px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #1e293b, #090d16);
+            border: 10px solid #2d3748;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8), inset 0 2px 6px rgba(255,255,255,0.15), 0 0 40px rgba(0, 240, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .watch-crown {
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 14px;
+            height: 36px;
+            background: linear-gradient(to right, #475569, #1e293b);
+            border-radius: 4px;
+            border: 1px solid #64748b;
+        }
+
+        .round-screen {
+            width: 288px; /* Scaled 1.2x from 240 */
+            height: 288px;
+            border-radius: 50%;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.9);
+        }
+
+        canvas#gc9a01Canvas {
+            width: 288px;
+            height: 288px;
+            display: block;
+        }
+
+        .bezel-label {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-top: 6px;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .pill-status {
+            font-size: 12px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #64748b;
+        }
+
+        .dot.active-green { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); }
+        .dot.active-red { background: var(--accent-red); box-shadow: 0 0 10px var(--accent-red); animation: pulse 0.5s infinite alternate; }
+
+        @keyframes pulse {
+            from { opacity: 0.4; }
+            to { opacity: 1; }
+        }
+
+        /* Controls Panel */
+        .controls-card {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .btn-tab {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px 8px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-align: center;
+        }
+
+        .btn-tab:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 240, 255, 0.08);
+        }
+
+        .btn-tab.active {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(59, 130, 246, 0.25));
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            box-shadow: 0 0 14px rgba(0, 240, 255, 0.3);
+        }
+
+        .sub-btn-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+
+        .btn-subtab {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            color: var(--text-dim);
+            padding: 7px 4px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .btn-subtab.active {
+            background: var(--accent-blue);
+            color: #fff;
+            border-color: var(--accent-blue);
+        }
+
+        /* Sign Layout Options */
+        .layout-choice-box {
+            background: rgba(0, 240, 255, 0.06);
+            border: 1px solid rgba(0, 240, 255, 0.25);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* Warning Box */
+        .warning-box {
+            background: rgba(255, 0, 85, 0.08);
+            border: 1px solid rgba(255, 0, 85, 0.35);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .switch-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #fca5a5;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider-round {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #334155;
+            transition: .3s;
+            border-radius: 24px;
+        }
+
+        .slider-round:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider-round { background-color: var(--accent-red); }
+        input:checked + .slider-round:before { transform: translateX(20px); }
+
+        .slider-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent-cyan);
+            height: 6px;
+            border-radius: 3px;
+            background: #26354d;
+        }
+
+        .slider-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 14px;
+            min-width: 65px;
+            color: var(--accent-cyan);
+            text-align: right;
+        }
+
+        /* Gallery of Circular Screens */
+        .gallery-section {
+            width: 100%;
+            max-width: 1240px;
+            margin-top: 36px;
+        }
+
+        .gallery-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 20px;
+        }
+
+        .gallery-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .gallery-card-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .gallery-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(0, 255, 102, 0.15);
+            color: var(--accent-green);
+            font-weight: 700;
+        }
+
+        .gallery-round-frame {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: #000;
+            border: 4px solid #334155;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+
+        .gallery-round-frame canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .gallery-desc {
+            font-size: 12px;
+            color: var(--text-dim);
+            line-height: 1.4;
+            text-align: center;
+        }
+
+        /* Callout */
+        .callout-box {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.08), rgba(15, 23, 42, 0.6));
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 16px;
+            padding: 18px;
+            margin-top: 24px;
+            max-width: 1240px;
+            width: 100%;
+        }
+
+        .callout-title {
+            color: var(--accent-cyan);
+            font-weight: 700;
+            font-size: 15px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .callout-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 13px;
+            color: #cbd5e1;
+        }
+
+        .callout-list li::before {
+            content: "✓ ";
+            color: var(--accent-cyan);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="badge-tag">
+            <span>⚡ TYMAP ESP32-S3 • GC9A01 240x240 COMPACT SMART BADGE</span>
+        </div>
+        <h1>Vị Trí Biển Báo Nhỏ Gọn – Tránh Che Khuất Thông Tin</h1>
+        <p class="subtitle">
+            Biển báo tốc độ <strong>P.127 Tròn Mini (r = 15px)</strong> được bố trí thông minh tại các vùng trống ngoại vi (cạnh cụm tốc độ đáy / góc trên), kết hợp <strong>Viền Flasher 360°</strong> giúp tài xế quan sát tức thì mà <strong>100% KHÔNG CHE</strong> mũi tên rẽ, tên đường hay đồng hồ.
+        </p>
+    </div>
+
+    <div class="main-container">
+        <!-- Circular Display Simulator -->
+        <div class="card simulator-box">
+            <div class="watch-bezel-outer">
+                <div class="watch-crown"></div>
+                <div class="round-screen">
+                    <canvas id="gc9a01Canvas" width="240" height="240"></canvas>
+                </div>
+            </div>
+            <div class="bezel-label">GC9A01 • 1.28" ROUND IPS LCD • 240x240 RGB565</div>
+
+            <div class="status-indicators">
+                <div class="pill-status">
+                    <span class="dot active-green"></span>
+                    <span>BLE Đã Kết Nối</span>
+                </div>
+                <div class="pill-status">
+                    <span class="dot" id="warnDot"></span>
+                    <span id="warnStatusText">Không có cảnh báo</span>
+                </div>
+                <div class="pill-status">
+                    <span>⚡ <strong id="curModeName" style="color:var(--accent-cyan)">HUD Dẫn Đường</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="card controls-card">
+            <!-- Mode selection -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>1. CHỌN CHẾ ĐỘ MÀN HÌNH (MODE)</span>
+                </div>
+                <div class="btn-grid">
+                    <button class="btn-tab active" onclick="setMode('HUD')">HUD DẪN ĐƯỜNG</button>
+                    <button class="btn-tab" onclick="setMode('STATUS')">STATUS</button>
+                    <button class="btn-tab" onclick="setMode('MAP_HUD')">MAP + HUD</button>
+                    <button class="btn-tab" onclick="setMode('INFO')">INFO</button>
+                    <button class="btn-tab" onclick="setMode('NOTIF')">NOTIF</button>
+                </div>
+            </div>
+
+            <!-- Styles for active mode -->
+            <div class="control-group" id="styleGroup">
+                <div class="control-label">
+                    <span>2. KIỂU MẶT ĐỒNG HỒ / STYLE</span>
+                </div>
+                <div class="sub-btn-grid" id="styleButtons">
+                    <!-- Dynamic -->
+                </div>
+            </div>
+
+            <!-- Position layout selector -->
+            <div class="layout-choice-box">
+                <div class="control-label" style="color: var(--accent-cyan)">
+                    <span>🎯 VỊ TRÍ & KÍCH THƯỚC BIỂN BÁO</span>
+                </div>
+                <div class="sub-btn-grid" style="grid-template-columns: repeat(2, 1fr);">
+                    <button class="btn-subtab active" id="btnPosCompact" onclick="setSignPosition('compact')">✨ Nhỏ Gọn Tối Ưu (Khuyên dùng)</button>
+                    <button class="btn-subtab" id="btnPosCenter" onclick="setSignPosition('center')">⚠️ Biển Lớn Ở Tâm (Bị che)</button>
+                </div>
+            </div>
+
+            <!-- Warning Controls -->
+            <div class="warning-box">
+                <div class="control-label" style="color: #fca5a5">
+                    <span>3. THỬ NGHIỆM CẢNH BÁO TỐC ĐỘ</span>
+                </div>
+
+                <div class="switch-row">
+                    <span class="switch-title">🚨 Bật Cảnh Báo Giao Thông</span>
+                    <label class="switch">
+                        <input type="checkbox" id="warningToggle" onchange="toggleWarning()">
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-label">Loại Cảnh Báo:</div>
+                    <div class="sub-btn-grid" style="grid-template-columns: repeat(3, 1fr);">
+                        <button class="btn-subtab active" id="btnWarnType1" onclick="setWarnType(2)">Biển Tốc Độ</button>
+                        <button class="btn-subtab" id="btnWarnType2" onclick="setWarnType(1)">Camera Phạt</button>
+                        <button class="btn-subtab" id="btnWarnType3" onclick="setWarnType(3)">Cả Hai</button>
+                    </div>
+                </div>
+
+                <!-- Limit -->
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Giới hạn tốc độ:</span>
+                        <span class="slider-val" id="limitDisplay">60 km/h</span>
+                    </div>
+                    <div class="sub-btn-grid" style="grid-template-columns: repeat(5, 1fr);">
+                        <button class="btn-subtab" onclick="setLimit(40)">40</button>
+                        <button class="btn-subtab" onclick="setLimit(50)">50</button>
+                        <button class="btn-subtab active" onclick="setLimit(60)">60</button>
+                        <button class="btn-subtab" onclick="setLimit(80)">80</button>
+                        <button class="btn-subtab" onclick="setLimit(90)">90</button>
+                    </div>
+                </div>
+
+                <!-- GPS Speed -->
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Tốc độ GPS xe chạy:</span>
+                        <span class="slider-val" id="speedDisplay">68 km/h</span>
+                    </div>
+                    <div class="slider-wrapper">
+                        <input type="range" id="speedSlider" min="0" max="140" value="68" oninput="onSpeedChange(this.value)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation directions -->
+            <div class="control-group">
+                <div class="control-label">Dữ liệu dẫn đường demo:</div>
+                <div class="sub-btn-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    <button class="btn-subtab active" onclick="setNavTurn(5, '150M', 'Nguyễn Văn Cừ')">Rẽ Trái</button>
+                    <button class="btn-subtab" onclick="setNavTurn(2, '80M', 'Lê Lợi')">Rẽ Phải</button>
+                    <button class="btn-subtab" onclick="setNavTurn(0, '1.2KM', 'Quốc Lộ 1A')">Đi Thẳng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gallery Section for all Circular Watch Screens -->
+    <div class="gallery-section">
+        <div class="gallery-title">
+            <span>🎯 TẤT CẢ CÁC MÀN HÌNH VỚI BIỂN BÁO MINI (KHÔNG CHE KHUẤT)</span>
+        </div>
+
+        <div class="gallery-grid">
+            <!-- 1: HUD -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>HUD Dẫn Đường</span>
+                    <span class="gallery-badge">Biển Nhỏ Cạnh Tốc Độ</span>
+                </div>
+                <div class="gallery-round-frame">
+                    <canvas id="thumb_hud" width="240" height="240"></canvas>
+                </div>
+                <div class="gallery-desc">Mũi tên rẽ & tên đường hiển thị trọn vẹn 100%, biển [60] mini nằm cạnh cụm tốc độ đáy.</div>
+            </div>
+
+            <!-- 2: STATUS S4 (Sport Chrono Oscilloscope) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>STATUS (Sóng Neon S4)</span>
+                    <span class="gallery-badge">Biển Mini Góc Phải</span>
+                </div>
+                <div class="gallery-round-frame">
+                    <canvas id="thumb_status_s4" width="240" height="240"></canvas>
+                </div>
+                <div class="gallery-desc">Sóng điện áp chạy liên tục 30 FPS không bị che, biển báo [60] tròn nằm gọn ở khoảng trống trên.</div>
+            </div>
+
+            <!-- 3: STATUS S5 (Classic Analog) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>STATUS (Đồng Hồ Kim S5)</span>
+                    <span class="gallery-badge">Biển Mini Góc 9H</span>
+                </div>
+                <div class="gallery-round-frame">
+                    <canvas id="thumb_status_s5" width="240" height="240"></canvas>
+                </div>
+                <div class="gallery-desc">Kim giờ và kim phút quay tự do, biển báo [60] mini nằm ở vị trí 9h đối xứng với lịch ngày.</div>
+            </div>
+
+            <!-- 4: STATUS S3 (Dual Energy Pill) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>STATUS (Dual Pill S3)</span>
+                    <span class="gallery-badge">Biển Mini Cạnh Weather</span>
+                </div>
+                <div class="gallery-round-frame">
+                    <canvas id="thumb_status_s3" width="240" height="240"></canvas>
+                </div>
+                <div class="gallery-desc">Biển báo mini nằm giữa đồng hồ số và 2 thanh năng lượng, không che số giờ hay mức pin.</div>
+            </div>
+
+            <!-- 5: MAP_HUD (Bản đồ màu + Thẻ nổi) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>MAP + Thẻ Nổi HUD</span>
+                    <span class="gallery-badge">Tích Hợp Trong Thẻ Nổi</span>
+                </div>
+                <div class="gallery-round-frame">
+                    <canvas id="thumb_map_hud" width="240" height="240"></canvas>
+                </div>
+                <div class="gallery-desc">Biển [60] tròn mini gắn trực tiếp vào bên phải thẻ nổi HUD, bản đồ phía sau rộng rãi.</div>
+            </div>
+
+            <!-- 6: NOTIF Mode -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>NOTIF (Thông Báo)</span>
+                    <span class="gallery-badge">Biển Mini Góc Header</span>
+                </div>
+                <div class="gallery-round-frame">
+                    <canvas id="thumb_notif" width="240" height="240"></canvas>
+                </div>
+                <div class="gallery-desc">Nội dung tin nhắn không bị che lấp, biển báo mini xuất hiện nhẹ nhàng trên góc tiêu đề.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Callout -->
+    <div class="callout-box">
+        <div class="callout-title">
+            <span>💡 Chi Tiết Tối Ưu Vị Trí Cho Từng Màn Hình</span>
+        </div>
+        <ul class="callout-list">
+            <li><strong>HUD Dẫn Đường (Galaxy Watch 7):</strong> Cụm tốc độ ở đáy được mở rộng thành thẻ kép: <code>[ 🔴 60 ] [ 68 km/h ]</code> (Bán kính biển $r = 13\text{px}$). Mũi tên rẽ lớn ở trung tâm và tên đường tiếng Việt hoàn toàn thoáng đãng.</li>
+            <li><strong>Mặt Đồng Hồ STATUS (S1 - S5):</strong> Biển báo tròn mini ($r = 13\text{px}$) được đặt tại toạ độ $(x = 185, y = 48)$ hoặc $(x = 55, y = 120)$ là các "điểm chết" không chứa nội dung chính.</li>
+            <li><strong>Bản Đồ MAP_HUD:</strong> Tích hợp huy hiệu tròn nhỏ gọn ngay góc phải của Thẻ nổi HUD, giữ góc nhìn bản đồ và lộ trình dẫn đường rõ ràng nhất.</li>
+            <li><strong>Cảnh báo tức thì qua Viền 360°:</strong> Khi xe vượt quá tốc độ, vòng tròn viền ngoài ($r = 117\text{px}$) nhấp nháy đỏ chớp tắt, đảm bảo tài xế thấy ngay mà không cần nhìn vào biển báo.</li>
+        </ul>
+    </div>
+
+    <script>
+        // State
+        let currentMode = 'HUD';
+        let statusStyle = 0; // 0: S4 Chrono Radar, 1: S5 Analog Watch, 2: S3 Dual Pill, 3: S4 Luxury Horizon
+        let mapHudStyle = 0; // 0: MH1 Floating Pill, 1: MH2 Bottom Bar
+        let notifStyle = 1;  // 0: N1 Card, 1: N2 Fullscreen
+        let signPositionMode = 'compact'; // 'compact' or 'center'
+        let isTrafficWarningActive = true;
+        let trafficWarningType = 2; // 2: Speed Limit, 1: Camera, 3: Both
+        let trafficWarningValue = 60;
+        let gpsSpeed = 68;
+        let batteryVoltage = 12.6;
+        let weatherTemp = 31;
+        let weatherIcon = "01";
+        let navDirIdx = 5; // Left
+        let distToNext = "150M";
+        let nextStreet = "Nguyễn Văn Cừ";
+        let phoneBatteryLevel = 95;
+        let oscPhase = 0;
+
+        // Canvas
+        const mainCanvas = document.getElementById('gc9a01Canvas');
+        const mainCtx = mainCanvas.getContext('2d');
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.btn-grid .btn-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.innerText.includes(mode));
+            });
+            updateStyleButtons();
+            updateStatusLabel();
+            render();
+        }
+
+        function setStatusStyle(st) {
+            statusStyle = st;
+            updateStyleButtons();
+            updateStatusLabel();
+            render();
+        }
+
+        function setMapHudStyle(st) {
+            mapHudStyle = st;
+            updateStyleButtons();
+            updateStatusLabel();
+            render();
+        }
+
+        function setSignPosition(pos) {
+            signPositionMode = pos;
+            document.getElementById('btnPosCompact').classList.toggle('active', pos === 'compact');
+            document.getElementById('btnPosCenter').classList.toggle('active', pos === 'center');
+            render();
+        }
+
+        function updateStatusLabel() {
+            let label = currentMode;
+            if (currentMode === 'STATUS') {
+                const sNames = ['S4 Sport Chrono', 'S5 Classic Analog', 'S3 Dual Pill', 'S4 Horizon'];
+                label += ` (${sNames[statusStyle]})`;
+            } else if (currentMode === 'HUD') {
+                label = 'HUD Dẫn Đường';
+            } else if (currentMode === 'MAP_HUD') {
+                label = 'MAP + HUD Overlay';
+            }
+            document.getElementById('curModeName').innerText = label;
+        }
+
+        function updateStyleButtons() {
+            const container = document.getElementById('styleButtons');
+            const styleGroup = document.getElementById('styleGroup');
+            container.innerHTML = '';
+
+            if (currentMode === 'STATUS') {
+                styleGroup.style.display = 'flex';
+                const styles = ['S4 Chrono', 'S5 Analog', 'S3 Dual Pill', 'S4 Horizon'];
+                styles.forEach((name, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = `btn-subtab ${statusStyle === idx ? 'active' : ''}`;
+                    btn.innerText = name;
+                    btn.onclick = () => setStatusStyle(idx);
+                    container.appendChild(btn);
+                });
+            } else if (currentMode === 'MAP_HUD') {
+                styleGroup.style.display = 'flex';
+                const styles = ['MH1 Thẻ Nổi', 'MH2 Thanh Dưới'];
+                styles.forEach((name, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = `btn-subtab ${mapHudStyle === idx ? 'active' : ''}`;
+                    btn.innerText = name;
+                    btn.onclick = () => setMapHudStyle(idx);
+                    container.appendChild(btn);
+                });
+            } else {
+                styleGroup.style.display = 'none';
+            }
+        }
+
+        function toggleWarning() {
+            isTrafficWarningActive = document.getElementById('warningToggle').checked;
+            updateWarnUI();
+            render();
+        }
+
+        function setWarnType(type) {
+            trafficWarningType = type;
+            document.getElementById('btnWarnType1').classList.toggle('active', type === 2);
+            document.getElementById('btnWarnType2').classList.toggle('active', type === 1);
+            document.getElementById('btnWarnType3').classList.toggle('active', type === 3);
+            render();
+        }
+
+        function setLimit(lim) {
+            trafficWarningValue = lim;
+            document.getElementById('limitDisplay').innerText = lim + " km/h";
+            document.querySelectorAll('.warning-box .sub-btn-grid button').forEach(btn => {
+                btn.classList.toggle('active', btn.innerText === String(lim));
+            });
+            render();
+        }
+
+        function onSpeedChange(val) {
+            gpsSpeed = parseInt(val);
+            document.getElementById('speedDisplay').innerText = val + " km/h";
+            render();
+        }
+
+        function setNavTurn(dir, dist, street) {
+            navDirIdx = dir;
+            distToNext = dist;
+            nextStreet = street;
+            render();
+        }
+
+        function updateWarnUI() {
+            const dot = document.getElementById('warnDot');
+            const text = document.getElementById('warnStatusText');
+            if (isTrafficWarningActive) {
+                dot.className = 'dot active-red';
+                text.innerText = `CẢNH BÁO [${trafficWarningValue} KM/H]`;
+                text.style.color = '#ff0055';
+            } else {
+                dot.className = 'dot';
+                text.innerText = 'Không có cảnh báo';
+                text.style.color = 'var(--text-dim)';
+            }
+        }
+
+        // ------------------ GC9A01 240x240 ROUND ENGINE ------------------
+        function clearRoundCanvas(ctx) {
+            ctx.save();
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, 240, 240);
+            ctx.restore();
+        }
+
+        // Draw Outer Red Flasher Ring
+        function drawOuterFlasherRing(ctx, isBlink) {
+            if (!isTrafficWarningActive || !isBlink) return;
+            ctx.save();
+            ctx.strokeStyle = '#ff0055';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(120, 120, 117, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Draw Graphic Speed Limit Sign P.127
+        function drawSpeedLimitSignGC(ctx, cx, cy, radius, speedVal, isBlink) {
+            ctx.save();
+            const isOverSpeed = gpsSpeed > speedVal;
+
+            if (isOverSpeed && isBlink) {
+                // Inverted Blink
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ff0055';
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `bold ${Math.round(radius * 1.05)}px "JetBrains Mono", monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(speedVal, cx, cy);
+            } else {
+                // Normal Sign: Red Border + White Background + Black Text
+                ctx.fillStyle = '#dc2626';
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius - (radius > 20 ? 4 : 3), 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#000000';
+                ctx.font = `bold ${Math.round(radius * 1.05)}px "JetBrains Mono", monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(speedVal, cx, cy);
+            }
+            ctx.restore();
+        }
+
+        // Draw Camera Warning Sign (Mini)
+        function drawCameraSignGC(ctx, cx, cy, radius, isBlink) {
+            ctx.save();
+            ctx.fillStyle = (isBlink && gpsSpeed > trafficWarningValue) ? '#ff0055' : '#1e293b';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ff0055';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Camera icon
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(cx - 7, cy - 3, 14, 9);
+            ctx.fillRect(cx - 3, cy - 6, 6, 3);
+            ctx.fillStyle = '#00f0ff';
+            ctx.beginPath();
+            ctx.arc(cx, cy + 1, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // 1. HUD GALAXY WATCH 7 SCREEN (COMPACT & CLEAN)
+        function drawHUD_GC(ctx, isBlink) {
+            clearRoundCanvas(ctx);
+
+            // Top Info: 20 min • 15:09
+            ctx.font = '12px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillText('20 min  ·  15:09', 120, 30);
+
+            // Weather mini left
+            ctx.fillStyle = '#facc15';
+            ctx.font = '11px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText('31°C ☀', 48, 48);
+
+            // Turn Icon Vector at Center (cy=84) - TO, RÕ RÀNG, KHÔNG BỊ CHE
+            ctx.save();
+            ctx.translate(120, 84);
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+
+            if (navDirIdx === 5) { // Left
+                ctx.fillRect(-2, 0, 4, 30);
+                ctx.fillRect(-30, 0, 30, 4);
+                ctx.beginPath();
+                ctx.moveTo(-36, 2);
+                ctx.lineTo(-20, -12);
+                ctx.lineTo(-20, 16);
+                ctx.closePath();
+                ctx.fill();
+            } else if (navDirIdx === 2) { // Right
+                ctx.fillRect(-2, 0, 4, 30);
+                ctx.fillRect(0, 0, 30, 4);
+                ctx.beginPath();
+                ctx.moveTo(36, 2);
+                ctx.lineTo(20, -12);
+                ctx.lineTo(20, 16);
+                ctx.closePath();
+                ctx.fill();
+            } else { // Straight
+                ctx.fillRect(-2, -20, 4, 40);
+                ctx.beginPath();
+                ctx.moveTo(0, -32);
+                ctx.lineTo(-14, -14);
+                ctx.lineTo(14, -14);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+
+            // Street Name (y=140)
+            ctx.font = 'bold 15px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(nextStreet, 120, 142);
+
+            // Distance (y=175)
+            ctx.font = 'bold 22px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(distToNext, 120, 175);
+
+            // BOTTOM SPEED & SIGN CLUSTER
+            if (signPositionMode === 'compact') {
+                if (isTrafficWarningActive) {
+                    // DUAL PILL / COMPACT BADGE AT BOTTOM
+                    // Badge Background
+                    ctx.fillStyle = '#1e293b';
+                    ctx.beginPath();
+                    ctx.roundRect(46, 198, 148, 30, 15);
+                    ctx.fill();
+                    ctx.strokeStyle = (gpsSpeed > trafficWarningValue && isBlink) ? '#ff0055' : '#334155';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    // Mini Speed Sign Left (cx=64, cy=213, r=12)
+                    if (trafficWarningType === 2 || trafficWarningType === 3) {
+                        drawSpeedLimitSignGC(ctx, 64, 213, 11, trafficWarningValue, isBlink);
+                    } else {
+                        drawCameraSignGC(ctx, 64, 213, 11, isBlink);
+                    }
+
+                    // GPS Speed Right
+                    ctx.font = 'bold 13px "JetBrains Mono", monospace';
+                    ctx.fillStyle = (gpsSpeed > trafficWarningValue) ? '#ff5577' : '#00ff66';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(`${gpsSpeed} km/h`, 84, 218);
+
+                    // Camera Icon if both
+                    if (trafficWarningType === 3) {
+                        drawCameraSignGC(ctx, 176, 213, 10, isBlink);
+                    }
+                } else {
+                    // Normal Speed Pill
+                    ctx.fillStyle = '#1e293b';
+                    ctx.beginPath();
+                    ctx.roundRect(80, 200, 80, 26, 13);
+                    ctx.fill();
+                    ctx.strokeStyle = '#00ff66';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+
+                    ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                    ctx.fillStyle = '#00ff66';
+                    ctx.fillText(`${gpsSpeed} km/h`, 120, 217);
+                }
+            } else {
+                // CENTER HUGE SIGN (FOR COMPARISON - WILL COVER)
+                if (isTrafficWarningActive) {
+                    drawSpeedLimitSignGC(ctx, 120, 120, 48, trafficWarningValue, isBlink);
+                }
+            }
+
+            drawOuterFlasherRing(ctx, isBlink);
+        }
+
+        // 2. STATUS S4: SPORT CHRONO OSCILLOSCOPE
+        function drawSTATUS_S4_GC(ctx, isBlink) {
+            clearRoundCanvas(ctx);
+
+            // Header Clock
+            ctx.font = 'bold 34px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('15:09', 120, 48);
+
+            // Date & Weather
+            ctx.font = '12px "Plus Jakarta Sans", sans-serif';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('Thứ Hai, 31/08  ·  31°C ☀', 120, 68);
+
+            // Voltage & Telemetry
+            ctx.font = 'bold 20px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#00f0ff';
+            ctx.fillText(`${batteryVoltage.toFixed(1)}V`, 65, 104);
+
+            ctx.font = '10px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#64748b';
+            ctx.fillText('L:12.4V H:14.2V', 65, 120);
+
+            // Phone Battery Pill Right
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.roundRect(135, 94, 70, 26, 8);
+            ctx.fill();
+            ctx.strokeStyle = '#00ff66';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.font = 'bold 11px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#00ff66';
+            ctx.fillText('DT: 95%', 170, 111);
+
+            // Mini Speed Sign in Safe Zone (cx=195, cy=42, r=12)
+            if (signPositionMode === 'compact' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 195, 42, 12, trafficWarningValue, isBlink);
+            } else if (signPositionMode === 'center' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 120, 120, 48, trafficWarningValue, isBlink);
+            }
+
+            // Oscilloscope Waveform at Bottom Box (192x64) - HOÀN TOÀN KHÔNG BỊ CHE
+            ctx.strokeStyle = '#334155';
+            ctx.strokeRect(24, 138, 192, 65);
+
+            // Neon Wave
+            ctx.save();
+            ctx.beginPath();
+            for (let i = 0; i < 190; i++) {
+                const py = 170 + Math.sin((i + oscPhase * 2) * 0.15) * 16;
+                if (i === 0) ctx.moveTo(25 + i, py);
+                else ctx.lineTo(25 + i, py);
+            }
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+
+            drawOuterFlasherRing(ctx, isBlink);
+        }
+
+        // 3. STATUS S5: CLASSIC ANALOG WATCH
+        function drawSTATUS_S5_GC(ctx, isBlink) {
+            clearRoundCanvas(ctx);
+
+            // 12 Hour Ticks 360°
+            ctx.save();
+            for (let i = 0; i < 12; i++) {
+                const rad = (i * 30 - 90) * Math.PI / 180;
+                const x1 = 120 + 96 * Math.cos(rad);
+                const y1 = 120 + 96 * Math.sin(rad);
+                const x2 = 120 + 108 * Math.cos(rad);
+                const y2 = 120 + 108 * Math.sin(rad);
+                ctx.strokeStyle = (i % 3 === 0) ? '#00ff66' : '#475569';
+                ctx.lineWidth = (i % 3 === 0) ? 3 : 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+
+            // Date Widget Top
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(75, 50, 90, 22, 6);
+            ctx.fill();
+            ctx.strokeStyle = '#334155';
+            ctx.stroke();
+            ctx.font = '11px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('Thứ Hai, 31/08', 120, 65);
+
+            // Mini Speed Sign at 9 O'clock (cx=52, cy=120, r=13) - Vị trí cực kỳ tinh tế!
+            if (signPositionMode === 'compact' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 52, 120, 13, trafficWarningValue, isBlink);
+            } else if (signPositionMode === 'center' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 120, 120, 48, trafficWarningValue, isBlink);
+            }
+
+            // Watch Hands
+            const h = 3, m = 9;
+            const hRad = ((h % 12) * 30 + m * 0.5 - 90) * Math.PI / 180;
+            const mRad = (m * 6 - 90) * Math.PI / 180;
+
+            // Hour hand
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(120, 120);
+            ctx.lineTo(120 + 44 * Math.cos(hRad), 120 + 44 * Math.sin(hRad));
+            ctx.stroke();
+
+            // Minute hand
+            ctx.strokeStyle = '#00ff66';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(120, 120);
+            ctx.lineTo(120 + 68 * Math.cos(mRad), 120 + 68 * Math.sin(mRad));
+            ctx.stroke();
+
+            // Center Pin
+            ctx.fillStyle = '#00ff66';
+            ctx.beginPath();
+            ctx.arc(120, 120, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Bottom Battery Badge
+            ctx.font = 'bold 12px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#00ff66';
+            ctx.fillText('12.6V  ·  95%', 120, 180);
+
+            ctx.restore();
+            drawOuterFlasherRing(ctx, isBlink);
+        }
+
+        // 4. STATUS S3: DUAL ENERGY PILL
+        function drawSTATUS_S3_GC(ctx, isBlink) {
+            clearRoundCanvas(ctx);
+
+            // Time Big
+            ctx.font = 'bold 36px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('15:09:42', 120, 48);
+
+            // Date
+            ctx.font = '12px "Plus Jakarta Sans", sans-serif';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('Thứ Hai, 31/08/2026', 120, 75);
+
+            // Weather & Mini Sign (cx=195, cy=105, r=13)
+            ctx.fillStyle = '#facc15';
+            ctx.fillText('Thời tiết: 31°C ☀ Nắng', 105, 105);
+
+            if (signPositionMode === 'compact' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 195, 103, 13, trafficWarningValue, isBlink);
+            } else if (signPositionMode === 'center' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 120, 120, 48, trafficWarningValue, isBlink);
+            }
+
+            // Pill 1: Battery Voltage Left
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(18, 140, 98, 38, 12);
+            ctx.fill();
+            ctx.strokeStyle = '#00ff66';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.font = 'bold 12px "Plus Jakarta Sans", sans-serif';
+            ctx.fillStyle = '#00ff66';
+            ctx.fillText('Ắc quy: 12.6V', 67, 164);
+
+            // Pill 2: Phone Battery Right
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(124, 140, 98, 38, 12);
+            ctx.fill();
+            ctx.strokeStyle = '#00f0ff';
+            ctx.stroke();
+            ctx.fillStyle = '#00f0ff';
+            ctx.fillText('Phone: 95%', 173, 164);
+
+            drawOuterFlasherRing(ctx, isBlink);
+        }
+
+        // 5. MAP + HUD OVERLAY
+        function drawMAP_HUD_GC(ctx, isBlink) {
+            clearRoundCanvas(ctx);
+
+            // Map Background Simulation
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, 240, 240);
+
+            // Map streets
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 12;
+            ctx.beginPath();
+            ctx.moveTo(30, 210); ctx.lineTo(120, 120); ctx.lineTo(210, 40);
+            ctx.stroke();
+            ctx.moveTo(120, 120); ctx.lineTo(40, 40);
+            ctx.stroke();
+
+            // Route Path (Cyan Neon)
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(30, 210); ctx.lineTo(120, 120); ctx.lineTo(40, 40);
+            ctx.stroke();
+
+            // Car Arrow Center
+            ctx.save();
+            ctx.translate(120, 120);
+            ctx.fillStyle = '#00ff66';
+            ctx.beginPath();
+            ctx.moveTo(0, -14);
+            ctx.lineTo(-8, 10);
+            ctx.lineTo(0, 5);
+            ctx.lineTo(8, 10);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Floating HUD Pill (MH1)
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+            ctx.beginPath();
+            ctx.roundRect(15, 185, 210, 42, 21);
+            ctx.fill();
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Turn Icon in Pill Left
+            ctx.fillStyle = '#00ff66';
+            ctx.font = 'bold 15px "JetBrains Mono", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('150M', 45, 203);
+
+            ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(nextStreet, 45, 218);
+
+            // Speed and Mini Sign inside Pill Right
+            if (signPositionMode === 'compact' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 168, 206, 11, trafficWarningValue, isBlink);
+                ctx.fillStyle = (gpsSpeed > trafficWarningValue) ? '#ff5577' : '#00ff66';
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                ctx.fillText(`${gpsSpeed}k`, 212, 211);
+            } else {
+                ctx.fillStyle = '#00ff66';
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                ctx.fillText(`${gpsSpeed}k`, 210, 211);
+            }
+
+            drawOuterFlasherRing(ctx, isBlink);
+        }
+
+        // 6. NOTIF SCREEN
+        function drawNOTIF_GC(ctx, isBlink) {
+            clearRoundCanvas(ctx);
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.roundRect(20, 30, 200, 180, 20);
+            ctx.fill();
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.font = 'bold 14px "Plus Jakarta Sans", sans-serif';
+            ctx.fillStyle = '#00f0ff';
+            ctx.textAlign = 'center';
+            ctx.fillText('ZALO • 15:08', 120, 60);
+
+            if (signPositionMode === 'compact' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 195, 55, 11, trafficWarningValue, isBlink);
+            }
+
+            ctx.font = 'bold 15px "Plus Jakarta Sans", sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('Nguyễn Văn A', 120, 95);
+
+            ctx.font = '12px "Plus Jakarta Sans", sans-serif';
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillText('Anh ơi nhớ ghé mua', 120, 125);
+            ctx.fillText('đồ ăn chiều nay nhé!', 120, 145);
+        }
+
+        // 7. INFO SCREEN
+        function drawINFO_GC(ctx, isBlink) {
+            clearRoundCanvas(ctx);
+
+            ctx.font = 'bold 15px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#00f0ff';
+            ctx.fillText('TYMAP GC9A01 v1.2', 120, 48);
+
+            if (signPositionMode === 'compact' && isTrafficWarningActive) {
+                drawSpeedLimitSignGC(ctx, 195, 45, 11, trafficWarningValue, isBlink);
+            }
+
+            ctx.font = '12px "JetBrains Mono", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('Free Heap : 248 KB', 120, 85);
+            ctx.fillText('Battery   : 12.6V (95%)', 120, 115);
+            ctx.fillText('Uptime    : 03:12:45', 120, 145);
+            ctx.fillText('BLE Rate  : 28 FPS', 120, 175);
+
+            drawOuterFlasherRing(ctx, isBlink);
+        }
+
+        // Master Render
+        function render() {
+            const isBlink = isTrafficWarningActive && (Math.floor(Date.now() / 250) % 2 === 0);
+
+            if (currentMode === 'HUD') {
+                drawHUD_GC(mainCtx, isBlink);
+            } else if (currentMode === 'STATUS') {
+                if (statusStyle === 0) drawSTATUS_S4_GC(mainCtx, isBlink);
+                else if (statusStyle === 1) drawSTATUS_S5_GC(mainCtx, isBlink);
+                else if (statusStyle === 2) drawSTATUS_S3_GC(mainCtx, isBlink);
+                else drawSTATUS_S4_GC(mainCtx, isBlink);
+            } else if (currentMode === 'MAP_HUD') {
+                drawMAP_HUD_GC(mainCtx, isBlink);
+            } else if (currentMode === 'INFO') {
+                drawINFO_GC(mainCtx, isBlink);
+            } else if (currentMode === 'NOTIF') {
+                drawNOTIF_GC(mainCtx, isBlink);
+            }
+
+            renderThumbnails();
+        }
+
+        function renderThumbnails() {
+            const isBlink = isTrafficWarningActive && (Math.floor(Date.now() / 250) % 2 === 0);
+
+            const c_hud = document.getElementById('thumb_hud').getContext('2d');
+            drawHUD_GC(c_hud, isBlink);
+
+            const c_s4 = document.getElementById('thumb_status_s4').getContext('2d');
+            drawSTATUS_S4_GC(c_s4, isBlink);
+
+            const c_s5 = document.getElementById('thumb_status_s5').getContext('2d');
+            drawSTATUS_S5_GC(c_s5, isBlink);
+
+            const c_s3 = document.getElementById('thumb_status_s3').getContext('2d');
+            drawSTATUS_S3_GC(c_s3, isBlink);
+
+            const c_map = document.getElementById('thumb_map_hud').getContext('2d');
+            drawMAP_HUD_GC(c_map, isBlink);
+
+            const c_notif = document.getElementById('thumb_notif').getContext('2d');
+            drawNOTIF_GC(c_notif, isBlink);
+        }
+
+        function animLoop() {
+            oscPhase += 0.5;
+            render();
+            requestAnimationFrame(animLoop);
+        }
+
+        // Init
+        document.getElementById('warningToggle').checked = isTrafficWarningActive;
+        updateWarnUI();
+        updateStyleButtons();
+        updateStatusLabel();
+        animLoop();
+    </script>
+</body>
+</html>

@@ -126,6 +126,8 @@ void drawNOTIF();
 void drawSETTINGS();
 void drawMapOverlay();
 void drawTrafficWarningOverlay();
+void drawSpeedLimitSignCompact(TFT_eSprite &sprite, int cx, int cy, int r, int speedVal, bool isBlinkInvert);
+void drawCameraSignCompact(TFT_eSprite &sprite, int cx, int cy, int r, bool isBlinkInvert);
 void drawOtaProgressScreen();
 void drawLogoWithLoadingBar(unsigned long currentTime, unsigned long startTime,
                             unsigned long introDuration);

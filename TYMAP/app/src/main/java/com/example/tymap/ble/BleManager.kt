@@ -234,6 +234,11 @@ class MyBleManager(context: Context) : BleManager(context) {
                 com.example.tymap.utils.PrefsHelper.putInt(context, "esp32_fw_version_code", fwCode)
             }
         }
+        statusMap["display"]?.let { disp ->
+            if (disp.isNotEmpty()) {
+                com.example.tymap.utils.PrefsHelper.putString(context, "connected_device_display", disp)
+            }
+        }
 
         // Tự động kích hoạt đồng bộ thời gian nếu thiết bị báo chưa đồng bộ
         if (statusMap["timeSynced"] == "0") {

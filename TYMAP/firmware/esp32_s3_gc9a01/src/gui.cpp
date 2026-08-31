@@ -248,17 +248,55 @@ void drawHUD()
     uint16_t distLen = myFont.getLength(distToNext);
     myFont.print(120 - distLen / 2, 170, distToNext, TFT_WHITE, TFT_BLACK);
 
-    // 5. Ô hiển thị Tốc độ GPS (km/h) ở đáy
+    // 5. Ô hiển thị Tốc độ GPS (km/h) ở đáy (Tích hợp Biển báo mini khi có cảnh báo)
     char speedBuf[16];
     snprintf(speedBuf, sizeof(speedBuf), "%d km/h", gpsSpeed);
     myFont.set_font(FONT_HUD_INFO);
-    uint16_t spdLen = myFont.getLength(speedBuf);
-    uint16_t badgeW = spdLen + 16;
-    if (badgeW < 64)
-        badgeW = 64;
-    canvasSprite.fillRoundRect(120 - badgeW / 2, 205, badgeW, 22, 10, color565(30, 41, 59));
-    canvasSprite.drawRoundRect(120 - badgeW / 2, 205, badgeW, 22, 10, TFT_GREEN);
-    myFont.print(120 - spdLen / 2, 209, speedBuf, TFT_GREEN, color565(30, 41, 59));
+
+    if (isTrafficWarningActive)
+    {
+        bool isBlink = ((millis() - trafficWarningStartTime) / 250) % 2 == 0;
+        bool isOverSpeed = (trafficWarningValue > 0 && gpsSpeed > trafficWarningValue);
+
+        // Khung huy hiệu mở rộng chứa cả biển báo tốc độ mini và tốc độ xe GPS
+        int badgeW = (trafficWarningType == 3) ? 148 : 132;
+        int badgeH = 26;
+        int badgeX = 120 - badgeW / 2;
+        int badgeY = 202;
+
+        canvasSprite.fillRoundRect(badgeX, badgeY, badgeW, badgeH, 13, color565(15, 23, 42));
+        canvasSprite.drawRoundRect(badgeX, badgeY, badgeW, badgeH, 13, (isOverSpeed && isBlink) ? TFT_RED : color565(51, 65, 85));
+
+        // 1. Biển báo mini bên trái trong khung (cx = badgeX + 15, cy = badgeY + 13, r = 10)
+        if (trafficWarningType == 0x02 || trafficWarningType == 3)
+        {
+            drawSpeedLimitSignCompact(canvasSprite, badgeX + 15, badgeY + 13, 10, trafficWarningValue, isBlink && isOverSpeed);
+        }
+        else
+        {
+            drawCameraSignCompact(canvasSprite, badgeX + 15, badgeY + 13, 10, isBlink);
+        }
+
+        // 2. Tốc độ GPS ở giữa
+        uint16_t spdCol = isOverSpeed ? TFT_RED : TFT_GREEN;
+        myFont.print(badgeX + 30, badgeY + 6, speedBuf, spdCol, color565(15, 23, 42));
+
+        // 3. Nếu là cả 2 (Speed + Camera) -> vẽ thêm icon camera nhỏ bên phải
+        if (trafficWarningType == 3)
+        {
+            drawCameraSignCompact(canvasSprite, badgeX + badgeW - 15, badgeY + 13, 9, isBlink);
+        }
+    }
+    else
+    {
+        uint16_t spdLen = myFont.getLength(speedBuf);
+        uint16_t badgeW = spdLen + 16;
+        if (badgeW < 64)
+            badgeW = 64;
+        canvasSprite.fillRoundRect(120 - badgeW / 2, 205, badgeW, 22, 10, color565(30, 41, 59));
+        canvasSprite.drawRoundRect(120 - badgeW / 2, 205, badgeW, 22, 10, TFT_GREEN);
+        myFont.print(120 - spdLen / 2, 209, speedBuf, TFT_GREEN, color565(30, 41, 59));
+    }
 
     // Vẽ Overlay Cảnh báo Giao thông (nếu có)
     drawTrafficWarningOverlay();
@@ -586,6 +624,9 @@ void drawMapHudOverlay()
     {
         drawWeatherIcon(canvasSprite, weatherIcon, 50, 50);
     }
+
+    // Vẽ Overlay Cảnh báo Giao thông (nếu có)
+    drawTrafficWarningOverlay();
 }
 
 // ==========================================
@@ -618,77 +659,143 @@ void drawMapOverlay()
     canvasSprite.drawRect(mcx - 2, mcy - 4, 4, 12, TFT_WHITE);
     canvasSprite.drawRect(mcx + 2, mcy - 6, 4, 12, TFT_WHITE);
 
-    // Vẽ Overlay Cảnh báo Giao thông (nếu có)
-    drawTrafficWarningOverlay();
-
     // 4. Hiển thị icon thời tiết góc trên bên phải nếu có dữ liệu
     if (weatherIcon.length() > 0)
     {
         drawWeatherIcon(canvasSprite, weatherIcon, 204, 26);
     }
 
+    // 5. Vẽ Overlay Cảnh báo Giao thông (nếu có)
+    drawTrafficWarningOverlay();
+
     canvasSprite.pushSprite(0, 0);
 }
 
 // ==========================================
-// CẢNH BÁO GIAO THÔNG (SPEED LIMIT & CAMERA PHẠT NGUỘI) - POPUP OVERLAY 3 GIÂY & VIỀN NHÁP NHÁY ĐỎ
+// HÀM VẼ BIỂN BÁO GIỚI HẠN TỐC ĐỘ MINI (P.127 TRÒN VIỀN ĐỎ NỀN TRẮNG SỐ ĐEN)
+// ==========================================
+void drawSpeedLimitSignCompact(TFT_eSprite &sprite, int cx, int cy, int r, int speedVal, bool isBlinkInvert)
+{
+    int drawSpeed = (speedVal > 0) ? speedVal : 60;
+
+    if (isBlinkInvert)
+    {
+        sprite.fillCircle(cx, cy, r, TFT_YELLOW);
+        sprite.drawCircle(cx, cy, r, TFT_RED);
+        sprite.drawCircle(cx, cy, r - 1, TFT_RED);
+        sprite.setTextColor(TFT_RED, TFT_YELLOW);
+    }
+    else
+    {
+        sprite.fillCircle(cx, cy, r, TFT_WHITE);
+        sprite.drawCircle(cx, cy, r, TFT_RED);
+        sprite.drawCircle(cx, cy, r - 1, TFT_RED);
+        sprite.setTextColor(TFT_BLACK, TFT_WHITE);
+    }
+
+    sprite.setTextDatum(MC_DATUM);
+    if (drawSpeed >= 100)
+    {
+        sprite.drawNumber(drawSpeed, cx, cy, 1);
+    }
+    else
+    {
+        sprite.drawNumber(drawSpeed, cx, cy, 2);
+    }
+}
+
+// ==========================================
+// HÀM VẼ BIỂN BÁO CAMERA PHẠT NGUỘI MINI
+// ==========================================
+void drawCameraSignCompact(TFT_eSprite &sprite, int cx, int cy, int r, bool isBlinkInvert)
+{
+    if (isBlinkInvert)
+    {
+        sprite.fillCircle(cx, cy, r, TFT_RED);
+        sprite.drawCircle(cx, cy, r, TFT_WHITE);
+        sprite.setTextColor(TFT_WHITE, TFT_RED);
+    }
+    else
+    {
+        sprite.fillCircle(cx, cy, r, TFT_WHITE);
+        sprite.drawCircle(cx, cy, r, TFT_BLUE);
+        sprite.drawCircle(cx, cy, r - 1, TFT_BLUE);
+        sprite.setTextColor(TFT_BLUE, TFT_WHITE);
+    }
+
+    sprite.setTextDatum(MC_DATUM);
+    sprite.drawString("CAM", cx, cy, 1);
+}
+
+// ==========================================
+// CẢNH BÁO GIAO THÔNG (SPEED LIMIT & CAMERA PHẠT NGUỘI) - VIỀN NHÁP NHÁY 360° & BIỂN MINI VÙNG AN TOÀN
 // ==========================================
 void drawTrafficWarningOverlay()
 {
-    // Nếu không có cảnh báo nào đang hoạt động thì không vẽ Popup
     if (!isTrafficWarningActive)
         return;
 
-    int cx = 120; // Tâm màn hình GC9A01 (240x240)
-    int cy = 120;
-    int r = 48; // Bán kính hình tròn biển báo giao thông
+    // Tự động hết hạn cảnh báo sau 6 giây nếu không có gói tin mới
+    if (millis() - trafficWarningStartTime > 6000)
+    {
+        isTrafficWarningActive = false;
+        return;
+    }
 
-    // 0. Hiệu ứng viền tròn ngoài cùng màn hình nhấp nháy đỏ (chu kỳ 250ms) giúp tài xế phát hiện ngay lập tức
     bool isBlink = ((millis() - trafficWarningStartTime) / 250) % 2 == 0;
-    if (isBlink)
+    bool isOverSpeed = (trafficWarningValue > 0 && gpsSpeed > trafficWarningValue);
+
+    // 1. Hiệu ứng viền tròn ngoài cùng màn hình nhấp nháy đỏ 360 độ khi có cảnh báo
+    if (isBlink && (isOverSpeed || trafficWarningType == 0x01 || trafficWarningType == 0x02 || trafficWarningType == 3))
     {
-        canvasSprite.drawCircle(cx, cy, 119, TFT_RED);
-        canvasSprite.drawCircle(cx, cy, 118, TFT_RED);
-        canvasSprite.drawCircle(cx, cy, 117, TFT_RED);
-        canvasSprite.drawCircle(cx, cy, 116, TFT_RED);
+        canvasSprite.drawCircle(120, 120, 119, TFT_RED);
+        canvasSprite.drawCircle(120, 120, 118, TFT_RED);
+        canvasSprite.drawCircle(120, 120, 117, TFT_RED);
+        canvasSprite.drawCircle(120, 120, 116, TFT_RED);
     }
 
-    // 1. Vẽ vòng tròn ngoài màu đỏ nổi bật (Viền dày 5px chuẩn biển báo giao thông)
-    canvasSprite.fillCircle(cx, cy, r + 5, TFT_RED);
-
-    // 2. Vẽ vòng tròn viền trong màu trắng
-    canvasSprite.fillCircle(cx, cy, r + 1, TFT_WHITE);
-
-    // 3. Vẽ nền trong hình tròn màu trắng
-    canvasSprite.fillCircle(cx, cy, r - 4, TFT_WHITE);
-
-    if (trafficWarningType == 0x02) // Biển giới hạn tốc độ (Speed Limit)
+    // 2. Vẽ biển báo mini theo từng màn hình (nếu không phải HUD_MODE vì HUD_MODE đã tích hợp ở đáy)
+    if (currentMode == HUD_MODE)
     {
-        // 4. In số tốc độ giới hạn (ví dụ: 50, 60) màu đen in đậm chính giữa
-        myFont.set_font(FONT_CLOCK);
-        String valStr = String(trafficWarningValue);
-        uint16_t txtLen = myFont.getLength(valStr);
-        myFont.print(cx - txtLen / 2, cy - 16, valStr, TFT_BLACK, TFT_WHITE);
-
-        // 5. In nhãn "km/h" màu xám đen phía dưới
-        myFont.set_font(FONT_MENU_OPTION);
-        String unitStr = "km/h";
-        uint16_t uLen = myFont.getLength(unitStr);
-        myFont.print(cx - uLen / 2, cy + 20, unitStr, TFT_DARKGREY, TFT_WHITE);
+        return;
     }
-    else if (trafficWarningType == 0x01) // Camera phạt nguội (Speed Camera)
+    else if (currentMode == STATUS_MODE)
     {
-        // 4. In tiêu đề "CAM" màu đỏ nổi bật
-        myFont.set_font(FONT_NOTIF_TITLE);
-        String camTitle = "CAM";
-        uint16_t cLen = myFont.getLength(camTitle);
-        myFont.print(cx - cLen / 2, cy - 22, camTitle, TFT_RED, TFT_WHITE);
-
-        // 5. In nhãn "PHẠT NGUỘI" màu đen phía dưới
-        myFont.set_font(FONT_HUD_STREET);
-        String alertText = "PHẠT NGUỘI";
-        uint16_t aLen = myFont.getLength(alertText);
-        myFont.print(cx - aLen / 2, cy + 6, alertText, TFT_BLACK, TFT_WHITE);
+        if (statusStyle == 1)
+        {
+            if (trafficWarningType == 0x02 || trafficWarningType == 3)
+                drawSpeedLimitSignCompact(canvasSprite, 52, 120, 13, trafficWarningValue, isBlink && isOverSpeed);
+            else
+                drawCameraSignCompact(canvasSprite, 52, 120, 13, isBlink);
+        }
+        else if (statusStyle == 2)
+        {
+            if (trafficWarningType == 0x02 || trafficWarningType == 3)
+                drawSpeedLimitSignCompact(canvasSprite, 195, 103, 13, trafficWarningValue, isBlink && isOverSpeed);
+            else
+                drawCameraSignCompact(canvasSprite, 195, 103, 13, isBlink);
+        }
+        else
+        {
+            if (trafficWarningType == 0x02 || trafficWarningType == 3)
+                drawSpeedLimitSignCompact(canvasSprite, 195, 42, 13, trafficWarningValue, isBlink && isOverSpeed);
+            else
+                drawCameraSignCompact(canvasSprite, 195, 42, 13, isBlink);
+        }
+    }
+    else if (currentMode == MAP_HUD_MODE || currentMode == MAP_MODE)
+    {
+        if (trafficWarningType == 0x02 || trafficWarningType == 3)
+            drawSpeedLimitSignCompact(canvasSprite, 195, 42, 13, trafficWarningValue, isBlink && isOverSpeed);
+        else
+            drawCameraSignCompact(canvasSprite, 195, 42, 13, isBlink);
+    }
+    else
+    {
+        if (trafficWarningType == 0x02 || trafficWarningType == 3)
+            drawSpeedLimitSignCompact(canvasSprite, 195, 42, 13, trafficWarningValue, isBlink && isOverSpeed);
+        else
+            drawCameraSignCompact(canvasSprite, 195, 42, 13, isBlink);
     }
 }
 

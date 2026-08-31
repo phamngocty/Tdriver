@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TYMAP ESP32 OLED 128x64 - Giao Diện & Cảnh Báo Tốc Độ Biển Báo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0d14;
+            --bg-card: #121824;
+            --bg-panel: #182234;
+            --border-color: #26354d;
+            --accent-cyan: #00e5ff;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --accent-amber: #f59e0b;
+            --accent-green: #10b981;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --oled-on: #67e8f9;
+            --oled-glow: rgba(103, 232, 249, 0.4);
+            --oled-bg: #030712;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            min-height: 100vh;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            text-align: center;
+            max-width: 900px;
+            margin-bottom: 24px;
+        }
+
+        .badge-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            color: var(--accent-cyan);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #fff 30%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-dim);
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 1240px;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+            align-items: start;
+        }
+
+        @media (max-width: 960px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        /* Screen Simulator Section */
+        .simulator-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .oled-bezel {
+            background: #090d16;
+            padding: 24px 32px;
+            border-radius: 20px;
+            border: 3px solid #1e293b;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.8), 0 12px 36px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .oled-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #475569;
+            margin-top: 12px;
+            text-transform: uppercase;
+        }
+
+        /* 128x64 scaled up 4x = 512x256 */
+        .canvas-container {
+            width: 512px;
+            height: 256px;
+            background: var(--oled-bg);
+            border-radius: 6px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 25px var(--oled-glow);
+            border: 1px solid #1e293b;
+        }
+
+        canvas#oledCanvas {
+            width: 512px;
+            height: 256px;
+            image-rendering: pixelated;
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .pill-status {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #64748b;
+        }
+
+        .dot.active-green { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .dot.active-red { background: #ef4444; box-shadow: 0 0 8px #ef4444; animation: pulse 0.5s infinite alternate; }
+        .dot.active-blue { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
+
+        @keyframes pulse {
+            from { opacity: 0.4; }
+            to { opacity: 1; }
+        }
+
+        /* Control Panel */
+        .controls-card {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .btn-tab {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px 8px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-align: center;
+        }
+
+        .btn-tab:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(0, 229, 255, 0.08);
+        }
+
+        .btn-tab.active {
+            background: linear-gradient(135deg, rgba(0, 229, 255, 0.2), rgba(59, 130, 246, 0.2));
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+        }
+
+        .sub-btn-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+
+        .btn-subtab {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            color: var(--text-dim);
+            padding: 6px 4px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .btn-subtab.active {
+            background: var(--accent-blue);
+            color: #fff;
+            border-color: var(--accent-blue);
+        }
+
+        /* Sliders */
+        .slider-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent-cyan);
+            height: 6px;
+            border-radius: 3px;
+            background: #26354d;
+        }
+
+        .slider-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 14px;
+            min-width: 65px;
+            color: var(--accent-cyan);
+            text-align: right;
+        }
+
+        /* Warning Toggles */
+        .warning-box {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .switch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .switch-title {
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Toggle switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider-round {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #334155;
+            transition: .3s;
+            border-radius: 24px;
+        }
+
+        .slider-round:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider-round {
+            background-color: var(--accent-red);
+        }
+
+        input:checked + .slider-round:before {
+            transform: translateX(20px);
+        }
+
+        /* Feature Overview Gallery */
+        .gallery-section {
+            width: 100%;
+            max-width: 1240px;
+            margin-top: 36px;
+        }
+
+        .gallery-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .gallery-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .gallery-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .gallery-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            font-weight: 700;
+        }
+
+        .gallery-canvas-wrap {
+            width: 100%;
+            aspect-ratio: 2 / 1;
+            background: var(--oled-bg);
+            border-radius: 6px;
+            border: 1px solid #1e293b;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gallery-canvas-wrap canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .gallery-desc {
+            font-size: 12px;
+            color: var(--text-dim);
+            line-height: 1.4;
+        }
+
+        /* Comparison logic callout */
+        .callout-box {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(6, 78, 59, 0.2));
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 24px;
+            max-width: 1240px;
+            width: 100%;
+        }
+
+        .callout-title {
+            color: var(--accent-green);
+            font-weight: 700;
+            font-size: 15px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .callout-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 13px;
+            color: #cbd5e1;
+        }
+
+        .callout-list li::before {
+            content: "✓ ";
+            color: var(--accent-green);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="badge-tag">
+            <span>⚡ TYMAP ESP32 OLED 128x64 FIRMWARE UI SIMULATOR</span>
+        </div>
+        <h1>Mô Phỏng Cảnh Báo Tốc Độ Dạng Biển Báo Trực Quan</h1>
+        <p class="subtitle">
+            Khắc phục lỗi nhảy màn hình: Cảnh báo hiển thị <strong>Biển Báo Tốc Độ Tròn / Camera Biển Báo</strong> ngay tại màn hình hiện hành, <strong>KHÔNG</strong> nhảy sang popup văn bản NOTIF_MODE làm gián đoạn điều hướng.
+        </p>
+    </div>
+
+    <div class="main-container">
+        <!-- Simulator View -->
+        <div class="card simulator-box">
+            <div class="oled-bezel">
+                <div class="canvas-container">
+                    <canvas id="oledCanvas" width="128" height="64"></canvas>
+                </div>
+                <div class="oled-label">ESP32-C3 • 0.96" OLED 128x64 SH1106</div>
+            </div>
+
+            <div class="status-indicators">
+                <div class="pill-status">
+                    <span class="dot active-green" id="bleDot"></span>
+                    <span>BLE Đã kết nối</span>
+                </div>
+                <div class="pill-status">
+                    <span class="dot" id="warnDot"></span>
+                    <span id="warnStatusText">Không có cảnh báo</span>
+                </div>
+                <div class="pill-status">
+                    <span>⚡ Chế độ: <strong id="curModeName" style="color:var(--accent-cyan)">STATUS (S1)</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="card controls-card">
+            <!-- Mode Selection -->
+            <div class="control-group">
+                <div class="control-label">
+                    <span>1. CHỌN CHẾ ĐỘ HIỂN THỊ (MODE)</span>
+                </div>
+                <div class="btn-grid">
+                    <button class="btn-tab active" onclick="setMode('STATUS')">STATUS</button>
+                    <button class="btn-tab" onclick="setMode('HUD')">HUD DẪN ĐƯỜNG</button>
+                    <button class="btn-tab" onclick="setMode('MAP')">MAP</button>
+                    <button class="btn-tab" onclick="setMode('INFO')">INFO</button>
+                    <button class="btn-tab" onclick="setMode('NOTIF')">NOTIF</button>
+                </div>
+            </div>
+
+            <!-- Style selection -->
+            <div class="control-group" id="styleGroup">
+                <div class="control-label">
+                    <span>2. KIỂU GIAO DIỆN (STYLE)</span>
+                </div>
+                <div class="sub-btn-grid" id="styleButtons">
+                    <!-- Dynamic -->
+                </div>
+            </div>
+
+            <!-- Warning Simulator -->
+            <div class="warning-box">
+                <div class="control-label" style="color: #f87171">
+                    <span>3. THỬ NGHIỆM CẢNH BÁO TỐC ĐỘ</span>
+                </div>
+
+                <div class="switch-row">
+                    <span class="switch-title">
+                        <span>🚨 Kích hoạt Cảnh Báo Tốc Độ</span>
+                    </span>
+                    <label class="switch">
+                        <input type="checkbox" id="warningToggle" onchange="toggleWarning()">
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+
+                <div class="control-group" style="margin-top: 4px;">
+                    <div class="control-label">Loại Cảnh Báo:</div>
+                    <div class="sub-btn-grid" style="grid-template-columns: repeat(3, 1fr);">
+                        <button class="btn-subtab active" id="btnWarnType1" onclick="setWarnType(1)">Quá Tốc Độ</button>
+                        <button class="btn-subtab" id="btnWarnType2" onclick="setWarnType(2)">Camera Phạt</button>
+                        <button class="btn-subtab" id="btnWarnType3" onclick="setWarnType(3)">Cả Hai</button>
+                    </div>
+                </div>
+
+                <!-- Speed Limit -->
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Giới hạn tốc độ:</span>
+                        <span class="slider-val" id="limitDisplay">60 km/h</span>
+                    </div>
+                    <div class="sub-btn-grid" style="grid-template-columns: repeat(5, 1fr);">
+                        <button class="btn-subtab" onclick="setLimit(40)">40</button>
+                        <button class="btn-subtab" onclick="setLimit(50)">50</button>
+                        <button class="btn-subtab active" onclick="setLimit(60)">60</button>
+                        <button class="btn-subtab" onclick="setLimit(80)">80</button>
+                        <button class="btn-subtab" onclick="setLimit(90)">90</button>
+                    </div>
+                </div>
+
+                <!-- GPS Speed -->
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Tốc độ GPS xe chạy:</span>
+                        <span class="slider-val" id="speedDisplay">68 km/h</span>
+                    </div>
+                    <div class="slider-wrapper">
+                        <input type="range" id="speedSlider" min="0" max="120" value="68" oninput="onSpeedChange(this.value)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Road & Nav simulation -->
+            <div class="control-group">
+                <div class="control-label">Dữ liệu dẫn đường demo:</div>
+                <div class="sub-btn-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    <button class="btn-subtab active" onclick="setNavTurn(2, '150M', 'Nguyễn Văn Cừ')">Rẽ Trái</button>
+                    <button class="btn-subtab" onclick="setNavTurn(5, '80M', 'Lê Lợi')">Rẽ Phải</button>
+                    <button class="btn-subtab" onclick="setNavTurn(0, '1.2KM', 'Quốc Lộ 1A')">Đi Thẳng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Overview Gallery -->
+    <div class="gallery-section">
+        <div class="gallery-title">
+            <span>🎯 TẤT CẢ CÁC MÀN HÌNH KHI CÓ BIỂN BÁO CẢNH BÁO TỐC ĐỘ</span>
+        </div>
+
+        <div class="gallery-grid">
+            <!-- Card 1: STATUS S1 (Chrono / Clock) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>STATUS (Đồng Hồ S1)</span>
+                    <span class="gallery-badge">Biển Báo [60] Tròn</span>
+                </div>
+                <div class="gallery-canvas-wrap">
+                    <canvas id="thumb_status_s1" width="128" height="64"></canvas>
+                </div>
+                <div class="gallery-desc">Biển báo tròn [60] xuất hiện góc trên phải nhấp nháy, đồng hồ to ở trung tâm không bị che.</div>
+            </div>
+
+            <!-- Card 2: STATUS S2 (Speedometer) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>STATUS (Đồng Hồ Tốc Độ S2)</span>
+                    <span class="gallery-badge">Biển Báo + Đảo Màu</span>
+                </div>
+                <div class="gallery-canvas-wrap">
+                    <canvas id="thumb_status_s2" width="128" height="64"></canvas>
+                </div>
+                <div class="gallery-desc">Biển báo [60] tròn nằm cạnh tốc độ lớn, nhấp nháy viền cảnh báo khi chạy 68 km/h.</div>
+            </div>
+
+            <!-- Card 3: STATUS S5 (Sport Chrono Oscilloscope) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>STATUS (Sóng Oscilloscope S5)</span>
+                    <span class="gallery-badge">Biển Báo Góc Phải</span>
+                </div>
+                <div class="gallery-canvas-wrap">
+                    <canvas id="thumb_status_s5" width="128" height="64"></canvas>
+                </div>
+                <div class="gallery-desc">Sóng điện áp xe vẫn chạy liên tục 30 FPS, biển báo tròn nằm gọn trên thanh Header.</div>
+            </div>
+
+            <!-- Card 4: HUD H1 (Classic Boxed) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>HUD (H1 Classic Boxed)</span>
+                    <span class="gallery-badge">Biển Báo Góc Tốc Độ</span>
+                </div>
+                <div class="gallery-canvas-wrap">
+                    <canvas id="thumb_hud_h1" width="128" height="64"></canvas>
+                </div>
+                <div class="gallery-desc">Icon rẽ 48x48 + Tên đường tiếng Việt giữ nguyên, góc dưới bên phải hiện Biển báo [60] và tốc độ 68.</div>
+            </div>
+
+            <!-- Card 5: HUD H2 (Split Dash) -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>HUD (H2 Split Dashboard)</span>
+                    <span class="gallery-badge">Biển Báo Đỉnh Cột</span>
+                </div>
+                <div class="gallery-canvas-wrap">
+                    <canvas id="thumb_hud_h2" width="128" height="64"></canvas>
+                </div>
+                <div class="gallery-desc">Cột trái hiển thị Biển báo tròn [60] nhấp nháy, cột phải giữ nguyên icon rẽ & tên đường.</div>
+            </div>
+
+            <!-- Card 6: MAP Mode -->
+            <div class="gallery-card">
+                <div class="gallery-card-header">
+                    <span>MAP (Bản Đồ 1BPP)</span>
+                    <span class="gallery-badge">Biển Báo Floating Badge</span>
+                </div>
+                <div class="gallery-canvas-wrap">
+                    <canvas id="thumb_map" width="128" height="64"></canvas>
+                </div>
+                <div class="gallery-desc">Bản đồ luồng trực tiếp không bị ngắt quãng, biển báo tròn nhỏ gọn xuất hiện góc trên phải.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary of Changes -->
+    <div class="callout-box">
+        <div class="callout-title">
+            <span>✨ Nguyên Lý Hoạt Động Mới Được Đề Xuất Cho Firmware ESP32</span>
+        </div>
+        <ul class="callout-list">
+            <li><strong>Giữ nguyên chế độ hiện hành:</strong> Loại bỏ lệnh tự động chuyển sang <code>NOTIF_MODE</code> trong <code>WarningCallback</code> & <code>NotifCallback</code>. Màn hình người dùng đang xem (HUD, STATUS, MAP, INFO) sẽ tiếp tục chạy bình thường.</li>
+            <li><strong>Chuyển sang dạng Biển Báo Đồ Họa (Graphic Traffic Sign):</strong> Thay vì in chuỗi văn bản dài "QUÁ TỐC ĐỘ: 68 KM/H", màn hình sẽ vẽ biểu tượng <strong>Biển Báo Tròn Viền Đậm (P.127) chứa số tốc độ tối đa</strong> (ví dụ: [60]) và icon Camera đồ họa.</li>
+            <li><strong>Hiệu ứng Nhấp Nháy Cảnh Báo (Warning Blink):</strong> Khi tốc độ xe > tốc độ giới hạn, Biển báo tròn sẽ nhấp nháy đảo màu (Inverted Blink) với chu kỳ 250ms/500ms để người lái xe dễ quan sát nhưng không gây mất tập trung.</li>
+        </ul>
+    </div>
+
+    <script>
+        // State
+        let currentMode = 'STATUS';
+        let statusStyle = 0; // 0: S1 Clock, 1: S2 Speed, 2: S3 Volt, 3: S4 Weather, 4: S5 Oscilloscope
+        let hudStyle = 0;    // 0: H1 Classic, 1: H2 Split, 2: H3 Big Arrow, 3: H4 Racing
+        let isTrafficWarningActive = true;
+        let trafficWarningType = 1; // 1: Speed, 2: Camera, 3: Both
+        let trafficWarningValue = 60;
+        let gpsSpeed = 68;
+        let batteryVoltage = 12.6;
+        let weatherTemp = 31;
+        let navDirIdx = 2; // Rẽ trái
+        let distToNext = "150M";
+        let nextStreet = "Nguyễn Văn Cừ";
+        let bleConnected = true;
+
+        // Fake Oscilloscope buffer
+        let oscBuffer = new Array(80).fill(12.6);
+        let oscPhase = 0;
+
+        // Canvas Setup
+        const mainCanvas = document.getElementById('oledCanvas');
+        const mainCtx = mainCanvas.getContext('2d');
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.btn-grid .btn-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.innerText.includes(mode));
+            });
+            updateStyleButtons();
+            updateStatusLabel();
+            render();
+        }
+
+        function setStatusStyle(st) {
+            statusStyle = st;
+            updateStyleButtons();
+            updateStatusLabel();
+            render();
+        }
+
+        function setHudStyle(st) {
+            hudStyle = st;
+            updateStyleButtons();
+            updateStatusLabel();
+            render();
+        }
+
+        function updateStatusLabel() {
+            let label = currentMode;
+            if (currentMode === 'STATUS') {
+                const sNames = ['S1 Đồng Hồ', 'S2 Tốc Độ', 'S3 Điện Áp', 'S4 Thời Tiết', 'S5 Sóng Sắt'];
+                label += ` (${sNames[statusStyle]})`;
+            } else if (currentMode === 'HUD') {
+                const hNames = ['H1 Classic', 'H2 Split Dash', 'H3 Big Arrow', 'H4 Racing Bar'];
+                label += ` (${hNames[hudStyle]})`;
+            }
+            document.getElementById('curModeName').innerText = label;
+        }
+
+        function updateStyleButtons() {
+            const container = document.getElementById('styleButtons');
+            const styleGroup = document.getElementById('styleGroup');
+            container.innerHTML = '';
+
+            if (currentMode === 'STATUS') {
+                styleGroup.style.display = 'flex';
+                const styles = ['S1 Đồng Hồ', 'S2 Tốc Độ', 'S3 Điện Áp', 'S4 Thời Tiết', 'S5 Sóng'];
+                styles.forEach((name, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = `btn-subtab ${statusStyle === idx ? 'active' : ''}`;
+                    btn.innerText = name;
+                    btn.onclick = () => setStatusStyle(idx);
+                    container.appendChild(btn);
+                });
+            } else if (currentMode === 'HUD') {
+                styleGroup.style.display = 'flex';
+                const styles = ['H1 Classic', 'H2 Split', 'H3 Big Arrow', 'H4 Racing'];
+                styles.forEach((name, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = `btn-subtab ${hudStyle === idx ? 'active' : ''}`;
+                    btn.innerText = name;
+                    btn.onclick = () => setHudStyle(idx);
+                    container.appendChild(btn);
+                });
+            } else {
+                styleGroup.style.display = 'none';
+            }
+        }
+
+        function toggleWarning() {
+            isTrafficWarningActive = document.getElementById('warningToggle').checked;
+            updateWarnUI();
+            render();
+        }
+
+        function setWarnType(type) {
+            trafficWarningType = type;
+            document.getElementById('btnWarnType1').classList.toggle('active', type === 1);
+            document.getElementById('btnWarnType2').classList.toggle('active', type === 2);
+            document.getElementById('btnWarnType3').classList.toggle('active', type === 3);
+            render();
+        }
+
+        function setLimit(lim) {
+            trafficWarningValue = lim;
+            document.getElementById('limitDisplay').innerText = lim + " km/h";
+            document.querySelectorAll('.warning-box .sub-btn-grid button').forEach(btn => {
+                btn.classList.toggle('active', btn.innerText === String(lim));
+            });
+            render();
+        }
+
+        function onSpeedChange(val) {
+            gpsSpeed = parseInt(val);
+            document.getElementById('speedDisplay').innerText = val + " km/h";
+            render();
+        }
+
+        function setNavTurn(dir, dist, street) {
+            navDirIdx = dir;
+            distToNext = dist;
+            nextStreet = street;
+            render();
+        }
+
+        function updateWarnUI() {
+            const dot = document.getElementById('warnDot');
+            const text = document.getElementById('warnStatusText');
+            if (isTrafficWarningActive) {
+                dot.className = 'dot active-red';
+                text.innerText = `CẢNH BÁO [MAX ${trafficWarningValue}]`;
+                text.style.color = '#f87171';
+            } else {
+                dot.className = 'dot';
+                text.innerText = 'Không có cảnh báo';
+                text.style.color = 'var(--text-dim)';
+            }
+        }
+
+        // ------------------ OLED GRAPHICS ENGINE (128x64) ------------------
+        const OLED_COLOR_ON = '#67e8f9';
+        const OLED_COLOR_BG = '#030712';
+
+        function clearCanvas(ctx) {
+            ctx.fillStyle = OLED_COLOR_BG;
+            ctx.fillRect(0, 0, 128, 64);
+            ctx.fillStyle = OLED_COLOR_ON;
+            ctx.strokeStyle = OLED_COLOR_ON;
+            ctx.lineWidth = 1;
+        }
+
+        // Draw Speed Sign (Biển Báo Tròn Chuẩn P.127)
+        function drawSpeedSign(ctx, cx, cy, radius, speedVal, isBlinkInvert) {
+            if (isBlinkInvert) {
+                // Đảo màu nền trắng tròn, số màu đen
+                ctx.fillStyle = OLED_COLOR_ON;
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = OLED_COLOR_BG;
+                ctx.font = 'bold 9px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(speedVal, cx, cy);
+                ctx.fillStyle = OLED_COLOR_ON;
+            } else {
+                // Viền tròn kép dày
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius - 1.5, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.font = 'bold 9px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(speedVal, cx, cy);
+            }
+        }
+
+        // Draw Camera Icon (Icon Camera Biển Báo)
+        function drawCameraIcon(ctx, x, y, isBlinkInvert) {
+            if (isBlinkInvert) {
+                ctx.fillStyle = OLED_COLOR_ON;
+                ctx.fillRect(x, y, 18, 14);
+                ctx.fillStyle = OLED_COLOR_BG;
+                // Lens
+                ctx.beginPath();
+                ctx.arc(x + 9, y + 8, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillRect(x + 4, y + 1, 4, 2);
+                ctx.fillStyle = OLED_COLOR_ON;
+            } else {
+                ctx.strokeRect(x, y + 2, 18, 12);
+                ctx.fillRect(x + 4, y, 5, 2); // Flash bump
+                ctx.beginPath();
+                ctx.arc(x + 9, y + 8, 3.5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        // Draw Combined Sign Badge (Biển Báo Tốc Độ & Camera)
+        function drawTrafficBadgeOverlay(ctx, x, y, isBlink) {
+            if (!isTrafficWarningActive) return;
+
+            if (trafficWarningType === 1) { // Speed Limit
+                drawSpeedSign(ctx, x + 11, y + 11, 10, trafficWarningValue, isBlink);
+            } else if (trafficWarningType === 2) { // Camera
+                drawCameraIcon(ctx, x + 2, y + 4, isBlink);
+            } else { // Both
+                drawSpeedSign(ctx, x + 9, y + 10, 8, trafficWarningValue, isBlink);
+                drawCameraIcon(ctx, x + 20, y + 3, isBlink);
+            }
+        }
+
+        // Draw Navigation Arrow (Vector)
+        function drawNavTurnArrow(ctx, dir, ox, oy) {
+            ctx.save();
+            ctx.translate(ox, oy);
+            ctx.fillStyle = OLED_COLOR_ON;
+
+            if (dir === 2) { // Left
+                ctx.fillRect(24, 14, 5, 24);
+                ctx.fillRect(8, 14, 18, 5);
+                ctx.beginPath();
+                ctx.moveTo(2, 16);
+                ctx.lineTo(14, 6);
+                ctx.lineTo(14, 26);
+                ctx.closePath();
+                ctx.fill();
+            } else if (dir === 5) { // Right
+                ctx.fillRect(12, 14, 5, 24);
+                ctx.fillRect(14, 14, 18, 5);
+                ctx.beginPath();
+                ctx.moveTo(38, 16);
+                ctx.lineTo(26, 6);
+                ctx.lineTo(26, 26);
+                ctx.closePath();
+                ctx.fill();
+            } else { // Straight
+                ctx.fillRect(18, 16, 5, 22);
+                ctx.beginPath();
+                ctx.moveTo(20, 4);
+                ctx.lineTo(8, 18);
+                ctx.lineTo(32, 18);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // RENDER SCREEN FUNCTIONS
+        function drawScreenSTATUS(ctx, style, blink) {
+            clearCanvas(ctx);
+
+            if (style === 0) { // S1: Big Digital Clock
+                // Header
+                ctx.fillRect(4, 5, 3, 3); // BLE dot
+                ctx.font = '8px "Plus Jakarta Sans", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('31/08', 12, 8);
+                ctx.textAlign = 'right';
+                ctx.fillText(`${weatherTemp}°C`, 124, 8);
+                ctx.fillRect(0, 12, 128, 1);
+
+                // Big Clock Center
+                ctx.font = 'bold 24px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('15:09', 64, 38);
+
+                // Footer
+                ctx.font = '8px "JetBrains Mono", monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(`XE: ${batteryVoltage.toFixed(1)}V`, 4, 58);
+                ctx.textAlign = 'right';
+                ctx.fillText('DT: 95%', 124, 58);
+
+                // Traffic Sign Badge (Góc trên phải hoặc cạnh đồng hồ)
+                if (isTrafficWarningActive) {
+                    drawTrafficBadgeOverlay(ctx, 102, 16, blink);
+                }
+            } else if (style === 1) { // S2: Speedometer Focus
+                // Header
+                ctx.font = '8px "Plus Jakarta Sans", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('15:09  •  12.6V', 4, 8);
+                ctx.fillRect(0, 12, 128, 1);
+
+                // Speed Big
+                ctx.font = 'bold 26px "JetBrains Mono", monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(`${gpsSpeed}`, 16, 42);
+
+                ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+                ctx.fillText('KM/H', 62, 38);
+
+                // Speed Limit Sign Right
+                if (isTrafficWarningActive) {
+                    drawTrafficBadgeOverlay(ctx, 98, 18, blink);
+                }
+
+                // Speed Bar Gauge Bottom
+                ctx.strokeRect(0, 52, 128, 10);
+                const fillW = Math.min(128, (gpsSpeed / 120) * 128);
+                ctx.fillRect(0, 52, fillW, 10);
+
+            } else if (style === 2) { // S3: Battery / Voltage
+                ctx.font = '8px "Plus Jakarta Sans", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('15:09  •  DT: 95%', 4, 8);
+                ctx.fillRect(0, 12, 128, 1);
+
+                // Voltage Big
+                ctx.font = 'bold 24px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${batteryVoltage.toFixed(1)}`, 54, 40);
+                ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+                ctx.fillText('VOLT', 92, 38);
+
+                if (isTrafficWarningActive) {
+                    drawTrafficBadgeOverlay(ctx, 104, 16, blink);
+                }
+
+                // Voltage Bar
+                ctx.strokeRect(0, 52, 128, 9);
+                ctx.fillRect(0, 54, 85, 5);
+            } else if (style === 3) { // S4: Weather
+                // Left: Weather icon
+                ctx.beginPath();
+                ctx.arc(22, 26, 9, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.fillRect(0, 0, 1, 64); // Divider
+
+                ctx.font = 'bold 18px "JetBrains Mono", monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(`${weatherTemp}°C`, 50, 24);
+
+                ctx.font = '8px "Plus Jakarta Sans", sans-serif';
+                ctx.fillText('Hà Nội • Nắng đẹp', 50, 38);
+                ctx.fillText(`15:09 | ${batteryVoltage}V`, 50, 52);
+
+                if (isTrafficWarningActive) {
+                    drawTrafficBadgeOverlay(ctx, 102, 14, blink);
+                }
+            } else { // S5: Sport Chrono & Realtime Oscilloscope
+                // Header
+                ctx.font = '8px "JetBrains Mono", monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('15:09', 2, 8);
+                ctx.fillText('31/08', 34, 8);
+                ctx.textAlign = 'right';
+                ctx.fillText(`${weatherTemp}°C`, 126, 8);
+                ctx.fillRect(0, 12, 128, 1);
+
+                // Left: Voltage telemetry
+                ctx.font = 'bold 11px "JetBrains Mono", monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(`${batteryVoltage.toFixed(1)}V`, 2, 26);
+                ctx.font = '7px "JetBrains Mono", monospace';
+                ctx.fillText('L:12.4 H:14.2', 2, 38);
+                ctx.fillText('30ms/D', 2, 48);
+
+                // Oscilloscope Box Right (80x46)
+                ctx.strokeRect(46, 14, 80, 48);
+                ctx.beginPath();
+                for (let i = 0; i < 78; i++) {
+                    const py = 38 + Math.sin((i + oscPhase) * 0.2) * 10;
+                    if (i === 0) ctx.moveTo(47 + i, py);
+                    else ctx.lineTo(47 + i, py);
+                }
+                ctx.stroke();
+
+                // Speed Limit Sign Floating
+                if (isTrafficWarningActive) {
+                    // Small floating badge over header or left column
+                    drawSpeedSign(ctx, 36, 50, 8, trafficWarningValue, blink);
+                }
+            }
+        }
+
+        function drawScreenHUD(ctx, style, blink) {
+            clearCanvas(ctx);
+
+            if (style === 0) { // H1: Classic Boxed
+                // Top Left: Arrow
+                drawNavTurnArrow(ctx, navDirIdx, 0, 0);
+
+                // Right: Street Name
+                ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(nextStreet, 50, 12);
+                ctx.font = '8px "Plus Jakarta Sans", sans-serif';
+                ctx.fillText('Chuẩn bị rẽ trái', 50, 26);
+
+                // Bottom Left: Distance Big
+                ctx.font = 'bold 14px "JetBrains Mono", monospace';
+                ctx.fillText(distToNext, 4, 58);
+
+                // Bottom Right: Speed & Speed Limit Sign
+                if (isTrafficWarningActive) {
+                    // Speed Sign next to GPS Speed
+                    drawSpeedSign(ctx, 80, 50, 9, trafficWarningValue, blink);
+                    ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(`${gpsSpeed}`, 124, 54);
+                } else {
+                    ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(`${gpsSpeed} km/h`, 124, 54);
+                }
+
+            } else if (style === 1) { // H2: Split Dashboard
+                // Left Column (x=0..54): Speed & Speed Limit Sign
+                if (isTrafficWarningActive) {
+                    drawSpeedSign(ctx, 27, 14, 9, trafficWarningValue, blink);
+                    ctx.font = 'bold 18px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${gpsSpeed}`, 27, 38);
+                    ctx.font = 'bold 8px "Plus Jakarta Sans", sans-serif';
+                    ctx.fillText('KM/H', 27, 48);
+                } else {
+                    ctx.font = 'bold 22px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${gpsSpeed}`, 27, 30);
+                    ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+                    ctx.fillText('KM/H', 27, 44);
+                }
+
+                // Vertical Divider
+                ctx.fillRect(54, 0, 1, 64);
+
+                // Right Column: Turn Arrow + Dist + Street
+                drawNavTurnArrow(ctx, navDirIdx, 54, 0);
+                ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(distToNext, 94, 18);
+
+                ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+                ctx.fillText(nextStreet, 58, 48);
+
+            } else if (style === 2) { // H3: Big Arrow Focus
+                // Big Arrow Left
+                drawNavTurnArrow(ctx, navDirIdx, 2, 4);
+                ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(distToNext, 24, 58);
+
+                // Right: Street + Speed
+                ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(nextStreet, 50, 14);
+
+                if (isTrafficWarningActive) {
+                    drawSpeedSign(ctx, 60, 36, 8, trafficWarningValue, blink);
+                    ctx.font = 'bold 11px "JetBrains Mono", monospace';
+                    ctx.fillText(`${gpsSpeed} km/h`, 74, 38);
+                } else {
+                    ctx.font = 'bold 11px "JetBrains Mono", monospace';
+                    ctx.fillText(`${gpsSpeed} km/h`, 50, 36);
+                }
+
+                ctx.font = '8px "JetBrains Mono", monospace';
+                ctx.fillText('ETA 15:24', 50, 54);
+
+            } else { // H4: Racing Telemetry
+                // Top Bar
+                ctx.strokeRect(0, 0, 80, 6);
+                ctx.fillRect(0, 0, (gpsSpeed / 120) * 80, 6);
+
+                if (isTrafficWarningActive) {
+                    drawSpeedSign(ctx, 92, 6, 6, trafficWarningValue, blink);
+                    ctx.font = 'bold 8px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(`${gpsSpeed}K`, 124, 8);
+                } else {
+                    ctx.font = 'bold 8px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(`${gpsSpeed} KM/H`, 124, 8);
+                }
+
+                drawNavTurnArrow(ctx, navDirIdx, 0, 10);
+                ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(distToNext, 46, 22);
+
+                ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+                ctx.fillText(nextStreet, 46, 38);
+
+                ctx.fillRect(0, 52, 128, 1);
+                ctx.font = '8px "JetBrains Mono", monospace';
+                ctx.fillText(`XE: ${batteryVoltage}V`, 2, 60);
+                ctx.textAlign = 'right';
+                ctx.fillText('ETA 15:24', 126, 60);
+            }
+        }
+
+        function drawScreenMAP(ctx, blink) {
+            clearCanvas(ctx);
+
+            // Fake 1bpp Map tiles
+            ctx.beginPath();
+            ctx.arc(64, 32, 28, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.moveTo(10, 20); ctx.lineTo(118, 44);
+            ctx.moveTo(30, 60); ctx.lineTo(90, 4);
+            ctx.stroke();
+
+            // Vehicle Location Arrow in Map center
+            ctx.beginPath();
+            ctx.moveTo(64, 26);
+            ctx.lineTo(58, 38);
+            ctx.lineTo(64, 34);
+            ctx.lineTo(70, 38);
+            ctx.closePath();
+            ctx.fill();
+
+            // Speed bottom left box
+            ctx.fillStyle = OLED_COLOR_BG;
+            ctx.fillRect(0, 48, 46, 16);
+            ctx.fillStyle = OLED_COLOR_ON;
+            ctx.strokeRect(0, 48, 46, 16);
+            ctx.font = 'bold 9px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(`${gpsSpeed}k`, 23, 58);
+
+            // Traffic Sign Floating top right
+            if (isTrafficWarningActive) {
+                drawTrafficBadgeOverlay(ctx, 102, 6, blink);
+            }
+        }
+
+        function drawScreenINFO(ctx, blink) {
+            clearCanvas(ctx);
+            ctx.strokeRect(0, 0, 128, 64);
+            ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('TYMAP ESP32-C3 v1.1.0', 64, 9);
+            ctx.fillRect(0, 14, 128, 1);
+
+            ctx.font = '8px "JetBrains Mono", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('Free Heap : 182 KB', 6, 26);
+            ctx.fillText(`Battery   : ${batteryVoltage}V (95%)`, 6, 38);
+            ctx.fillText('Uptime    : 02:45:18', 6, 50);
+
+            if (isTrafficWarningActive) {
+                drawTrafficBadgeOverlay(ctx, 104, 20, blink);
+            }
+        }
+
+        function drawScreenNOTIF(ctx) {
+            clearCanvas(ctx);
+            ctx.strokeRect(0, 0, 128, 64);
+            ctx.fillRect(0, 14, 128, 1);
+
+            ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('ZALO • 15:08', 6, 9);
+
+            ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText('Nguyễn Văn A', 6, 26);
+            ctx.font = '8px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText('Anh ơi nhớ ghé mua đồ ăn', 6, 40);
+            ctx.fillText('chiều nay nhé!', 6, 52);
+        }
+
+        // Render main active screen
+        function render() {
+            const isBlink = isTrafficWarningActive && (Math.floor(Date.now() / 300) % 2 === 0);
+
+            if (currentMode === 'STATUS') {
+                drawScreenSTATUS(mainCtx, statusStyle, isBlink);
+            } else if (currentMode === 'HUD') {
+                drawScreenHUD(mainCtx, hudStyle, isBlink);
+            } else if (currentMode === 'MAP') {
+                drawScreenMAP(mainCtx, isBlink);
+            } else if (currentMode === 'INFO') {
+                drawScreenINFO(mainCtx, isBlink);
+            } else if (currentMode === 'NOTIF') {
+                drawScreenNOTIF(mainCtx);
+            }
+
+            renderGallery();
+        }
+
+        // Render all thumbnails
+        function renderGallery() {
+            const isBlink = isTrafficWarningActive && (Math.floor(Date.now() / 300) % 2 === 0);
+
+            const c_s1 = document.getElementById('thumb_status_s1').getContext('2d');
+            drawScreenSTATUS(c_s1, 0, isBlink);
+
+            const c_s2 = document.getElementById('thumb_status_s2').getContext('2d');
+            drawScreenSTATUS(c_s2, 1, isBlink);
+
+            const c_s5 = document.getElementById('thumb_status_s5').getContext('2d');
+            drawScreenSTATUS(c_s5, 4, isBlink);
+
+            const c_h1 = document.getElementById('thumb_hud_h1').getContext('2d');
+            drawScreenHUD(c_h1, 0, isBlink);
+
+            const c_h2 = document.getElementById('thumb_hud_h2').getContext('2d');
+            drawScreenHUD(c_h2, 1, isBlink);
+
+            const c_map = document.getElementById('thumb_map').getContext('2d');
+            drawScreenMAP(c_map, isBlink);
+        }
+
+        // Animation loop for realistic OLED blink & oscilloscope
+        function animLoop() {
+            oscPhase += 0.5;
+            render();
+            requestAnimationFrame(animLoop);
+        }
+
+        // Init
+        document.getElementById('warningToggle').checked = isTrafficWarningActive;
+        updateWarnUI();
+        updateStyleButtons();
+        updateStatusLabel();
+        animLoop();
+    </script>
+</body>
+</html>
