@@ -296,6 +296,24 @@ class MyBleManager(context: Context) : BleManager(context) {
 
     suspend fun writeOledImage(bitmapData: ByteArray) {
         val char = oledImageChar ?: return
+
+        try {
+            if (bitmapData.size >= 1024) {
+                val previewBmp = android.graphics.Bitmap.createBitmap(128, 64, android.graphics.Bitmap.Config.ARGB_8888)
+                for (y in 0 until 64) {
+                    for (x in 0 until 128) {
+                        val byteIdx = (y / 8) * 128 + x
+                        val bitPos = y % 8
+                        val isWhite = ((bitmapData[byteIdx].toInt() shr bitPos) and 1) != 0
+                        previewBmp.setPixel(x, y, if (isWhite) android.graphics.Color.WHITE else android.graphics.Color.BLACK)
+                    }
+                }
+                NavigationRepository.updateLastSentMapImage(previewBmp)
+            }
+        } catch (e: Exception) {
+            Log.e("BleManager", "Error decoding OLED bitmap preview: ${e.message}")
+        }
+
         val sizeBuffer = ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN)
         sizeBuffer.putShort(bitmapData.size.toShort())
         

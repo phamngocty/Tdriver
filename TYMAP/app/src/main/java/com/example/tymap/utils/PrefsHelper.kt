@@ -72,17 +72,63 @@ object PrefsHelper {
         return getString(context, key, default)
     }
 
-    // Specialized
-    fun addPairedDevice(context: Context, deviceEntry: String) {
+    // Specialized: Lịch sử kết nối BLE với Khử Trùng Lặp MAC & Quản Lý Xóa
+    fun addPairedDevice(context: Context, name: String, mac: String) {
+        if (mac.isBlank()) return
         val prefs = getPrefs(context)
-        val history = prefs.getStringSet("paired_history", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        if (!history.contains(deviceEntry)) {
+        val oldSet = prefs.getStringSet("paired_history", emptySet()) ?: emptySet()
+        val history = HashSet(oldSet)
+        val cleanName = if (name.isBlank() || name == "Thiết bị") "TYMAP" else name.trim()
+        val cleanMac = mac.trim().uppercase()
+        // Loại bỏ mọi mục cũ có cùng MAC address để khử hoàn toàn trùng lặp
+        val toRemove = history.filter { it.contains(cleanMac, ignoreCase = true) }
+        history.removeAll(toRemove.toSet())
+        history.add("$cleanName ($cleanMac)")
+        prefs.edit().putStringSet("paired_history", history).apply()
+    }
+
+    fun addPairedDevice(context: Context, deviceEntry: String) {
+        val mac = deviceEntry.substringAfter("(").substringBefore(")").trim()
+        val name = deviceEntry.substringBefore("(").trim()
+        if (mac.length == 17) {
+            addPairedDevice(context, name, mac)
+        } else {
+            val prefs = getPrefs(context)
+            val oldSet = prefs.getStringSet("paired_history", emptySet()) ?: emptySet()
+            val history = HashSet(oldSet)
+            val toRemove = history.filter { it.contains(deviceEntry, ignoreCase = true) }
+            history.removeAll(toRemove.toSet())
             history.add(deviceEntry)
             prefs.edit().putStringSet("paired_history", history).apply()
         }
     }
+
+    fun removePairedDevice(context: Context, macOrEntry: String) {
+        val prefs = getPrefs(context)
+        val oldSet = prefs.getStringSet("paired_history", emptySet()) ?: emptySet()
+        val history = HashSet(oldSet)
+        val target = macOrEntry.substringAfter("(").substringBefore(")").trim().ifEmpty { macOrEntry.trim() }
+        val toRemove = history.filter { it.contains(target, ignoreCase = true) }
+        if (toRemove.isNotEmpty()) {
+            history.removeAll(toRemove.toSet())
+            prefs.edit().putStringSet("paired_history", history).apply()
+        }
+    }
     
-    fun getPairedHistory(context: Context): Set<String> = getPrefs(context).getStringSet("paired_history", emptySet()) ?: emptySet()
+    fun getPairedHistory(context: Context): Set<String> {
+        val rawSet = getPrefs(context).getStringSet("paired_history", emptySet()) ?: emptySet()
+        // Deduplicate and sanitize entries
+        val mapByMac = mutableMapOf<String, String>()
+        for (entry in rawSet) {
+            val mac = entry.substringAfter("(").substringBefore(")").trim().uppercase()
+            if (mac.length == 17) {
+                mapByMac[mac] = entry
+            } else if (entry.isNotBlank()) {
+                mapByMac[entry] = entry
+            }
+        }
+        return mapByMac.values.toSet()
+    }
     
     fun clearPairedHistory(context: Context) = getPrefs(context).edit().remove("paired_history").apply()
 

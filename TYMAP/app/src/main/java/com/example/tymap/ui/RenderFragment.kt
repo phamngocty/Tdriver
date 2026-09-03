@@ -49,15 +49,34 @@ class RenderFragment : Fragment() {
         }
         setupLogRecyclerView()
 
-        // 1. Observe last sent map image (fallback) and mapPreviewInfo (rolling crop simulation)
+        // 1. Observe Base Map (Bản đồ gốc khi chạy chế độ OLED)
+        lifecycleScope.launch {
+            NavigationRepository.oledBaseMap.collectLatest { baseBmp ->
+                if (baseBmp != null) {
+                    binding.tvLeftMapTitle.text = "Bản đồ gốc (Base Map)"
+                    binding.cvLeftMapRoundCard.radius = 12f * resources.displayMetrics.density
+                    binding.ivMapPreview.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                    binding.ivMapPreview.setImageBitmap(baseBmp)
+                    binding.ivMapPreview.visibility = View.VISIBLE
+                    binding.ivIconPreview.visibility = View.GONE
+                }
+            }
+        }
+
+        // 2. Observe mapPreviewInfo (rolling crop simulation cho màn tròn S3)
         lifecycleScope.launch {
             NavigationRepository.mapPreviewInfo.collectLatest { info ->
                 if (info != null) {
-                    if (info.croppedMap != null) {
+                    if (info.croppedMap != null && NavigationRepository.oledBaseMap.value == null) {
+                        binding.tvLeftMapTitle.text = "Màn hình Watch (240x240)"
+                        binding.cvLeftMapRoundCard.radius = 70f * resources.displayMetrics.density
+                        binding.ivMapPreview.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
                         binding.ivMapPreview.setImageBitmap(info.croppedMap)
                         binding.ivMapPreview.visibility = View.VISIBLE
                     }
                     if (info.fullMap != null) {
+                        binding.tvRollingMapTitle.text = "Bản đồ Cuốn chiếu (Rolling)"
+                        binding.layoutOledFrame.visibility = View.GONE
                         binding.ivFullMapPreview.setImageBitmap(info.fullMap)
                         binding.ivFullMapPreview.setCropInfo(info.cropX, info.cropY, info.cropSize)
                         binding.ivFullMapPreview.visibility = View.VISIBLE
@@ -65,26 +84,26 @@ class RenderFragment : Fragment() {
                         binding.ivFullMapPreview.setImageDrawable(null)
                         binding.ivFullMapPreview.visibility = View.GONE
                     }
-                } else {
-                    // Fallback to last sent map image from BLE decode
-                    val fallbackBmp = NavigationRepository.lastSentMapImage.value
-                    if (fallbackBmp != null) {
-                        binding.ivMapPreview.setImageBitmap(fallbackBmp)
-                        binding.ivMapPreview.visibility = View.VISIBLE
-                    } else {
-                        binding.ivMapPreview.setImageDrawable(null)
-                    }
-                    binding.ivFullMapPreview.setImageDrawable(null)
-                    binding.ivFullMapPreview.visibility = View.GONE
                 }
             }
         }
 
+        // 3. Observe last sent map image (OLED 128x64 display preview)
         lifecycleScope.launch {
             NavigationRepository.lastSentMapImage.collectLatest { bitmap ->
-                if (bitmap != null && NavigationRepository.mapPreviewInfo.value == null) {
-                    binding.ivMapPreview.setImageBitmap(bitmap)
-                    binding.ivMapPreview.visibility = View.VISIBLE
+                if (bitmap != null) {
+                    val isOled = bitmap.width == 128 && bitmap.height == 64
+                    if (isOled) {
+                        binding.tvRollingMapTitle.text = "Màn hình OLED 128x64 (ESP32-C3)"
+                        binding.ivFullMapPreview.visibility = View.GONE
+                        binding.layoutOledFrame.visibility = View.VISIBLE
+                        binding.ivOledPreview.setImageBitmap(bitmap)
+                    } else if (NavigationRepository.mapPreviewInfo.value == null) {
+                        binding.tvRollingMapTitle.text = "Bản đồ Cuốn chiếu (Rolling)"
+                        binding.layoutOledFrame.visibility = View.GONE
+                        binding.ivMapPreview.setImageBitmap(bitmap)
+                        binding.ivMapPreview.visibility = View.VISIBLE
+                    }
                 }
             }
         }

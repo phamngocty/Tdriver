@@ -21,12 +21,13 @@ class BluetoothDeviceAdapter(private val onDeviceClick: (BluetoothDevice) -> Uni
 
     @SuppressLint("MissingPermission")
     fun addDevice(device: BluetoothDevice, scanRecordName: String? = null) {
+        val mac = device.address.uppercase()
         val name = scanRecordName?.takeIf { it.isNotBlank() } ?: device.name?.takeIf { it.isNotBlank() } ?: "Thiết bị BLE"
-        val existingIndex = devices.indexOfFirst { it.device.address == device.address }
+        val existingIndex = devices.indexOfFirst { it.device.address.equals(mac, ignoreCase = true) }
         if (existingIndex < 0) {
             devices.add(DiscoveredBleDevice(device, name))
             notifyItemInserted(devices.size - 1)
-        } else if (devices[existingIndex].displayName == "Thiết bị BLE" && name != "Thiết bị BLE") {
+        } else if (name != "Thiết bị BLE" && devices[existingIndex].displayName != name) {
             devices[existingIndex] = DiscoveredBleDevice(device, name)
             notifyItemChanged(existingIndex)
         }

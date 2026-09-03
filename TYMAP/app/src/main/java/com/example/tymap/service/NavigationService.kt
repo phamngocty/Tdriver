@@ -1039,13 +1039,16 @@ class NavigationService : Service() {
         if (isManualDisconnect) return
         val state = NavigationRepository.bleConnectionState.value
         if (state != NavigationRepository.BleConnectionState.Disconnected) return
-        val history = PrefsHelper.getPairedHistory(this)
-        if (history.isNotEmpty()) {
-            val lastDevice = history.last() // Định dạng "Name (MAC)"
-            val mac = lastDevice.substringAfter("(").substringBefore(")")
-            if (mac.length == 17) {
-                connectToMac(mac, useAutoConnect = true)
-            }
+        val lastMac = PrefsHelper.getString(this, "last_device_mac", "").trim()
+        val targetMac = if (lastMac.length == 17) {
+            lastMac
+        } else {
+            val history = PrefsHelper.getPairedHistory(this)
+            history.firstOrNull()?.substringAfter("(")?.substringBefore(")")?.trim() ?: ""
+        }
+        if (targetMac.length == 17) {
+            android.util.Log.d("NavigationService", "Auto-connecting instantly to $targetMac")
+            connectToMac(targetMac, useAutoConnect = false)
         }
     }
 
@@ -1115,7 +1118,6 @@ class NavigationService : Service() {
                     }
                     
                     var imageBytes: ByteArray? = null
-                    
                     if (captureMode == 4) {
                         try {
                             val loc = NavigationRepository.gpsLocation.value
@@ -1131,15 +1133,14 @@ class NavigationService : Service() {
                             android.util.Log.e("NavigationService", "Roads Only rendering error: ${e.message}", e)
                         }
                     } else if (captureMode == 1) {
-                        // Mode 1: luôn chụp màn hình
                         imageBytes = screenCaptureManager?.captureAndProcess(effectiveQuality, "gmaps_")
+                        if (imageBytes == null) imageBytes = renderOsmMap(effectiveQuality)
                     } else if (captureMode == 2 && isPopupActive) {
-                        // Mode 2: chỉ chụp khi có popup ngã rẽ, Google Maps phải ở foreground
                         if (isGoogleMapsForeground()) {
                             imageBytes = screenCaptureManager?.captureAndProcess(effectiveQuality, "gmaps_")
                         }
+                        if (imageBytes == null) imageBytes = renderOsmMap(effectiveQuality)
                     } else if (captureMode == 5 && (isPopupActive || isMapModeActive || !isGmapsActive)) {
-                        // Mode 5: Popup OSM (khi có Google Maps) hoặc Map Mode truyền liên tục (khi bật thủ công hoặc không có Google Maps)
                         val hasCropMapTab = PrefsHelper.getInt(this@NavigationService, "crop_w_maptab", 0) > 0
                         if (hasCropMapTab && screenCaptureManager?.isCapturing == true) {
                             imageBytes = screenCaptureManager?.captureAndProcess(effectiveQuality, "maptab_")
@@ -1147,8 +1148,8 @@ class NavigationService : Service() {
                         if (imageBytes == null) {
                             imageBytes = renderOsmMap(effectiveQuality)
                         }
-                    } else if (captureMode == 0) {
-                        // Mode 0: Vẽ bản đồ OSM ngầm của App
+                    } else {
+                        // Mode 0 hoặc mặc định: Render trực tiếp Map ngầm theo dịch vụ bản đồ Tab Map
                         imageBytes = renderOsmMap(effectiveQuality)
                     }
 
@@ -1310,9 +1311,68 @@ class NavigationService : Service() {
         arrayOf("https://tile.openstreetmap.org/"),
         "© OpenStreetMap contributors")
 
-    private val osmHot = XYTileSource("OSM HOT", 1, 19, 256, ".png",
-        arrayOf("https://a.tile.openstreetmap.fr/hot/", "https://b.tile.openstreetmap.fr/hot/"),
-        "© OpenStreetMap contributors, HOT")
+    private val transportMap = object : XYTileSource("OSM Transport Map", 1, 18, 256, ".png",
+        arrayOf("https://tile.memomaps.de/tilegen/"),
+        "© OpenStreetMap, © memomaps.de") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            val tfKey = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_thunderforest", "") } catch (e: Exception) { "" }
+            return if (tfKey.isNotBlank()) {
+                "https://tile.thunderforest.com/transport/$z/$x/$y.png?apikey=$tfKey"
+            } else {
+                "https://tile.memomaps.de/tilegen/$z/$x/$y.png"
+            }
+        }
+    }
+
+    private val osmVectorRoads = object : XYTileSource(
+        "Vector OpenStreetMap (OLED) ⭐",
+        1, 16, 256, ".mvt",
+        arrayOf("https://vector.openstreetmap.org/shortbread_v1/"),
+        "© OpenStreetMap contributors"
+    ) {
+        override fun getDrawable(aTileInputStream: java.io.InputStream?): android.graphics.drawable.Drawable? {
+            if (aTileInputStream == null) return null
+            return try {
+                val bitmap = com.example.tymap.util.OsmVectorTileDecoder.decodeMvtToBitmap(aTileInputStream, 256)
+                org.osmdroid.tileprovider.ReusableBitmapDrawable(bitmap)
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    private val cartoDarkNoLabels = object : XYTileSource(
+        "CartoDB Dark No Labels",
+        1, 20, 256, ".png",
+        arrayOf(
+            "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
+            "https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
+            "https://c.basemaps.cartocdn.com/rastertiles/dark_nolabels/"
+        ),
+        "© OpenStreetMap, © CARTO"
+    ) {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val base = super.getTileURLString(pMapTileIndex)
+            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_carto", "") } catch (e: Exception) { "" }
+            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+        }
+    }
+
+    private val stamenTonerLines = object : XYTileSource(
+        "Stamen Toner Lines (OSM)",
+        1, 20, 256, ".png",
+        arrayOf("https://tiles.stadiamaps.com/tiles/stamen_toner_lines/"),
+        "© OpenStreetMap, © Stadia Maps, © Stamen Design"
+    ) {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val base = super.getTileURLString(pMapTileIndex)
+            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_stadia", "") } catch (e: Exception) { "" }
+            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+        }
+    }
 
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
@@ -1325,7 +1385,10 @@ class NavigationService : Service() {
         list.add(googleMapsSatellite) // 6: Google Maps Satellite (MT)
         list.add(googleMapsHybrid)    // 7: Google Maps Hybrid (MT)
         list.add(osmStandard)         // 8: OpenStreetMap Chuẩn
-        list.add(osmHot)              // 9: OpenStreetMap HOT
+        list.add(transportMap)        // 9: OSM Transport Map
+        list.add(osmVectorRoads)      // 10: Vector OpenStreetMap (OLED) ⭐
+        list.add(cartoDarkNoLabels)   // 11: CartoDB Dark No Labels
+        list.add(stamenTonerLines)    // 12: Stamen Toner Lines (OSM)
 
         val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {
@@ -1662,7 +1725,6 @@ class NavigationService : Service() {
             }
         }
 
-        var bitIndex = 0
         for (y in 0 until 64) {
             for (x in 0 until 128) {
                 val valToThreshold = pixels[y][x]
@@ -1673,11 +1735,10 @@ class NavigationService : Service() {
                 }
                 
                 if (isOn) {
-                    val byteIdx = bitIndex / 8
-                    val bitPos = 7 - (bitIndex % 8)
+                    val byteIdx = (y / 8) * 128 + x
+                    val bitPos = y % 8
                     buffer[byteIdx] = (buffer[byteIdx].toInt() or (1 shl bitPos)).toByte()
                 }
-                bitIndex++
             }
         }
         resized.recycle()

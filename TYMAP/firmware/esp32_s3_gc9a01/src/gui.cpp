@@ -7,11 +7,11 @@ uint8_t notifStyle = 1;           // 0=N1 Floating Card 3D, 1=N2 Fullscreen Focu
 uint8_t settingCategoryIndex = 0; // 0=Mặt đồng hồ (statusStyle), 1=HUD Bản đồ (mapHudStyle), 2=Thông báo (notifStyle)
 
 // Bộ đệm sóng Oscilloscope thời gian thực
-float voltHistory[200] = {0};
+float voltHistory[VOLT_HISTORY_SIZE] = {0};
 uint16_t voltHistoryIdx = 0;
 float voltMin = 99.0f;
 float voltMax = 0.0f;
-uint16_t autoSampleIntervalMs = 30;
+uint16_t autoSampleIntervalMs = 20;
 static float prevSampleVoltS3 = 12.5f;
 static float avgSlewRateS3 = 0.0f;
 
@@ -20,7 +20,7 @@ void pushVoltSample(float v)
     static bool bufferFilled = false;
     if (!bufferFilled)
     {
-        for (int k = 0; k < 200; k++)
+        for (int k = 0; k < VOLT_HISTORY_SIZE; k++)
         {
             voltHistory[k] = v;
         }
@@ -30,15 +30,16 @@ void pushVoltSample(float v)
 
     float delta = fabsf(v - prevSampleVoltS3);
     prevSampleVoltS3 = v;
-    avgSlewRateS3 = avgSlewRateS3 + 0.12f * (delta - avgSlewRateS3);
+    avgSlewRateS3 = avgSlewRateS3 + 0.18f * (delta - avgSlewRateS3);
 
-    if (avgSlewRateS3 > 0.35f) autoSampleIntervalMs = 15;
-    else if (avgSlewRateS3 > 0.12f) autoSampleIntervalMs = 25;
-    else if (avgSlewRateS3 > 0.05f) autoSampleIntervalMs = 35;
-    else autoSampleIntervalMs = 50;
+    // Chu kỳ lấy mẫu thích ứng siêu nhanh (5ms khi sụt áp đề máy hoặc vọt áp, 15ms khi ổn định)
+    if (avgSlewRateS3 > 0.15f) autoSampleIntervalMs = 5;
+    else if (avgSlewRateS3 > 0.06f) autoSampleIntervalMs = 8;
+    else if (avgSlewRateS3 > 0.02f) autoSampleIntervalMs = 10;
+    else autoSampleIntervalMs = 15;
 
     voltHistory[voltHistoryIdx] = v;
-    voltHistoryIdx = (voltHistoryIdx + 1) % 200;
+    voltHistoryIdx = (voltHistoryIdx + 1) % VOLT_HISTORY_SIZE;
     if (v < voltMin || voltMin > 50.0f)
         voltMin = v;
     if (v > voltMax)
@@ -1052,9 +1053,9 @@ void drawSTATUS()
         // 4. Đường sóng tràn viền an toàn tuyệt đối, không đè chữ, không lẹm viền tròn (x = 24, y = 96, w = 192, h = 82)
         int ox = 24, oy = 96, ow = 192, oh = 82;
 
-        // Thuật toán Auto-Zoom
+        // Thuật toán Auto-Zoom biên độ cao & kéo dài sóng
         float localMin = 99.0f, localMax = -99.0f;
-        for (int i = 0; i < 200; i++)
+        for (int i = 0; i < VOLT_HISTORY_SIZE; i++)
         {
             float val = voltHistory[i];
             if (val < localMin) localMin = val;
@@ -1064,34 +1065,40 @@ void drawSTATUS()
         if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
 
         float span = localMax - localMin;
-        if (span < 1.2f)
+        if (span < 0.5f)
         {
             float mid = (localMax + localMin) * 0.5f;
-            localMin = mid - 0.6f;
-            localMax = mid + 0.6f;
+            localMin = mid - 0.25f;
+            localMax = mid + 0.25f;
         }
         else
         {
-            float margin = span * 0.18f;
+            float margin = span * 0.05f;
             localMin -= margin;
             localMax += margin;
         }
 
         static float smoothMinM4 = 10.5f, smoothMaxM4 = 15.5f;
-        smoothMinM4 += 0.15f * (localMin - smoothMinM4);
-        smoothMaxM4 += 0.15f * (localMax - smoothMaxM4);
-        if (smoothMaxM4 - smoothMinM4 < 1.0f) smoothMaxM4 = smoothMinM4 + 1.0f;
+        smoothMinM4 += 0.25f * (localMin - smoothMinM4);
+        smoothMaxM4 += 0.25f * (localMax - smoothMaxM4);
+        float currentSpanM4 = smoothMaxM4 - smoothMinM4;
+        if (currentSpanM4 < 0.4f)
+        {
+            smoothMaxM4 = smoothMinM4 + 0.4f;
+            currentSpanM4 = 0.4f;
+        }
 
         // Vẽ đường sóng tràn viền đổi màu Neon Gradient mượt mà theo từng điểm (Smooth Neon Wave)
         int plotW = ow - 4; // 188 điểm nằm an toàn trong màn hình tròn
         int prevPx = -1, prevPy = -1;
         for (int i = 0; i < plotW; i++)
         {
-            int bufIdx = (voltHistoryIdx + (200 - plotW) + i) % 200;
+            int histOffset = (i * (VOLT_HISTORY_SIZE - 1)) / (plotW - 1);
+            int bufIdx = (voltHistoryIdx + histOffset) % VOLT_HISTORY_SIZE;
             float val = voltHistory[bufIdx];
             uint16_t segColor = getVoltNeonColor(val);
 
-            int py = oy + oh - 4 - (int)(((val - smoothMinM4) / (smoothMaxM4 - smoothMinM4)) * (oh - 8));
+            int py = oy + oh - 4 - (int)(((val - smoothMinM4) / currentSpanM4) * (oh - 8));
             if (py < oy + 2) py = oy + 2;
             if (py > oy + oh - 2) py = oy + oh - 2;
             int px = ox + 2 + i;
@@ -1218,7 +1225,7 @@ void drawSTATUS()
 
         // THUẬT TOÁN AUTO-ZOOM (DYNAMIC DSO AUTO-SCALING):
         float localMin = 99.0f, localMax = -99.0f;
-        for (int i = 0; i < 200; i++)
+        for (int i = 0; i < VOLT_HISTORY_SIZE; i++)
         {
             float val = voltHistory[i];
             if (val < localMin) localMin = val;
@@ -1228,23 +1235,28 @@ void drawSTATUS()
         if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
 
         float span = localMax - localMin;
-        if (span < 1.2f)
+        if (span < 0.5f)
         {
             float mid = (localMax + localMin) * 0.5f;
-            localMin = mid - 0.6f;
-            localMax = mid + 0.6f;
+            localMin = mid - 0.25f;
+            localMax = mid + 0.25f;
         }
         else
         {
-            float margin = span * 0.18f;
+            float margin = span * 0.05f;
             localMin -= margin;
             localMax += margin;
         }
 
         static float smoothMinS3 = 10.5f, smoothMaxS3 = 15.5f;
-        smoothMinS3 += 0.15f * (localMin - smoothMinS3);
-        smoothMaxS3 += 0.15f * (localMax - smoothMaxS3);
-        if (smoothMaxS3 - smoothMinS3 < 1.0f) smoothMaxS3 = smoothMinS3 + 1.0f;
+        smoothMinS3 += 0.25f * (localMin - smoothMinS3);
+        smoothMaxS3 += 0.25f * (localMax - smoothMaxS3);
+        float currentSpanS3 = smoothMaxS3 - smoothMinS3;
+        if (currentSpanS3 < 0.4f)
+        {
+            smoothMaxS3 = smoothMinS3 + 0.4f;
+            currentSpanS3 = 0.4f;
+        }
 
         // Tâm định vị toạ độ Graticule tinh tế (Subtle Center Crosshair)
         int cx = ox + ow / 2;
@@ -1260,11 +1272,12 @@ void drawSTATUS()
         int prevPx = -1, prevPy = -1;
         for (int i = 0; i < plotW; i++)
         {
-            int bufIdx = (voltHistoryIdx + (200 - plotW) + i) % 200;
+            int histOffset = (i * (VOLT_HISTORY_SIZE - 1)) / (plotW - 1);
+            int bufIdx = (voltHistoryIdx + histOffset) % VOLT_HISTORY_SIZE;
             float val = voltHistory[bufIdx];
             uint16_t segColor = getVoltNeonColor(val);
 
-            int py = oy + oh - 3 - (int)(((val - smoothMinS3) / (smoothMaxS3 - smoothMinS3)) * (oh - 6));
+            int py = oy + oh - 3 - (int)(((val - smoothMinS3) / currentSpanS3) * (oh - 6));
             if (py < oy + 2) py = oy + 2;
             if (py > oy + oh - 2) py = oy + oh - 2;
             int px = ox + 2 + i;
@@ -1410,7 +1423,7 @@ void drawSTATUS()
 
         // Auto-Zoom Calculation
         float localMin = 99.0f, localMax = -99.0f;
-        for (int i = 0; i < 200; i++)
+        for (int i = 0; i < VOLT_HISTORY_SIZE; i++)
         {
             float val = voltHistory[i];
             if (val < localMin) localMin = val;
@@ -1420,34 +1433,40 @@ void drawSTATUS()
         if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
 
         float span = localMax - localMin;
-        if (span < 1.2f)
+        if (span < 0.5f)
         {
             float mid = (localMax + localMin) * 0.5f;
-            localMin = mid - 0.6f;
-            localMax = mid + 0.6f;
+            localMin = mid - 0.25f;
+            localMax = mid + 0.25f;
         }
         else
         {
-            float margin = span * 0.18f;
+            float margin = span * 0.05f;
             localMin -= margin;
             localMax += margin;
         }
 
         static float smoothMinM4A = 10.5f, smoothMaxM4A = 15.5f;
-        smoothMinM4A += 0.15f * (localMin - smoothMinM4A);
-        smoothMaxM4A += 0.15f * (localMax - smoothMaxM4A);
-        if (smoothMaxM4A - smoothMinM4A < 1.0f) smoothMaxM4A = smoothMinM4A + 1.0f;
+        smoothMinM4A += 0.25f * (localMin - smoothMinM4A);
+        smoothMaxM4A += 0.25f * (localMax - smoothMaxM4A);
+        float currentSpanM4A = smoothMaxM4A - smoothMinM4A;
+        if (currentSpanM4A < 0.4f)
+        {
+            smoothMaxM4A = smoothMinM4A + 0.4f;
+            currentSpanM4A = 0.4f;
+        }
 
         // Sóng Oscilloscope 3D chuyển màu Neon Gradient mượt mà từng điểm sóng (Smooth Spectrum Wave)
         int plotW = ow - 4; // 188 điểm
         int prevPx = -1, prevPy = -1;
         for (int i = 0; i < plotW; i++)
         {
-            int bufIdx = (voltHistoryIdx + (200 - plotW) + i) % 200;
+            int histOffset = (i * (VOLT_HISTORY_SIZE - 1)) / (plotW - 1);
+            int bufIdx = (voltHistoryIdx + histOffset) % VOLT_HISTORY_SIZE;
             float val = voltHistory[bufIdx];
             uint16_t segColor = getVoltNeonColor(val);
 
-            int py = oy + oh - 3 - (int)(((val - smoothMinM4A) / (smoothMaxM4A - smoothMinM4A)) * (oh - 6));
+            int py = oy + oh - 3 - (int)(((val - smoothMinM4A) / currentSpanM4A) * (oh - 6));
             if (py < oy + 2) py = oy + 2;
             if (py > oy + oh - 2) py = oy + oh - 2;
             int px = ox + 2 + i;

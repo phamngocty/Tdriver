@@ -101,11 +101,11 @@ class ConnectionFragment : Fragment() {
     private fun setupHistory() {
         val context = requireContext()
         val historySet = PrefsHelper.getPairedHistory(context)
-        val historyList = historySet.toMutableList()
+        val historyList = historySet.toList().sorted().toMutableList()
         if (historyList.isEmpty()) {
             historyList.add("Chưa có thiết bị nào")
         } else {
-            historyList.add(0, "Chọn thiết bị cũ...")
+            historyList.add(0, "Chọn thiết bị cũ (${historyList.size})...")
         }
         
         val adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, historyList)
@@ -115,7 +115,7 @@ class ConnectionFragment : Fragment() {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (position > 0) {
                     val entry = historyList[position]
-                    val mac = entry.substringAfter("(").substringBefore(")")
+                    val mac = entry.substringAfter("(").substringBefore(")").trim()
                     if (mac.length == 17) {
                         NavigationRepository.addLog("Kết nối lại tới $mac...")
                         val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -259,6 +259,51 @@ class ConnectionFragment : Fragment() {
             checkPermissionsAndScan()
         }
 
+        binding.btnClearHistory.setOnClickListener {
+            val context = requireContext()
+            val historySet = PrefsHelper.getPairedHistory(context)
+            val historyList = historySet.toList().sorted()
+            if (historyList.isEmpty()) {
+                Toast.makeText(context, "Lịch sử kết nối đang trống", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val options = arrayOf("Xóa từng thiết bị...", "Xóa toàn bộ lịch sử (${historyList.size} thiết bị)")
+            androidx.appcompat.app.AlertDialog.Builder(context)
+                .setTitle("Quản lý lịch sử kết nối")
+                .setItems(options) { _, which ->
+                    if (which == 0) {
+                        // Chọn thiết bị để xóa
+                        val itemsArray = historyList.toTypedArray()
+                        androidx.appcompat.app.AlertDialog.Builder(context)
+                            .setTitle("Chọn thiết bị cần xóa")
+                            .setItems(itemsArray) { _, itemIdx ->
+                                val selectedItem = itemsArray[itemIdx]
+                                val mac = selectedItem.substringAfter("(").substringBefore(")").trim()
+                                PrefsHelper.removePairedDevice(context, mac)
+                                setupHistory()
+                                Toast.makeText(context, "Đã xóa: $selectedItem", Toast.LENGTH_SHORT).show()
+                            }
+                            .setNegativeButton("Hủy", null)
+                            .show()
+                    } else {
+                        // Xóa toàn bộ
+                        androidx.appcompat.app.AlertDialog.Builder(context)
+                            .setTitle("Xác nhận xóa tất cả")
+                            .setMessage("Bạn có chắc muốn xóa toàn bộ danh sách thiết bị đã lưu?")
+                            .setPositiveButton("Xóa tất cả") { _, _ ->
+                                PrefsHelper.clearPairedHistory(context)
+                                setupHistory()
+                                Toast.makeText(context, "Đã xóa toàn bộ lịch sử kết nối", Toast.LENGTH_SHORT).show()
+                            }
+                            .setNegativeButton("Hủy", null)
+                            .show()
+                    }
+                }
+                .setNegativeButton("Đóng", null)
+                .show()
+        }
+
         binding.btnDisconnect.setOnClickListener {
             PrefsHelper.putString(requireContext(), "last_device_mac", "")
             NavigationService.disconnectBle()
@@ -378,8 +423,9 @@ class ConnectionFragment : Fragment() {
     @SuppressLint("MissingPermission")
     private fun connectToDevice(device: BluetoothDevice) {
         val context = requireContext()
+        val devName = try { device.name ?: "TYMAP" } catch (e: SecurityException) { "TYMAP" }
         PrefsHelper.putString(context, "last_device_mac", device.address)
-        PrefsHelper.addPairedDevice(context, "${device.name ?: "Thiết bị"} (${device.address})")
+        PrefsHelper.addPairedDevice(context, devName, device.address)
         setupHistory() 
         context.startForegroundService(Intent(context, NavigationService::class.java).apply { putExtra("CONNECT_MAC", device.address) })
     }

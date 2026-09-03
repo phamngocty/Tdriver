@@ -8,6 +8,8 @@
 #include <FontMaker.h>
 #include <Update.h>
 #include <Preferences.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 #include "gui.h"
 
 Preferences preferences;
@@ -163,9 +165,13 @@ void updateBatteryVoltage()
     unsigned long now = millis();
     if (now - lastSampleTime < autoSampleIntervalMs && lastSampleTime != 0)
     {
-        return; // Auto-Time: Tự động điều chỉnh chu kỳ lấy mẫu 15ms - 50ms theo động lực học tín hiệu
+        return; // Auto-Time: Tự động điều chỉnh chu kỳ lấy mẫu 5ms - 15ms theo động lực học tín hiệu
     }
     lastSampleTime = now;
+
+    // Đảm bảo ngắt triệt để pull-up/pull-down nội trên chân ADC GPIO3
+    gpio_pullup_dis((gpio_num_t)BAT_ADC);
+    gpio_pulldown_dis((gpio_num_t)BAT_ADC);
 
     // Lấy 16 mẫu nhanh và lọc cắt tỉa ngoại lai (Trimmed-Mean Filter triệt tiêu xung bugi)
     const int NUM_SAMPLES = 16;
@@ -196,7 +202,7 @@ void updateBatteryVoltage()
     }
     float rawMv = (float)sumMv / 8.0f;
 
-    // Cầu phân áp R1 = 100k, R2 = 10k => Hệ số: (100k + 10k) / 10k = 11.0f
+    // Cầu phân áp R1 = 10k (xuống GND), R2 = 100k (lên Vin 12V) => Hệ số: (100k + 10k) / 10k = 11.0f
     float instantVoltage = (rawMv / 1000.0f) * 11.0f;
 
     // Khởi tạo giá trị ban đầu
@@ -858,6 +864,16 @@ class OtaCallback : public NimBLECharacteristicCallbacks
 void setup()
 {
     Serial.begin(115200);
+
+    // 0. Tắt Hardware Brownout Detector để chống reset khi đề xe máy gây sụt áp tạm thời
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
+    // Cấu hình chân đo điện áp GPIO3 (BAT_ADC) ở chế độ Floating (ngắt hoàn toàn pull-up/pull-down nội trở)
+    gpio_reset_pin((gpio_num_t)BAT_ADC);
+    pinMode(BAT_ADC, INPUT);
+    gpio_set_pull_mode((gpio_num_t)BAT_ADC, GPIO_FLOATING);
+    gpio_pullup_dis((gpio_num_t)BAT_ADC);
+    gpio_pulldown_dis((gpio_num_t)BAT_ADC);
     analogReadResolution(12);
     analogSetPinAttenuation(BAT_ADC, ADC_11db);
 

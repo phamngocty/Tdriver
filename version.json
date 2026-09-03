@@ -1,21 +1,21 @@
 {
   "app": {
-    "versionCode": 14,
-    "versionName": "1.0.14",
-    "apkUrl": "http://192.168.1.114:3002/attachments/2248159f-6576-4e10-a215-c9c3d6d3dc21",
+    "versionCode": 15,
+    "versionName": "1.0.15",
+    "apkUrl": "",
     "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
   },
   "firmware": {
-    "versionCode": 14,
-    "versionName": "1.0.14",
-    "binUrl": "http://192.168.1.114:3002/attachments/2211abea-cdd3-43df-ae16-bb88fe80ef09",
-    "oledBinUrl": "http://192.168.1.114:3002/attachments/cb63a6bc-e1fe-4fbf-b2a0-8a603a831a57",
+    "versionCode": 15,
+    "versionName": "1.0.15",
+    "binUrl": "",
+    "oledBinUrl": "",
     "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
   },
   "firmware_oled": {
-    "versionCode": 14,
-    "versionName": "1.0.14",
-    "binUrl": "http://192.168.1.114:3002/attachments/cb63a6bc-e1fe-4fbf-b2a0-8a603a831a57",
+    "versionCode": 15,
+    "versionName": "1.0.15",
+    "binUrl": "",
     "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
   }
 }

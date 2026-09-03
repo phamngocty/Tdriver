@@ -981,8 +981,53 @@ void drawHUD()
     u8g2.sendBuffer();
 }
 
+void drawMiniTurnIcon(int dirIdx, int cx, int cy)
+{
+    // dirIdx theo chuẩn TYMAP & Android Navigation:
+    // 2, 3: Trái; 1, 12, 15: Chếch trái; 5, 6: Phải; 4, 13, 16: Chếch phải; 7, 8: U-turn; 9: Vòng xuyến; 10: Đích; else: Đi thẳng
+    if (dirIdx == 2 || dirIdx == 3) {
+        // Rẽ trái 90 độ
+        u8g2.drawBox(cx + 3, cy - 2, 3, 14);
+        u8g2.drawBox(cx - 5, cy - 2, 10, 3);
+        u8g2.drawTriangle(cx - 8, cy - 1, cx - 3, cy - 6, cx - 3, cy + 4);
+    } else if (dirIdx == 1 || dirIdx == 12 || dirIdx == 15) {
+        // Chếch trái 45 độ
+        u8g2.drawBox(cx + 2, cy + 3, 3, 9);
+        u8g2.drawLine(cx + 3, cy + 3, cx - 4, cy - 4);
+        u8g2.drawLine(cx + 2, cy + 3, cx - 5, cy - 4);
+        u8g2.drawTriangle(cx - 7, cy - 4, cx - 2, cy - 8, cx - 1, cy + 1);
+    } else if (dirIdx == 5 || dirIdx == 6) {
+        // Rẽ phải 90 độ
+        u8g2.drawBox(cx - 5, cy - 2, 3, 14);
+        u8g2.drawBox(cx - 3, cy - 2, 10, 3);
+        u8g2.drawTriangle(cx + 8, cy - 1, cx + 3, cy - 6, cx + 3, cy + 4);
+    } else if (dirIdx == 4 || dirIdx == 13 || dirIdx == 16) {
+        // Chếch phải 45 độ
+        u8g2.drawBox(cx - 5, cy + 3, 3, 9);
+        u8g2.drawLine(cx - 4, cy + 3, cx + 3, cy - 4);
+        u8g2.drawLine(cx - 3, cy + 3, cx + 4, cy - 4);
+        u8g2.drawTriangle(cx + 7, cy - 4, cx + 2, cy - 8, cx + 1, cy + 1);
+    } else if (dirIdx == 7 || dirIdx == 8) {
+        // Quay đầu U-turn
+        u8g2.drawFrame(cx - 5, cy - 4, 11, 15);
+        u8g2.drawTriangle(cx - 5, cy + 11, cx - 9, cy + 6, cx - 1, cy + 6);
+    } else if (dirIdx == 9) {
+        // Vòng xuyến
+        u8g2.drawCircle(cx, cy + 2, 6);
+        u8g2.drawTriangle(cx, cy - 6, cx - 3, cy - 2, cx + 3, cy - 2);
+    } else if (dirIdx == 10) {
+        // Đích
+        u8g2.drawVLine(cx - 3, cy - 6, 16);
+        u8g2.drawTriangle(cx - 2, cy - 6, cx + 5, cy - 2, cx - 2, cy + 2);
+    } else {
+        // Đi thẳng
+        u8g2.drawBox(cx - 1, cy - 1, 3, 13);
+        u8g2.drawTriangle(cx, cy - 7, cx - 5, cy - 1, cx + 5, cy - 1);
+    }
+}
+
 // -------------------------------------------------------------
-// 3. MÀN HÌNH MAP (BẢN ĐỒ 1BPP STREAMING TỪ APP)
+// 3. MÀN HÌNH MAP (BẢN ĐỒ 1BPP STREAMING TỪ APP + HUD BÊN PHẢI)
 // -------------------------------------------------------------
 void drawMAP()
 {
@@ -992,27 +1037,54 @@ void drawMAP()
 
     if (hasActiveOledImage)
     {
-        // oledBuffer chứa 1024 bytes (128x64 1bpp)
-        u8g2.drawBitmap(0, 0, 16, 64, oledBuffer);
+        // 1. oledBuffer chứa 1024 bytes (128x64 1bpp theo layout buffer bộ nhớ U8g2 / Page vertical LSB)
+        memcpy(u8g2.getBufferPtr(), oledBuffer, 1024);
     }
     else
     {
+        // Layout chờ bản đồ đồng bộ
+        u8g2.drawFrame(0, 0, 89, 64);
         myFont.set_font(FONT_VIETNAMESE_BODY);
-        myFont.print(15, 25, (char *)"Đang chờ bản đồ...", 1, 0);
-        u8g2.drawFrame(0, 0, 128, 64);
+        myFont.print(8, 24, (char *)"Đang tải map...", 1, 0);
     }
 
-    // Overlay mini tốc độ góc trái dưới
-    char spdBuf[16];
-    snprintf(spdBuf, sizeof(spdBuf), "%d km/h", gpsSpeed);
+    // 2. KHU VỰC HUD DẪN ĐƯỜNG CỐ ĐỊNH BÊN PHẢI (x: 89..127, w: 39px, h: 64px)
+    // Xóa nền đen vùng HUD bên phải để không bị lem pixel từ map
     u8g2.setDrawColor(0);
-    u8g2.drawBox(0, 48, 48, 16);
+    u8g2.drawBox(89, 0, 39, 64);
     u8g2.setDrawColor(1);
-    u8g2.drawFrame(0, 48, 48, 16);
-    u8g2.setFont(FONT_U8G2_SMALL);
-    u8g2.drawStr(4, 52, spdBuf);
 
-    // Vẽ Overlay Cảnh báo giao thông (nếu có)
+    // Đường kẻ dọc phân cách sắc nét (x = 88)
+    u8g2.drawVLine(88, 0, 64);
+
+    // --- PHẦN TRÊN: Icon mũi tên rẽ & Khoảng cách rẽ (lấy từ dữ liệu BLE Navigation) ---
+    drawMiniTurnIcon(navDirIdx, 108, 9);
+
+    u8g2.setFont(FONT_U8G2_SMALL);
+    String dStr = distToNext.length() > 0 ? distToNext : "0m";
+    dStr.toUpperCase();
+    int dLen = u8g2.getStrWidth(dStr.c_str());
+    int dX = 89 + (39 - dLen) / 2;
+    if (dX < 90) dX = 90;
+    u8g2.drawStr(dX, 21, dStr.c_str());
+
+    // Đường gạch ngang phân cách nhẹ giữa HUD trên và dưới
+    u8g2.drawHLine(91, 33, 35);
+
+    // --- PHẦN DƯỚI: Tốc độ xe thực tế (lấy từ dữ liệu BLE GPS) ---
+    u8g2.setFont(FONT_U8G2_DIST);
+    char spdBuf[8];
+    snprintf(spdBuf, sizeof(spdBuf), "%d", gpsSpeed);
+    int sLen = u8g2.getStrWidth(spdBuf);
+    int sX = 89 + (39 - sLen) / 2;
+    if (sX < 90) sX = 90;
+    u8g2.drawStr(sX, 36, spdBuf);
+
+    u8g2.setFont(FONT_U8G2_TINY);
+    int kLen = u8g2.getStrWidth("km/h");
+    u8g2.drawStr(89 + (39 - kLen) / 2, 53, "km/h");
+
+    // 3. Vẽ Overlay Cảnh báo giao thông (nếu có)
     drawTrafficWarningOverlay();
 
     u8g2.sendBuffer();

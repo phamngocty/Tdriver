@@ -287,7 +287,7 @@ class SettingsFragment : Fragment() {
     private fun connectToDevice(device: BluetoothDevice) {
         val context = requireContext()
         PrefsHelper.putString(context, "last_device_mac", device.address)
-        PrefsHelper.addPairedDevice(context, "${device.name ?: "Thiết bị"} (${device.address})")
+        PrefsHelper.addPairedDevice(context, device.name ?: "TYMAP", device.address)
         setupHistorySpinner()
         context.startForegroundService(Intent(context, NavigationService::class.java).apply { putExtra("CONNECT_MAC", device.address) })
     }
@@ -796,15 +796,19 @@ class SettingsFragment : Fragment() {
             "Google Maps Satellite (MT)",
             "Google Maps Hybrid (MT)",
             "OpenStreetMap Chuẩn",
-            "OpenStreetMap HOT",
+            "OSM Transport Map",
+            "Vector OpenStreetMap (OLED) ⭐",
+            "CartoDB Dark No Labels",
+            "Stamen Toner Lines (OSM)",
             "Tùy chỉnh (Self-Hosted/URL)"
         )
         val rawTileSource = PrefsHelper.getInt(context, "tile_source", 0)
         val initialTileSource = if (rawTileSource >= mapSources.size) 0 else rawTileSource
-        binding.tilCustomTileUrl.visibility = if (initialTileSource == 10) View.VISIBLE else View.GONE
+        val customIdx = mapSources.size - 1
+        binding.tilCustomTileUrl.visibility = if (initialTileSource == customIdx) View.VISIBLE else View.GONE
         setupSpinner(binding.spinnerTileSource, mapSources, initialTileSource) {
             PrefsHelper.putInt(context, "tile_source", it)
-            binding.tilCustomTileUrl.visibility = if (it == 10) View.VISIBLE else View.GONE
+            binding.tilCustomTileUrl.visibility = if (it == customIdx) View.VISIBLE else View.GONE
         }
 
         binding.etCustomTileUrl.setText(PrefsHelper.getString(context, "custom_tile_url", ""))

@@ -103,8 +103,10 @@ extern uint32_t otaWritten;
 extern bool hasCustomLayoutConfig;
 void parseAndApplyLayoutJson(const String& jsonStr);
 
+#define VOLT_HISTORY_SIZE 400
+
 // Bộ đệm sóng Oscilloscope thời gian thực
-extern float voltHistory[200];
+extern float voltHistory[VOLT_HISTORY_SIZE];
 extern uint16_t voltHistoryIdx;
 extern float voltMin;
 extern float voltMax;

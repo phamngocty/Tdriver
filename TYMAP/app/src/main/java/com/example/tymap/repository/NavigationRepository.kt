@@ -230,11 +230,18 @@ object NavigationRepository {
     private val _lastSentMapImage = MutableStateFlow<android.graphics.Bitmap?>(null)
     val lastSentMapImage = _lastSentMapImage.asStateFlow()
 
+    private val _oledBaseMap = MutableStateFlow<android.graphics.Bitmap?>(null)
+    val oledBaseMap = _oledBaseMap.asStateFlow()
+
     private val _preparedBleData = MutableStateFlow<String>("")
     val preparedBleData = _preparedBleData.asStateFlow()
 
     fun updateLastSentMapImage(bitmap: android.graphics.Bitmap?) {
         _lastSentMapImage.value = bitmap
+    }
+
+    fun updateOledBaseMap(bitmap: android.graphics.Bitmap?) {
+        _oledBaseMap.value = bitmap
     }
 
     fun updatePreparedBleData(data: String) {

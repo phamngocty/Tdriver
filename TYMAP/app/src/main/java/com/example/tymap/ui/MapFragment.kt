@@ -219,9 +219,68 @@ class MapFragment : Fragment(), IOrientationConsumer {
         arrayOf("https://tile.openstreetmap.org/"),
         "© OpenStreetMap contributors")
 
-    private val osmHot = XYTileSource("OSM HOT", 1, 19, 256, ".png",
-        arrayOf("https://a.tile.openstreetmap.fr/hot/", "https://b.tile.openstreetmap.fr/hot/"),
-        "© OpenStreetMap contributors, HOT")
+    private val transportMap = object : XYTileSource("OSM Transport Map", 1, 18, 256, ".png",
+        arrayOf("https://tile.memomaps.de/tilegen/"),
+        "© OpenStreetMap, © memomaps.de") {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            val tfKey = try { PrefsHelper.getSecureString(requireContext(), "api_key_thunderforest", "") } catch (e: Exception) { "" }
+            return if (tfKey.isNotBlank()) {
+                "https://tile.thunderforest.com/transport/$z/$x/$y.png?apikey=$tfKey"
+            } else {
+                "https://tile.memomaps.de/tilegen/$z/$x/$y.png"
+            }
+        }
+    }
+
+    private val osmVectorRoads = object : XYTileSource(
+        "Vector OpenStreetMap (OLED) ⭐",
+        1, 16, 256, ".mvt",
+        arrayOf("https://vector.openstreetmap.org/shortbread_v1/"),
+        "© OpenStreetMap contributors"
+    ) {
+        override fun getDrawable(aTileInputStream: java.io.InputStream?): android.graphics.drawable.Drawable? {
+            if (aTileInputStream == null) return null
+            return try {
+                val bitmap = com.example.tymap.util.OsmVectorTileDecoder.decodeMvtToBitmap(aTileInputStream, 256)
+                org.osmdroid.tileprovider.ReusableBitmapDrawable(bitmap)
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    private val cartoDarkNoLabels = object : XYTileSource(
+        "CartoDB Dark No Labels",
+        1, 20, 256, ".png",
+        arrayOf(
+            "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
+            "https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
+            "https://c.basemaps.cartocdn.com/rastertiles/dark_nolabels/"
+        ),
+        "© OpenStreetMap, © CARTO"
+    ) {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val base = super.getTileURLString(pMapTileIndex)
+            val key = try { PrefsHelper.getSecureString(requireContext(), "api_key_carto", "") } catch (e: Exception) { "" }
+            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+        }
+    }
+
+    private val stamenTonerLines = object : XYTileSource(
+        "Stamen Toner Lines (OSM)",
+        1, 20, 256, ".png",
+        arrayOf("https://tiles.stadiamaps.com/tiles/stamen_toner_lines/"),
+        "© OpenStreetMap, © Stadia Maps, © Stamen Design"
+    ) {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val base = super.getTileURLString(pMapTileIndex)
+            val key = try { PrefsHelper.getSecureString(requireContext(), "api_key_stadia", "") } catch (e: Exception) { "" }
+            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+        }
+    }
 
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
@@ -234,7 +293,10 @@ class MapFragment : Fragment(), IOrientationConsumer {
         list.add(googleMapsSatellite) // 6: Google Maps Satellite (MT)
         list.add(googleMapsHybrid)    // 7: Google Maps Hybrid (MT)
         list.add(osmStandard)         // 8: OpenStreetMap Chuẩn
-        list.add(osmHot)              // 9: OpenStreetMap HOT
+        list.add(transportMap)        // 9: OSM Transport Map
+        list.add(osmVectorRoads)      // 10: Vector OpenStreetMap (OLED) ⭐
+        list.add(cartoDarkNoLabels)   // 11: CartoDB Dark No Labels
+        list.add(stamenTonerLines)    // 12: Stamen Toner Lines (OSM)
 
         val customUrl = PrefsHelper.getString(requireContext(), "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {
