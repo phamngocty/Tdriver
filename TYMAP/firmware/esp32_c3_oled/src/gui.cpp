@@ -10,6 +10,7 @@ int brightness = 80;
 uint8_t statusStyle = 0; // 0=S1 Sport Chrono Radar (Mẫu 2 Mặc định), 1=S2 Dual Gauges, 2=S3 Minimalist, 3=S4 Sport Telemetry
 uint8_t hudStyle = 0;    // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar, 4=H5 Banner, 5=H6 Dual Pill
 uint8_t notifStyle = 0;  // 0=N1 Rounded Card, 1=N2 Split App Focus, 2=N3 Top Banner
+uint8_t mapStyle = 0;    // 0=M1 Fullscreen Map + Mini HUD, 1=Pure Map 100%, 2=M2 Split Map + Turn HUD
 
 // Bộ đệm sóng Oscilloscope thời gian thực
 float voltHistory[80] = {0};
@@ -485,11 +486,27 @@ void drawSTATUS()
             localMax += margin;
         }
 
-        // Damping mượt mà Auto-Zoom EMA 15%
-        static float smoothMin = 10.5f, smoothMax = 15.5f;
-        smoothMin += 0.15f * (localMin - smoothMin);
-        smoothMax += 0.15f * (localMax - smoothMax);
-        if (smoothMax - smoothMin < 1.0f) smoothMax = smoothMin + 1.0f;
+        // Bắt tức thì khi sụt áp đề máy hoặc sạc nổ máy, mượt khi tĩnh
+        static float smoothMin = 11.0f, smoothMax = 13.5f;
+        static bool isScaleInitC3 = false;
+        if (!isScaleInitC3)
+        {
+            smoothMin = localMin;
+            smoothMax = localMax;
+            isScaleInitC3 = true;
+        }
+        if (localMin < smoothMin)
+            smoothMin = localMin;
+        else
+            smoothMin += 0.15f * (localMin - smoothMin);
+
+        if (localMax > smoothMax)
+            smoothMax = localMax;
+        else
+            smoothMax += 0.15f * (localMax - smoothMax);
+
+        if (smoothMax - smoothMin < 0.6f)
+            smoothMax = smoothMin + 0.6f;
 
         // Tâm định vị toạ độ (Subtle Center Crosshair)
         int cx = ox + ow / 2;
@@ -642,43 +659,44 @@ void drawSTATUS()
 void drawVectorTurnIcon(int dirIdx, int xOffset, int yOffset)
 {
     // dirIdx theo chuẩn TYMAP & Android Navigation:
-    // 0: Thẳng, 1: Nhẹ trái, 2: Trái, 3: Gắt trái, 4: Nhẹ phải, 5: Phải, 6: Gắt phải
-    // 7: U-turn trái, 8: U-turn phải, 9: Vòng xuyến, 10: Đích, 11: Bắt đầu, 12: Sát trái, 13: Sát phải, 14: Nhập làn, 15: Nhánh trái, 16: Nhánh phải
+    // 0: Thẳng, 1: Chếch phải, 2: Phải, 3: Gắt phải, 4: Chếch trái, 5: Trái, 6: Gắt trái
+    // 7: U-turn trái, 8: U-turn phải, 9, 11, 12, 13: Vòng xuyến, 10, 14: Đích
+    // 15: Nhánh/sát trái, 16: Nhánh/sát phải
     if (dirIdx == 2 || dirIdx == 3)
     {
-        // Rẽ trái 90 độ / Rẽ gắt trái
-        u8g2.drawBox(xOffset + 26, yOffset + 14, 5, 26);
-        u8g2.drawBox(xOffset + 8, yOffset + 14, 20, 5);
-        u8g2.drawTriangle(xOffset + 2, yOffset + 16, xOffset + 14, yOffset + 6, xOffset + 14, yOffset + 26);
-    }
-    else if (dirIdx == 1 || dirIdx == 12 || dirIdx == 15)
-    {
-        // Chếch trái / Sát trái / Nhánh trái (45 độ)
-        u8g2.drawBox(xOffset + 24, yOffset + 24, 5, 16);
-        for (int i = 0; i < 5; i++) {
-            u8g2.drawLine(xOffset + 24 + i, yOffset + 24, xOffset + 10 + i, yOffset + 10);
-        }
-        u8g2.drawTriangle(xOffset + 4, yOffset + 12, xOffset + 16, yOffset + 4, xOffset + 18, yOffset + 20);
-    }
-    else if (dirIdx == 5 || dirIdx == 6)
-    {
-        // Rẽ phải 90 độ / Rẽ gắt phải
+        // Rẽ phải 90 độ / Rẽ gắt phải (Right / Sharp Right)
         u8g2.drawBox(xOffset + 12, yOffset + 14, 5, 26);
         u8g2.drawBox(xOffset + 14, yOffset + 14, 20, 5);
         u8g2.drawTriangle(xOffset + 38, yOffset + 16, xOffset + 26, yOffset + 6, xOffset + 26, yOffset + 26);
     }
-    else if (dirIdx == 4 || dirIdx == 13 || dirIdx == 16)
+    else if (dirIdx == 1 || dirIdx == 16)
     {
-        // Chếch phải / Sát phải / Nhánh phải (45 độ)
+        // Chếch phải / Sát phải / Nhánh phải (45 độ - Slight Right)
         u8g2.drawBox(xOffset + 14, yOffset + 24, 5, 16);
         for (int i = 0; i < 5; i++) {
             u8g2.drawLine(xOffset + 14 + i, yOffset + 24, xOffset + 28 + i, yOffset + 10);
         }
         u8g2.drawTriangle(xOffset + 38, yOffset + 12, xOffset + 26, yOffset + 4, xOffset + 24, yOffset + 20);
     }
+    else if (dirIdx == 5 || dirIdx == 6)
+    {
+        // Rẽ trái 90 độ / Rẽ gắt trái (Left / Sharp Left)
+        u8g2.drawBox(xOffset + 26, yOffset + 14, 5, 26);
+        u8g2.drawBox(xOffset + 8, yOffset + 14, 20, 5);
+        u8g2.drawTriangle(xOffset + 2, yOffset + 16, xOffset + 14, yOffset + 6, xOffset + 14, yOffset + 26);
+    }
+    else if (dirIdx == 4 || dirIdx == 15)
+    {
+        // Chếch trái / Sát trái / Nhánh trái (45 độ - Slight Left)
+        u8g2.drawBox(xOffset + 24, yOffset + 24, 5, 16);
+        for (int i = 0; i < 5; i++) {
+            u8g2.drawLine(xOffset + 24 + i, yOffset + 24, xOffset + 10 + i, yOffset + 10);
+        }
+        u8g2.drawTriangle(xOffset + 4, yOffset + 12, xOffset + 16, yOffset + 4, xOffset + 18, yOffset + 20);
+    }
     else if (dirIdx == 7 || dirIdx == 8)
     {
-        // Quay đầu (U-Turn)
+        // Quay đầu (U-Turn: 7 = Trái, 8 = Phải)
         int leftX = (dirIdx == 7) ? xOffset + 8 : xOffset + 14;
         int rightX = leftX + 16;
         u8g2.drawBox(rightX, yOffset + 18, 5, 22);
@@ -690,16 +708,16 @@ void drawVectorTurnIcon(int dirIdx, int xOffset, int yOffset)
             u8g2.drawTriangle(rightX + 2, yOffset + 42, rightX - 6, yOffset + 30, rightX + 10, yOffset + 30);
         }
     }
-    else if (dirIdx == 9)
+    else if (dirIdx == 9 || dirIdx == 11 || dirIdx == 12 || dirIdx == 13)
     {
         // Vòng xuyến (Roundabout)
         u8g2.drawCircle(xOffset + 22, yOffset + 22, 12);
         u8g2.drawCircle(xOffset + 22, yOffset + 22, 8);
         u8g2.drawTriangle(xOffset + 22, yOffset + 4, xOffset + 16, yOffset + 14, xOffset + 28, yOffset + 14);
     }
-    else if (dirIdx == 10)
+    else if (dirIdx == 10 || dirIdx == 14)
     {
-        // Đến đích (Flag icon)
+        // Đến đích (Flag icon / Arrive)
         u8g2.drawBox(xOffset + 12, yOffset + 8, 3, 32);
         u8g2.drawTriangle(xOffset + 15, yOffset + 8, xOffset + 32, yOffset + 16, xOffset + 15, yOffset + 24);
     }
@@ -984,38 +1002,42 @@ void drawHUD()
 void drawMiniTurnIcon(int dirIdx, int cx, int cy)
 {
     // dirIdx theo chuẩn TYMAP & Android Navigation:
-    // 2, 3: Trái; 1, 12, 15: Chếch trái; 5, 6: Phải; 4, 13, 16: Chếch phải; 7, 8: U-turn; 9: Vòng xuyến; 10: Đích; else: Đi thẳng
-    if (dirIdx == 2 || dirIdx == 3) {
-        // Rẽ trái 90 độ
+    // 2, 3: Phải; 1, 16: Chếch phải; 5, 6: Trái; 4, 15: Chếch trái; 7, 8: U-turn; 9, 11, 12, 13: Vòng xuyến; 10, 14: Đích; else: Đi thẳng
+    if (dirIdx == 5 || dirIdx == 6) {
+        // Rẽ trái 90 độ / gắt trái
         u8g2.drawBox(cx + 3, cy - 2, 3, 14);
         u8g2.drawBox(cx - 5, cy - 2, 10, 3);
         u8g2.drawTriangle(cx - 8, cy - 1, cx - 3, cy - 6, cx - 3, cy + 4);
-    } else if (dirIdx == 1 || dirIdx == 12 || dirIdx == 15) {
+    } else if (dirIdx == 4 || dirIdx == 15) {
         // Chếch trái 45 độ
         u8g2.drawBox(cx + 2, cy + 3, 3, 9);
         u8g2.drawLine(cx + 3, cy + 3, cx - 4, cy - 4);
         u8g2.drawLine(cx + 2, cy + 3, cx - 5, cy - 4);
         u8g2.drawTriangle(cx - 7, cy - 4, cx - 2, cy - 8, cx - 1, cy + 1);
-    } else if (dirIdx == 5 || dirIdx == 6) {
-        // Rẽ phải 90 độ
+    } else if (dirIdx == 2 || dirIdx == 3) {
+        // Rẽ phải 90 độ / gắt phải
         u8g2.drawBox(cx - 5, cy - 2, 3, 14);
         u8g2.drawBox(cx - 3, cy - 2, 10, 3);
         u8g2.drawTriangle(cx + 8, cy - 1, cx + 3, cy - 6, cx + 3, cy + 4);
-    } else if (dirIdx == 4 || dirIdx == 13 || dirIdx == 16) {
+    } else if (dirIdx == 1 || dirIdx == 16) {
         // Chếch phải 45 độ
         u8g2.drawBox(cx - 5, cy + 3, 3, 9);
         u8g2.drawLine(cx - 4, cy + 3, cx + 3, cy - 4);
         u8g2.drawLine(cx - 3, cy + 3, cx + 4, cy - 4);
         u8g2.drawTriangle(cx + 7, cy - 4, cx + 2, cy - 8, cx + 1, cy + 1);
     } else if (dirIdx == 7 || dirIdx == 8) {
-        // Quay đầu U-turn
+        // Quay đầu U-turn (7: Trái, 8: Phải)
         u8g2.drawFrame(cx - 5, cy - 4, 11, 15);
-        u8g2.drawTriangle(cx - 5, cy + 11, cx - 9, cy + 6, cx - 1, cy + 6);
-    } else if (dirIdx == 9) {
+        if (dirIdx == 7) {
+            u8g2.drawTriangle(cx - 5, cy + 11, cx - 9, cy + 6, cx - 1, cy + 6);
+        } else {
+            u8g2.drawTriangle(cx + 5, cy + 11, cx + 1, cy + 6, cx + 9, cy + 6);
+        }
+    } else if (dirIdx == 9 || dirIdx == 11 || dirIdx == 12 || dirIdx == 13) {
         // Vòng xuyến
         u8g2.drawCircle(cx, cy + 2, 6);
         u8g2.drawTriangle(cx, cy - 6, cx - 3, cy - 2, cx + 3, cy - 2);
-    } else if (dirIdx == 10) {
+    } else if (dirIdx == 10 || dirIdx == 14) {
         // Đích
         u8g2.drawVLine(cx - 3, cy - 6, 16);
         u8g2.drawTriangle(cx - 2, cy - 6, cx + 5, cy - 2, cx - 2, cy + 2);
@@ -1042,47 +1064,88 @@ void drawMAP()
     }
     else
     {
-        // Layout chờ bản đồ đồng bộ
-        u8g2.drawFrame(0, 0, 89, 64);
+        // Layout chờ bản đồ đồng bộ toàn màn hình 128x64
+        u8g2.drawFrame(0, 0, 127, 63);
         myFont.set_font(FONT_VIETNAMESE_BODY);
-        myFont.print(8, 24, (char *)"Đang tải map...", 1, 0);
+        myFont.print(16, 24, (char *)"Đang tải map...", 1, 0);
     }
 
-    // 2. KHU VỰC HUD DẪN ĐƯỜNG CỐ ĐỊNH BÊN PHẢI (x: 89..127, w: 39px, h: 64px)
-    // Xóa nền đen vùng HUD bên phải để không bị lem pixel từ map
-    u8g2.setDrawColor(0);
-    u8g2.drawBox(89, 0, 39, 64);
-    u8g2.setDrawColor(1);
+    // 2. Chỉ khi đang trong lộ trình dẫn đường (isNavigating), vẽ overlay HUD theo mapStyle
+    if (isNavigating)
+    {
+        if (mapStyle == 0) // MẪU 1: Thuần Map Toàn Màn Hình 128x64 kèm Mini HUD & Tốc độ nổi
+        {
+            // Mini HUD: Hộp chỉ dẫn bo góc nhỏ gọn góc trên phải (x=78..126, y=1..22)
+            u8g2.setDrawColor(0);
+            u8g2.drawRBox(78, 1, 49, 21, 2);
+            u8g2.setDrawColor(1);
+            u8g2.drawRFrame(78, 1, 49, 21, 2);
 
-    // Đường kẻ dọc phân cách sắc nét (x = 88)
-    u8g2.drawVLine(88, 0, 64);
+            // Mũi tên rẽ nhỏ gọn (drawMiniTurnIcon)
+            drawMiniTurnIcon(navDirIdx, 116, 10);
 
-    // --- PHẦN TRÊN: Icon mũi tên rẽ & Khoảng cách rẽ (lấy từ dữ liệu BLE Navigation) ---
-    drawMiniTurnIcon(navDirIdx, 108, 9);
+            // Khoảng cách rẽ
+            u8g2.setFont(FONT_U8G2_SMALL);
+            String dStr = distToNext.length() > 0 ? distToNext : "0m";
+            dStr.toUpperCase();
+            u8g2.drawStr(82, 7, dStr.c_str());
 
-    u8g2.setFont(FONT_U8G2_SMALL);
-    String dStr = distToNext.length() > 0 ? distToNext : "0m";
-    dStr.toUpperCase();
-    int dLen = u8g2.getStrWidth(dStr.c_str());
-    int dX = 89 + (39 - dLen) / 2;
-    if (dX < 90) dX = 90;
-    u8g2.drawStr(dX, 21, dStr.c_str());
+            // Tốc độ xe nhỏ gọn ở góc dưới phải
+            u8g2.setDrawColor(0);
+            u8g2.drawRBox(74, 46, 53, 17, 2);
+            u8g2.setDrawColor(1);
+            u8g2.drawRFrame(74, 46, 53, 17, 2);
 
-    // Đường gạch ngang phân cách nhẹ giữa HUD trên và dưới
-    u8g2.drawHLine(91, 33, 35);
+            u8g2.setFont(FONT_U8G2_LABEL_BOLD);
+            char spdBuf[8];
+            snprintf(spdBuf, sizeof(spdBuf), "%d", gpsSpeed);
+            u8g2.drawStr(78, 48, spdBuf);
 
-    // --- PHẦN DƯỚI: Tốc độ xe thực tế (lấy từ dữ liệu BLE GPS) ---
-    u8g2.setFont(FONT_U8G2_DIST);
-    char spdBuf[8];
-    snprintf(spdBuf, sizeof(spdBuf), "%d", gpsSpeed);
-    int sLen = u8g2.getStrWidth(spdBuf);
-    int sX = 89 + (39 - sLen) / 2;
-    if (sX < 90) sX = 90;
-    u8g2.drawStr(sX, 36, spdBuf);
+            u8g2.setFont(FONT_U8G2_TINY);
+            u8g2.drawStr(78 + u8g2.getStrWidth(spdBuf) + 3, 52, "km/h");
+        }
+        else if (mapStyle == 1) // MẪU 2: Chỉ có MAP không (Pure Map 100%)
+        {
+            // 100% diện tích cho bản đồ lộ trình, không vẽ đè bất kỳ HUD hay tốc độ nào
+        }
+        else // MẪU 3 (mapStyle == 2): Map Chia Đôi Kèm HUD (M2 - Cũ)
+        {
+            // Xóa nền đen vùng HUD bên phải để không bị lem pixel từ map
+            u8g2.setDrawColor(0);
+            u8g2.drawBox(89, 0, 39, 64);
+            u8g2.setDrawColor(1);
 
-    u8g2.setFont(FONT_U8G2_TINY);
-    int kLen = u8g2.getStrWidth("km/h");
-    u8g2.drawStr(89 + (39 - kLen) / 2, 53, "km/h");
+            // Đường kẻ dọc phân cách sắc nét (x = 88)
+            u8g2.drawVLine(88, 0, 64);
+
+            // --- PHẦN TRÊN: Icon mũi tên rẽ & Khoảng cách rẽ (lấy từ dữ liệu BLE Navigation) ---
+            drawMiniTurnIcon(navDirIdx, 108, 9);
+
+            u8g2.setFont(FONT_U8G2_SMALL);
+            String dStr = distToNext.length() > 0 ? distToNext : "0m";
+            dStr.toUpperCase();
+            int dLen = u8g2.getStrWidth(dStr.c_str());
+            int dX = 89 + (39 - dLen) / 2;
+            if (dX < 90) dX = 90;
+            u8g2.drawStr(dX, 21, dStr.c_str());
+
+            // Đường gạch ngang phân cách nhẹ giữa HUD trên và dưới
+            u8g2.drawHLine(91, 33, 35);
+
+            // --- PHẦN DƯỚI: Tốc độ xe thực tế (lấy từ dữ liệu BLE GPS) ---
+            u8g2.setFont(FONT_U8G2_DIST);
+            char spdBuf[8];
+            snprintf(spdBuf, sizeof(spdBuf), "%d", gpsSpeed);
+            int sLen = u8g2.getStrWidth(spdBuf);
+            int sX = 89 + (39 - sLen) / 2;
+            if (sX < 90) sX = 90;
+            u8g2.drawStr(sX, 36, spdBuf);
+
+            u8g2.setFont(FONT_U8G2_TINY);
+            int kLen = u8g2.getStrWidth("km/h");
+            u8g2.drawStr(89 + (39 - kLen) / 2, 53, "km/h");
+        }
+    }
 
     // 3. Vẽ Overlay Cảnh báo giao thông (nếu có)
     drawTrafficWarningOverlay();

@@ -691,7 +691,7 @@
         let gpsSpeed = 68;
         let batteryVoltage = 12.6;
         let weatherTemp = 31;
-        let navDirIdx = 2; // Rẽ trái
+        let navDirIdx = 2; // Rẽ phải
         let distToNext = "150M";
         let nextStreet = "Nguyễn Văn Cừ";
         let bleConnected = true;
@@ -905,7 +905,16 @@
             ctx.translate(ox, oy);
             ctx.fillStyle = OLED_COLOR_ON;
 
-            if (dir === 2) { // Left
+            if (dir === 2 || dir === 3) { // Right / Sharp Right
+                ctx.fillRect(12, 14, 5, 24);
+                ctx.fillRect(14, 14, 18, 5);
+                ctx.beginPath();
+                ctx.moveTo(38, 16);
+                ctx.lineTo(26, 6);
+                ctx.lineTo(26, 26);
+                ctx.closePath();
+                ctx.fill();
+            } else if (dir === 5 || dir === 6) { // Left / Sharp Left
                 ctx.fillRect(24, 14, 5, 24);
                 ctx.fillRect(8, 14, 18, 5);
                 ctx.beginPath();
@@ -914,13 +923,20 @@
                 ctx.lineTo(14, 26);
                 ctx.closePath();
                 ctx.fill();
-            } else if (dir === 5) { // Right
-                ctx.fillRect(12, 14, 5, 24);
-                ctx.fillRect(14, 14, 18, 5);
+            } else if (dir === 1 || dir === 16) { // Slight Right
+                ctx.fillRect(14, 24, 5, 16);
                 ctx.beginPath();
-                ctx.moveTo(38, 16);
-                ctx.lineTo(26, 6);
-                ctx.lineTo(26, 26);
+                ctx.moveTo(38, 12);
+                ctx.lineTo(26, 4);
+                ctx.lineTo(24, 20);
+                ctx.closePath();
+                ctx.fill();
+            } else if (dir === 4 || dir === 15) { // Slight Left
+                ctx.fillRect(24, 24, 5, 16);
+                ctx.beginPath();
+                ctx.moveTo(4, 12);
+                ctx.lineTo(16, 4);
+                ctx.lineTo(18, 20);
                 ctx.closePath();
                 ctx.fill();
             } else { // Straight

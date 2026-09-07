@@ -113,6 +113,10 @@ object PrefsHelper {
             history.removeAll(toRemove.toSet())
             prefs.edit().putStringSet("paired_history", history).apply()
         }
+        val lastMac = getString(context, "last_device_mac", "").trim()
+        if (lastMac.isNotEmpty() && (target.contains(lastMac, ignoreCase = true) || lastMac.contains(target, ignoreCase = true))) {
+            putString(context, "last_device_mac", "")
+        }
     }
     
     fun getPairedHistory(context: Context): Set<String> {
@@ -130,7 +134,10 @@ object PrefsHelper {
         return mapByMac.values.toSet()
     }
     
-    fun clearPairedHistory(context: Context) = getPrefs(context).edit().remove("paired_history").apply()
+    fun clearPairedHistory(context: Context) {
+        getPrefs(context).edit().remove("paired_history").apply()
+        putString(context, "last_device_mac", "")
+    }
 
     // Advanced Color Filters
     fun putColorFilters(context: Context, json: String) = putString(context, "oled_filters_json", json)

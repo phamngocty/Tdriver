@@ -137,7 +137,7 @@ class ScreenCaptureManager(private val context: Context) {
             
             return scaled
         } catch (e: Exception) {
-            image.close()
+            try { image.close() } catch (_: Exception) {}
             android.util.Log.e("ScreenCaptureManager", "Error cropping bitmap in captureAsBitmap: ${e.message}", e)
             return null
         }

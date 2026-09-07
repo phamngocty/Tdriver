@@ -11,9 +11,34 @@ float voltHistory[VOLT_HISTORY_SIZE] = {0};
 uint16_t voltHistoryIdx = 0;
 float voltMin = 99.0f;
 float voltMax = 0.0f;
-uint16_t autoSampleIntervalMs = 20;
+uint16_t autoSampleIntervalMs = 10; // Chu kỳ lấy mẫu 10ms (100Hz)
 static float prevSampleVoltS3 = 12.5f;
 static float avgSlewRateS3 = 0.0f;
+
+// Dải điện áp thích ứng thông minh (Adaptive Peak Tracking)
+// Tự động nhận diện đỉnh điện áp sạc tối đa của xe (ví dụ 14V khi nổ máy) làm màu Cyber cuối cùng
+float dynVoltMin = 10.8f;
+float dynVoltMax = 14.0f;
+
+// Bộ đệm sóng tốc độ GPS thời gian thực
+float speedHistory[SPEED_HISTORY_SIZE] = {0};
+uint16_t speedHistoryIdx = 0;
+
+void pushSpeedSample(float spd)
+{
+    static bool spdBufferFilled = false;
+    if (!spdBufferFilled)
+    {
+        for (int k = 0; k < SPEED_HISTORY_SIZE; k++)
+        {
+            speedHistory[k] = spd;
+        }
+        spdBufferFilled = true;
+    }
+
+    speedHistory[speedHistoryIdx] = spd;
+    speedHistoryIdx = (speedHistoryIdx + 1) % SPEED_HISTORY_SIZE;
+}
 
 void pushVoltSample(float v)
 {
@@ -26,62 +51,138 @@ void pushVoltSample(float v)
         }
         bufferFilled = true;
         prevSampleVoltS3 = v;
+        voltMin = v;
+        voltMax = v;
     }
 
-    float delta = fabsf(v - prevSampleVoltS3);
-    prevSampleVoltS3 = v;
-    avgSlewRateS3 = avgSlewRateS3 + 0.18f * (delta - avgSlewRateS3);
-
-    // Chu kỳ lấy mẫu thích ứng siêu nhanh (5ms khi sụt áp đề máy hoặc vọt áp, 15ms khi ổn định)
-    if (avgSlewRateS3 > 0.15f) autoSampleIntervalMs = 5;
-    else if (avgSlewRateS3 > 0.06f) autoSampleIntervalMs = 8;
-    else if (avgSlewRateS3 > 0.02f) autoSampleIntervalMs = 10;
-    else autoSampleIntervalMs = 15;
+    autoSampleIntervalMs = 10; // Ổn định chu kỳ lấy mẫu 10ms (100Hz), buffer 200 điểm = 2 giây quan sát 1:1
 
     voltHistory[voltHistoryIdx] = v;
     voltHistoryIdx = (voltHistoryIdx + 1) % VOLT_HISTORY_SIZE;
-    if (v < voltMin || voltMin > 50.0f)
-        voltMin = v;
-    if (v > voltMax)
-        voltMax = v;
+
+    // Cập nhật min/max động theo cửa sổ trượt
+    static uint16_t scanCounter = 0;
+    if (++scanCounter >= 20)
+    {
+        scanCounter = 0;
+        float curMin = 99.0f, curMax = 0.0f;
+        for (int k = 0; k < VOLT_HISTORY_SIZE; k++)
+        {
+            float val = voltHistory[k];
+            if (val < curMin) curMin = val;
+            if (val > curMax) curMax = val;
+        }
+        if (curMin < 50.0f) voltMin = curMin;
+        if (curMax > 0.0f) voltMax = curMax;
+    }
+    else
+    {
+        if (v < voltMin || voltMin > 50.0f)
+            voltMin = v;
+        if (v > voltMax)
+            voltMax = v;
+    }
 }
 
-// Hàm chuyển đổi màu Neon Gradient mượt mà liên tục theo điện áp (Không dùng màu đơn sắc)
+// Hàm chuyển đổi màu Neon Gradient mượt mà liên tục theo điện áp thích ứng thông minh
+// Tự động nhận diện đỉnh điện áp xe (ví dụ 14V khi nổ máy sạc) làm màu Cyber cuối cùng
 uint16_t getVoltNeonColor(float v)
 {
-    // Chuẩn hóa dải điện áp từ 10.8V (Sụt áp phanh) -> 14.6V (Sạc ga vọt áp)
-    float t = (v - 10.8f) / (14.6f - 10.8f);
+    if (isnan(v) || isinf(v) || v <= 0.5f) return TFT_CYAN;
+
+    // Tự động nhận diện đỉnh điện áp max thực tế của xe (Adaptive Peak Tracking)
+    if (v > dynVoltMax && v < 18.0f)
+    {
+        dynVoltMax = v;
+    }
+
+    // Cho phép đỉnh sạc từ từ trôi nhẹ về 13.8V nếu trước đó có xung gai vọt áp tạm thời
+    static unsigned long lastPeakDecay = 0;
+    if (millis() - lastPeakDecay > 10000)
+    {
+        lastPeakDecay = millis();
+        if (dynVoltMax > 13.8f && v < dynVoltMax - 0.3f)
+        {
+            dynVoltMax -= 0.05f;
+        }
+    }
+
+    // Tự động bám đáy sụt áp (nhưng không dưới 9.5V để giữ độ an toàn)
+    if (v < dynVoltMin && v >= 9.5f)
+    {
+        dynVoltMin = v;
+    }
+
+    float span = dynVoltMax - dynVoltMin;
+    if (span < 1.2f) span = 1.2f;
+
+    // Chuẩn hóa theo dải thích ứng thực tế của xe
+    float t = (v - dynVoltMin) / span;
     if (t < 0.0f) t = 0.0f;
     if (t > 1.0f) t = 1.0f;
 
     uint8_t r = 0, g = 0, b = 0;
-    if (t < 0.25f) // 10.8V -> 11.75V: Chuyển từ Neon Red (#FF0055) sang Neon Amber (#FF7700)
+    if (t < 0.25f) // Đáy sụt áp / đề máy: Chuyển từ Neon Red (#FF0055) sang Neon Amber (#FF7700)
     {
         float f = t / 0.25f;
         r = 255;
         g = (uint8_t)(119.0f * f);
         b = (uint8_t)(85.0f * (1.0f - f));
     }
-    else if (t < 0.50f) // 11.75V -> 12.70V: Chuyển từ Neon Amber (#FF7700) sang Neon Cyan (#00F0FF)
+    else if (t < 0.50f) // Bình tĩnh bật khóa (~12V): Chuyển từ Neon Amber (#FF7700) sang Neon Cyan (#00F0FF)
     {
         float f = (t - 0.25f) / 0.25f;
         r = (uint8_t)(255.0f * (1.0f - f));
         g = (uint8_t)(119.0f + (240.0f - 119.0f) * f);
         b = (uint8_t)(255.0f * f);
     }
-    else if (t < 0.75f) // 12.70V -> 13.65V: Chuyển từ Neon Cyan (#00F0FF) sang Neon Lime (#00FF66)
+    else if (t < 0.75f) // Nổ máy dòng sạc lên (~13V): Chuyển từ Neon Cyan (#00F0FF) sang Neon Lime (#00FF66)
     {
         float f = (t - 0.50f) / 0.25f;
         r = 0;
         g = (uint8_t)(240.0f + (255.0f - 240.0f) * f);
         b = (uint8_t)(255.0f * (1.0f - f) + 102.0f * f);
     }
-    else // 13.65V -> 14.60V: Chuyển từ Neon Lime (#00FF66) sang Ultra Neon Pink (#FF00D4)
+    else // Đạt đỉnh sạc tối đa của xe (ví dụ 14V): Chuyển từ Neon Lime (#00FF66) sang Ultra Cyber Pink (#FF00D4)
     {
         float f = (t - 0.75f) / 0.25f;
         r = (uint8_t)(255.0f * f);
         g = (uint8_t)(255.0f * (1.0f - f));
         b = (uint8_t)(102.0f + (212.0f - 102.0f) * f);
+    }
+
+    return color565(r, g, b);
+}
+
+// Hàm chuyển đổi màu Neon Gradient mượt mà liên tục theo tốc độ GPS
+uint16_t getSpeedNeonColor(float spd)
+{
+    // Chuẩn hóa dải tốc độ: 0 -> 80 km/h (có thể đạt trên 100 km/h)
+    float t = spd / 80.0f;
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+
+    uint8_t r = 0, g = 0, b = 0;
+    if (t < 0.33f) // 0 -> 26 km/h: Neon Cyan (#00F0FF) -> Neon Lime (#00FF66)
+    {
+        float f = t / 0.33f;
+        r = 0;
+        g = (uint8_t)(240.0f + 15.0f * f);
+        b = (uint8_t)(255.0f * (1.0f - f) + 102.0f * f);
+    }
+    else if (t < 0.66f) // 26 -> 53 km/h: Neon Lime (#00FF66) -> Neon Amber (#FFAA00)
+    {
+        float f = (t - 0.33f) / 0.33f;
+        r = (uint8_t)(255.0f * f);
+        g = (uint8_t)(255.0f * (1.0f - f) + 170.0f * f);
+        b = (uint8_t)(102.0f * (1.0f - f));
+    }
+    else // 53 -> 80+ km/h: Neon Amber (#FFAA00) -> Cyber Pink (#FF007F)
+    {
+        float f = (t - 0.66f) / 0.34f;
+        r = 255;
+        g = (uint8_t)(170.0f * (1.0f - f));
+        b = (uint8_t)(127.0f * f);
     }
 
     return color565(r, g, b);
@@ -141,12 +242,35 @@ void drawCustomIconResized(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffs
 // ==========================================
 void drawHUD()
 {
+    String localStreet = "";
+    String localDist = "";
+    String localTotal = "";
+    String localEta = "";
+    String localEte = "";
+    if (navMutex != NULL && xSemaphoreTake(navMutex, pdMS_TO_TICKS(10)) == pdTRUE)
+    {
+        localStreet = nextStreet;
+        localDist = distToNext;
+        localTotal = totalDist;
+        localEta = eta;
+        localEte = ete;
+        xSemaphoreGive(navMutex);
+    }
+    else
+    {
+        localStreet = nextStreet;
+        localDist = distToNext;
+        localTotal = totalDist;
+        localEta = eta;
+        localEte = ete;
+    }
+
     canvasSprite.fillSprite(TFT_BLACK);
 
     // 1. Vẽ chỉ dẫn (dir) và ETA/Giờ (màu trắng) ở đỉnh màn hình
     myFont.set_font(FONT_HUD_INFO);
-    String part1 = (ete.length() > 0) ? ete : ((totalDist.length() > 0) ? totalDist : "20 min");
-    String part2 = "  ·  " + ((eta.length() > 0) ? eta : rtc.getTime("%H:%M"));
+    String part1 = (localEte.length() > 0) ? localEte : ((localTotal.length() > 0) ? localTotal : "20 min");
+    String part2 = "  ·  " + ((localEta.length() > 0) ? localEta : rtc.getTime("%H:%M"));
     uint16_t len1 = myFont.getLength(part1);
     uint16_t len2 = myFont.getLength(part2);
     uint16_t totalLen = len1 + len2;
@@ -217,7 +341,7 @@ void drawHUD()
 
     // 3. Vẽ tên đường chỉ dẫn ở giữa (tự động cuộn nếu quá dài)
     myFont.set_font(FONT_HUD_STREET);
-    uint16_t streetLen = myFont.getLength(nextStreet);
+    uint16_t streetLen = myFont.getLength(localStreet);
     int visibleWidth = 200;
     if (streetLen > visibleWidth)
     {
@@ -232,7 +356,7 @@ void drawHUD()
         if (scrollMs > 1000)
             scrollX = (scrollMs - 1000) / 30;
 
-        myFont.print(120 - visibleWidth / 2 - scrollX, 135, nextStreet, TFT_WHITE, TFT_BLACK);
+        myFont.print(120 - visibleWidth / 2 - scrollX, 135, localStreet, TFT_WHITE, TFT_BLACK);
 
         clipMinX = 0;
         clipMaxX = 240;
@@ -241,13 +365,13 @@ void drawHUD()
     }
     else
     {
-        myFont.print(120 - streetLen / 2, 135, nextStreet, TFT_WHITE, TFT_BLACK);
+        myFont.print(120 - streetLen / 2, 135, localStreet, TFT_WHITE, TFT_BLACK);
     }
 
     // 4. Vẽ khoảng cách rẽ ở dưới
     myFont.set_font(FONT_HUD_DIST);
-    uint16_t distLen = myFont.getLength(distToNext);
-    myFont.print(120 - distLen / 2, 170, distToNext, TFT_WHITE, TFT_BLACK);
+    uint16_t distLen = myFont.getLength(localDist);
+    myFont.print(120 - distLen / 2, 170, localDist, TFT_WHITE, TFT_BLACK);
 
     // 5. Ô hiển thị Tốc độ GPS (km/h) ở đáy (Tích hợp Biển báo mini khi có cảnh báo)
     char speedBuf[16];
@@ -320,7 +444,31 @@ void drawMapHudOverlay()
         // ================= MẪU MH5: BẢN ĐỒ THUẦN (Tắt toàn bộ HUD) =================
         return; // Không vẽ đè bất kỳ UI nào lên bản đồ
     }
-    else if (mapHudStyle == 1)
+
+    String localStreet = "";
+    String localDist = "";
+    String localEta = "";
+    String localEte = "";
+    String localTotal = "";
+    if (navMutex != NULL && xSemaphoreTake(navMutex, pdMS_TO_TICKS(10)) == pdTRUE)
+    {
+        localStreet = nextStreet;
+        localDist = distToNext;
+        localEta = eta;
+        localEte = ete;
+        localTotal = totalDist;
+        xSemaphoreGive(navMutex);
+    }
+    else
+    {
+        localStreet = nextStreet;
+        localDist = distToNext;
+        localEta = eta;
+        localEte = ete;
+        localTotal = totalDist;
+    }
+
+    if (mapHudStyle == 1)
     {
         // ================= MẪU MH2: THANH DƯỚI =================
         uint16_t cardBgColor = color565(15, 23, 42);
@@ -361,7 +509,7 @@ void drawMapHudOverlay()
 
         // 2. Tên đường chỉ dẫn chữ trắng marquee bên phải (x=50, y=205)
         myFont.set_font(vietnamtimes12);
-        uint16_t streetLen = myFont.getLength(nextStreet);
+        uint16_t streetLen = myFont.getLength(localStreet);
         int visibleWidth = 160;
         if (streetLen > visibleWidth)
         {
@@ -378,7 +526,7 @@ void drawMapHudOverlay()
                 scrollX = (scrollMs - 1200) / 35;
             }
 
-            myFont.print(50 - scrollX, 207, nextStreet, TFT_WHITE, cardBgColor);
+            myFont.print(50 - scrollX, 207, localStreet, TFT_WHITE, cardBgColor);
 
             clipMinX = 0;
             clipMaxX = 240;
@@ -387,7 +535,7 @@ void drawMapHudOverlay()
         }
         else
         {
-            myFont.print(50, 207, nextStreet, TFT_WHITE, cardBgColor);
+            myFont.print(50, 207, localStreet, TFT_WHITE, cardBgColor);
         }
     }
     else if (mapHudStyle == 2)
@@ -434,15 +582,15 @@ void drawMapHudOverlay()
         canvasSprite.fillRoundRect(70, 28, 90, 28, 14, cardBgColor);
         canvasSprite.drawRoundRect(70, 28, 90, 28, 14, accent);
         myFont.set_font(FONT_STATUS_INFO);
-        uint16_t dLen = myFont.getLength(distToNext);
-        myFont.print(115 - dLen / 2, 33, distToNext, accent, cardBgColor);
+        uint16_t dLen = myFont.getLength(localDist);
+        myFont.print(115 - dLen / 2, 33, localDist, accent, cardBgColor);
 
         // 3. Thanh Pill Tên đường tối giản ở Đáy (x=30, y=200, w=180, h=28, r=14)
         canvasSprite.fillRoundRect(30, 200, 180, 28, 14, cardBgColor);
         canvasSprite.drawRoundRect(30, 200, 180, 28, 14, color565(51, 65, 85));
 
         myFont.set_font(vietnamtimes12);
-        uint16_t streetLen = myFont.getLength(nextStreet);
+        uint16_t streetLen = myFont.getLength(localStreet);
         int visibleWidth = 160;
         if (streetLen > visibleWidth)
         {
@@ -459,7 +607,7 @@ void drawMapHudOverlay()
                 scrollX = (scrollMs - 1200) / 35;
             }
 
-            myFont.print(40 - scrollX, 206, nextStreet, TFT_WHITE, cardBgColor);
+            myFont.print(40 - scrollX, 206, localStreet, TFT_WHITE, cardBgColor);
 
             clipMinX = 0;
             clipMaxX = 240;
@@ -468,7 +616,7 @@ void drawMapHudOverlay()
         }
         else
         {
-            myFont.print(120 - streetLen / 2, 206, nextStreet, TFT_WHITE, cardBgColor);
+            myFont.print(120 - streetLen / 2, 206, localStreet, TFT_WHITE, cardBgColor);
         }
     }
     else if (mapHudStyle == 3)
@@ -529,6 +677,134 @@ void drawMapHudOverlay()
         uint16_t batLen = myFont.getLength(batBuf);
         myFont.print(120 - batLen / 2, 166, batBuf, TFT_CYAN, cardBgColor);
     }
+    else if (mapHudStyle == 5)
+    {
+        // ================= MẪU MH6: GALAXY WATCH (WEAROS MAP HUD) =================
+        // 1. Cung / Thanh Thông Tin Thời Gian & ETA ở Đỉnh
+        myFont.set_font(vietnamtimes12);
+        String part1 = (localEte.length() > 0) ? localEte : ((localTotal.length() > 0) ? localTotal : "20 min");
+        String part2 = "  ·  " + ((localEta.length() > 0) ? localEta : rtc.getTime("%H:%M"));
+        uint16_t len1 = myFont.getLength(part1);
+        uint16_t len2 = myFont.getLength(part2);
+        uint16_t totalLen = len1 + len2;
+        int pillW = totalLen + 20;
+        if (pillW < 120)
+            pillW = 120;
+        int pillX = 120 - pillW / 2;
+        int pillY = 12;
+
+        uint16_t darkCushion = color565(8, 12, 22);
+        canvasSprite.fillRoundRect(pillX, pillY, pillW, 22, 11, darkCushion);
+        canvasSprite.drawRoundRect(pillX, pillY, pillW, 22, 11, color565(40, 52, 70));
+
+        int textStartX = 120 - totalLen / 2;
+        myFont.print(textStartX, pillY + 4, part1, TFT_CYAN, darkCushion);
+        myFont.print(textStartX + len1, pillY + 4, part2, color565(226, 232, 240), darkCushion);
+
+        // 2. Thẻ Nổi Chỉ Dẫn Điều Hướng Bo Tròn Ở Đáy (x=36, y=152, w=168, h=74, r=20)
+        uint16_t cardBg = color565(9, 14, 25);
+        canvasSprite.fillRoundRect(36, 152, 168, 74, 20, cardBg);
+        canvasSprite.drawRoundRect(36, 152, 168, 74, 20, color565(51, 65, 85));
+
+        // 2.1. Icon Điều Hướng & Khoảng Cách Rẽ (Luôn hiển thị rõ nét trên hàng 1 của thẻ)
+        bool hasDist = (localDist.length() > 0);
+        myFont.set_font(FONT_STATUS_INFO);
+        uint16_t distLen = hasDist ? myFont.getLength(localDist) : 0;
+        int iconW = 16;
+        int gap = 8;
+        int rowW = hasDist ? (iconW + gap + distLen) : iconW;
+        int startX = 120 - rowW / 2;
+        int iconCenterX = startX + iconW / 2;
+        int iconCenterY = 168;
+
+        if (hasCustomIcon)
+        {
+            drawCustomIconResized(canvasSprite, customIconBitmap, iconCenterX - 10, iconCenterY - 10, 20, 20, TFT_WHITE);
+        }
+        else
+        {
+            uint16_t accent = TFT_WHITE;
+            switch (navDirIdx)
+            {
+            case 4:
+            case 5:
+            case 6: // Rẽ Trái
+                canvasSprite.drawLine(iconCenterX + 4, iconCenterY + 6, iconCenterX + 4, iconCenterY - 2, accent);
+                canvasSprite.drawLine(iconCenterX + 4, iconCenterY - 2, iconCenterX - 5, iconCenterY - 2, accent);
+                canvasSprite.fillTriangle(iconCenterX - 5, iconCenterY - 2, iconCenterX - 1, iconCenterY - 5, iconCenterX - 1, iconCenterY + 1, accent);
+                break;
+            case 1:
+            case 2:
+            case 3: // Rẽ Phải
+                canvasSprite.drawLine(iconCenterX - 4, iconCenterY + 6, iconCenterX - 4, iconCenterY - 2, accent);
+                canvasSprite.drawLine(iconCenterX - 4, iconCenterY - 2, iconCenterX + 5, iconCenterY - 2, accent);
+                canvasSprite.fillTriangle(iconCenterX + 5, iconCenterY - 2, iconCenterX + 1, iconCenterY - 5, iconCenterX + 1, iconCenterY + 1, accent);
+                break;
+            default: // Đi thẳng hoặc vòng xuyến
+                if (navDirIdx == 7)
+                {
+                    canvasSprite.drawCircle(iconCenterX - 2, iconCenterY + 1, 5, accent);
+                    canvasSprite.drawLine(iconCenterX + 3, iconCenterY - 2, iconCenterX + 7, iconCenterY - 2, accent);
+                    canvasSprite.drawLine(iconCenterX + 7, iconCenterY - 2, iconCenterX + 7, iconCenterY + 2, accent);
+                }
+                else
+                {
+                    // Đi thẳng
+                    canvasSprite.drawLine(iconCenterX, iconCenterY + 7, iconCenterX, iconCenterY - 4, accent);
+                    canvasSprite.drawLine(iconCenterX - 1, iconCenterY + 7, iconCenterX - 1, iconCenterY - 4, accent);
+                    canvasSprite.fillTriangle(iconCenterX, iconCenterY - 6, iconCenterX - 4, iconCenterY - 1, iconCenterX + 4, iconCenterY - 1, accent);
+                }
+                break;
+            }
+        }
+
+        // Vẽ Khoảng Cách Rẽ (ví dụ: "1,7 km" hoặc "150M") Font số đậm màu trắng sáng
+        if (hasDist)
+        {
+            myFont.set_font(FONT_STATUS_INFO);
+            myFont.print(startX + iconW + gap, 160, localDist, TFT_WHITE, cardBg);
+        }
+
+        // 2.2. Tên đường / Hướng di chuyển (vietnamtimes12 có marquee cuộn nếu quá dài)
+        myFont.set_font(vietnamtimes12);
+        uint16_t streetLen = myFont.getLength(localStreet);
+        int visibleWidth = 146;
+        int textY = 186;
+        if (streetLen > visibleWidth)
+        {
+            clipMinX = 46;
+            clipMaxX = 46 + visibleWidth;
+            clipMinY = 152;
+            clipMaxY = 226;
+
+            int range = streetLen - visibleWidth + 30;
+            int scrollMs = millis() % (range * 35 + 1200);
+            int scrollX = 0;
+            if (scrollMs > 1200)
+            {
+                scrollX = (scrollMs - 1200) / 35;
+            }
+
+            myFont.print(46 - scrollX, textY, localStreet, TFT_WHITE, cardBg);
+
+            clipMinX = 0;
+            clipMaxX = 240;
+            clipMinY = 0;
+            clipMaxY = 240;
+        }
+        else
+        {
+            myFont.print(120 - streetLen / 2, textY, localStreet, TFT_WHITE, cardBg);
+        }
+
+        // 2.3. Vạch Tiến Độ Lộ Trình Giao Thông (Đáy Thẻ Nổi, y = 215..216)
+        // Đoạn 1: Xanh dương nhạt (Lộ trình thông thoáng)
+        canvasSprite.fillRect(75, 215, 45, 2, color565(2, 132, 199));
+        // Đoạn 2: Cam (Giao thông chậm vừa)
+        canvasSprite.fillRect(122, 215, 22, 2, color565(249, 115, 22));
+        // Đoạn 3: Đỏ (Ùn tắc nhẹ)
+        canvasSprite.fillRect(146, 215, 18, 2, color565(239, 68, 68));
+    }
     else
     {
         // ================= MẪU MH1: COMPACT FLOATING PILL (HIỂN THỊ 85% BẢN ĐỒ) =================
@@ -586,11 +862,11 @@ void drawMapHudOverlay()
 
         // Khoảng cách rẽ Chữ Xanh Lá Neon ở Dòng Trên (y = 186)
         myFont.set_font(FONT_STATUS_INFO);
-        myFont.print(70, 186, distToNext, TFT_GREEN, cardBgColor);
+        myFont.print(70, 186, localDist, TFT_GREEN, cardBgColor);
 
         // Tên đường chỉ dẫn Chữ Trắng Tự Cuộn Marquee ở Dòng Dưới (y = 203)
         myFont.set_font(vietnamtimes12);
-        uint16_t streetLen = myFont.getLength(nextStreet);
+        uint16_t streetLen = myFont.getLength(localStreet);
         int visibleWidth = 125;
         if (streetLen > visibleWidth)
         {
@@ -607,7 +883,7 @@ void drawMapHudOverlay()
                 scrollX = (scrollMs - 1200) / 35;
             }
 
-            myFont.print(70 - scrollX, 203, nextStreet, TFT_WHITE, cardBgColor);
+            myFont.print(70 - scrollX, 203, localStreet, TFT_WHITE, cardBgColor);
 
             clipMinX = 0;
             clipMaxX = 240;
@@ -616,7 +892,7 @@ void drawMapHudOverlay()
         }
         else
         {
-            myFont.print(70, 203, nextStreet, TFT_WHITE, cardBgColor);
+            myFont.print(70, 203, localStreet, TFT_WHITE, cardBgColor);
         }
     }
 
@@ -635,14 +911,31 @@ void drawMapHudOverlay()
 // ==========================================
 void drawMapOverlay()
 {
+    String localTotal = "";
+    String localEta = "";
+    String localEte = "";
+    if (navMutex != NULL && xSemaphoreTake(navMutex, pdMS_TO_TICKS(10)) == pdTRUE)
+    {
+        localTotal = totalDist;
+        localEta = eta;
+        localEte = ete;
+        xSemaphoreGive(navMutex);
+    }
+    else
+    {
+        localTotal = totalDist;
+        localEta = eta;
+        localEte = ete;
+    }
+
     // 1. Vẽ dải nền tối mờ ở trên đỉnh màn hình để chữ dễ đọc
     canvasSprite.fillRoundRect(60, 10, 120, 24, 6, TFT_BLACK);
     canvasSprite.drawRoundRect(60, 10, 120, 24, 6, TFT_WHITE);
 
     // Vẽ ETE và ETA/Giờ ở đỉnh
     myFont.set_font(FONT_HUD_INFO);
-    String part1 = (ete.length() > 0) ? ete : ((totalDist.length() > 0) ? totalDist : "20 min");
-    String part2 = "  ·  " + ((eta.length() > 0) ? eta : rtc.getTime("%H:%M"));
+    String part1 = (localEte.length() > 0) ? localEte : ((localTotal.length() > 0) ? localTotal : "20 min");
+    String part2 = "  ·  " + ((localEta.length() > 0) ? localEta : rtc.getTime("%H:%M"));
     uint16_t len1 = myFont.getLength(part1);
     uint16_t len2 = myFont.getLength(part2);
     uint16_t totalLen = len1 + len2;
@@ -1017,8 +1310,8 @@ void drawSTATUS()
     }
     else if (statusStyle == 3)
     {
-        // ==================== MẪU 4: MINIMALIST LUXURY HORIZON (CYBER PINK VOLTAGE) ====================
-        // 1. Màu sắc điện áp (Chữ số ở giữa dùng Cyber Pink theo yêu cầu, sóng đổi màu Neon mượt mà)
+        // ==================== MẪU 4: MINIMALIST LUXURY HORIZON (CYBER PINK SPEED) ====================
+        // 1. Màu sắc tốc độ GPS (Chữ số ở giữa dùng Cyber Pink theo yêu cầu, sóng đổi màu Neon mượt mà)
         uint16_t pinkColor = color565(255, 0, 127); // Cyber Pink (#FF007F)
 
         // 2. Header: Đồng hồ thời gian lớn (y = 12, Font lớn rõ nét) + Ngày & Thời tiết (y = 36)
@@ -1040,52 +1333,50 @@ void drawSTATUS()
         uint16_t shLen = myFont.getLength(subHeaderBuf);
         myFont.print(120 - shLen / 2, 36, subHeaderBuf, color565(148, 163, 184), TFT_BLACK);
 
-        // 3. Chữ số điện áp nổi lơ lửng ở giữa (Màu Cyber Pink theo yêu cầu) (y = 52..88)
-        char vBuf[16];
-        snprintf(vBuf, sizeof(vBuf), "%.2f", batteryVoltage);
+        // 3. Chữ số tốc độ GPS nổi lơ lửng ở giữa (Màu Cyber Pink theo yêu cầu) (y = 50..84)
+        char spdBuf[16];
+        snprintf(spdBuf, sizeof(spdBuf), "%d", gpsSpeed);
         myFont.set_font(FONT_CLOCK);
-        uint16_t vLen = myFont.getLength(vBuf);
-        myFont.print(112 - vLen / 2, 52, vBuf, pinkColor, TFT_BLACK);
+        uint16_t spdLen = myFont.getLength(spdBuf);
 
-        myFont.set_font(FONT_STATUS_INFO);
-        myFont.print(118 + vLen / 2, 62, "V", pinkColor, TFT_BLACK);
+        myFont.set_font(vietnamtimes12);
+        uint16_t unitLen = myFont.getLength("km/h");
 
-        // 4. Đường sóng tràn viền an toàn tuyệt đối, không đè chữ, không lẹm viền tròn (x = 24, y = 96, w = 192, h = 82)
+        int totalW = spdLen + 4 + unitLen;
+        int startX = 120 - totalW / 2;
+
+        myFont.set_font(FONT_CLOCK);
+        myFont.print(startX, 50, spdBuf, pinkColor, TFT_BLACK);
+
+        myFont.set_font(vietnamtimes12);
+        myFont.print(startX + spdLen + 4, 66, "km/h", pinkColor, TFT_BLACK);
+
+        // 4. Đường sóng tốc độ tràn viền an toàn tuyệt đối, không đè chữ, không lẹm viền tròn (x = 24, y = 96, w = 192, h = 82)
         int ox = 24, oy = 96, ow = 192, oh = 82;
 
-        // Thuật toán Auto-Zoom biên độ cao & kéo dài sóng
-        float localMin = 99.0f, localMax = -99.0f;
-        for (int i = 0; i < VOLT_HISTORY_SIZE; i++)
+        // Thuật toán Dynamic Auto-Zoom độ nhạy cao cho biến thiên tốc độ
+        float localMin = 999.0f, localMax = -999.0f;
+        for (int i = 0; i < SPEED_HISTORY_SIZE; i++)
         {
-            float val = voltHistory[i];
+            float val = speedHistory[i];
             if (val < localMin) localMin = val;
             if (val > localMax) localMax = val;
         }
-        if (localMin > 50.0f) localMin = batteryVoltage - 0.5f;
-        if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
+        if (localMin > 500.0f) localMin = (float)gpsSpeed;
+        if (localMax < -500.0f) localMax = (float)gpsSpeed + 10.0f;
 
-        float span = localMax - localMin;
-        if (span < 0.5f)
-        {
-            float mid = (localMax + localMin) * 0.5f;
-            localMin = mid - 0.25f;
-            localMax = mid + 0.25f;
-        }
-        else
-        {
-            float margin = span * 0.05f;
-            localMin -= margin;
-            localMax += margin;
-        }
+        // Giữ sàn tối thiểu 40 km/h để khi dừng xe thì sóng nằm êm ả ở đáy, khi tăng tốc sóng cuộn lên sống động
+        if (localMin > 0.0f) localMin = 0.0f;
+        if (localMax < 40.0f) localMax = 40.0f;
 
-        static float smoothMinM4 = 10.5f, smoothMaxM4 = 15.5f;
+        static float smoothMinM4 = 0.0f, smoothMaxM4 = 40.0f;
         smoothMinM4 += 0.25f * (localMin - smoothMinM4);
         smoothMaxM4 += 0.25f * (localMax - smoothMaxM4);
         float currentSpanM4 = smoothMaxM4 - smoothMinM4;
-        if (currentSpanM4 < 0.4f)
+        if (currentSpanM4 < 10.0f)
         {
-            smoothMaxM4 = smoothMinM4 + 0.4f;
-            currentSpanM4 = 0.4f;
+            smoothMaxM4 = smoothMinM4 + 10.0f;
+            currentSpanM4 = 10.0f;
         }
 
         // Vẽ đường sóng tràn viền đổi màu Neon Gradient mượt mà theo từng điểm (Smooth Neon Wave)
@@ -1093,10 +1384,10 @@ void drawSTATUS()
         int prevPx = -1, prevPy = -1;
         for (int i = 0; i < plotW; i++)
         {
-            int histOffset = (i * (VOLT_HISTORY_SIZE - 1)) / (plotW - 1);
-            int bufIdx = (voltHistoryIdx + histOffset) % VOLT_HISTORY_SIZE;
-            float val = voltHistory[bufIdx];
-            uint16_t segColor = getVoltNeonColor(val);
+            int histOffset = (i * (SPEED_HISTORY_SIZE - 1)) / (plotW - 1);
+            int bufIdx = (speedHistoryIdx + histOffset) % SPEED_HISTORY_SIZE;
+            float val = speedHistory[bufIdx];
+            uint16_t segColor = getSpeedNeonColor(val);
 
             int py = oy + oh - 4 - (int)(((val - smoothMinM4) / currentSpanM4) * (oh - 8));
             if (py < oy + 2) py = oy + 2;
@@ -1118,11 +1409,14 @@ void drawSTATUS()
         }
 
         // 5. Footer tối giản sang trọng phân tầng cân đối (y = 198 - An toàn 100% trong đường tròn)
-        char minMaxBuf[32];
-        snprintf(minMaxBuf, sizeof(minMaxBuf), "MIN:%.1fV   MAX:%.1fV", (voltMin > 50.0f) ? batteryVoltage : voltMin, (voltMax < 5.0f) ? batteryVoltage : voltMax);
+        static int sessionSpeedMax = 0;
+        if (gpsSpeed > sessionSpeedMax) sessionSpeedMax = gpsSpeed;
+
+        char footerBuf[32];
+        snprintf(footerBuf, sizeof(footerBuf), "MAX: %d km/h   PIN: %.1fV", sessionSpeedMax, batteryVoltage);
         myFont.set_font(vietnamtimes12);
-        uint16_t mmLen = myFont.getLength(minMaxBuf);
-        myFont.print(120 - mmLen / 2, 198, minMaxBuf, color565(148, 163, 184), TFT_BLACK);
+        uint16_t mmLen = myFont.getLength(footerBuf);
+        myFont.print(120 - mmLen / 2, 198, footerBuf, color565(148, 163, 184), TFT_BLACK);
     }
     else if (statusStyle == 4)
     {
@@ -1223,7 +1517,7 @@ void drawSTATUS()
         canvasSprite.fillRoundRect(ox, oy, ow, oh, 6, color565(8, 16, 28));
         canvasSprite.drawRoundRect(ox, oy, ow, oh, 6, color565(30, 45, 68));
 
-        // THUẬT TOÁN AUTO-ZOOM (DYNAMIC DSO AUTO-SCALING):
+        // THUẬT TOÁN AUTO-ZOOM CHỐNG RUNG GIẬT & ĐỘ NHẠY CAO CHO SÓNG DAO ĐỘNG:
         float localMin = 99.0f, localMax = -99.0f;
         for (int i = 0; i < VOLT_HISTORY_SIZE; i++)
         {
@@ -1231,31 +1525,51 @@ void drawSTATUS()
             if (val < localMin) localMin = val;
             if (val > localMax) localMax = val;
         }
-        if (localMin > 50.0f) localMin = batteryVoltage - 0.5f;
-        if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
+        if (localMin > 50.0f) localMin = batteryVoltage - 0.25f;
+        if (localMax < -50.0f) localMax = batteryVoltage + 0.25f;
 
         float span = localMax - localMin;
-        if (span < 0.5f)
+        const float MIN_DSO_SPAN = 0.50f; // Sàn quan sát 500mV zoom to sóng rõ nét
+        if (span < MIN_DSO_SPAN)
         {
             float mid = (localMax + localMin) * 0.5f;
-            localMin = mid - 0.25f;
-            localMax = mid + 0.25f;
+            localMin = mid - (MIN_DSO_SPAN * 0.5f);
+            localMax = mid + (MIN_DSO_SPAN * 0.5f);
         }
         else
         {
-            float margin = span * 0.05f;
+            float margin = span * 0.08f;
             localMin -= margin;
             localMax += margin;
         }
 
-        static float smoothMinS3 = 10.5f, smoothMaxS3 = 15.5f;
-        smoothMinS3 += 0.25f * (localMin - smoothMinS3);
-        smoothMaxS3 += 0.25f * (localMax - smoothMaxS3);
-        float currentSpanS3 = smoothMaxS3 - smoothMinS3;
-        if (currentSpanS3 < 0.4f)
+        // Bắt tức thì khi sụt áp đề xe hoặc tăng áp nổ máy, mượt khi tĩnh
+        static float smoothMinS3 = 11.0f, smoothMaxS3 = 13.5f;
+        static bool isScaleInitS3 = false;
+        if (!isScaleInitS3)
         {
-            smoothMaxS3 = smoothMinS3 + 0.4f;
-            currentSpanS3 = 0.4f;
+            smoothMinS3 = localMin;
+            smoothMaxS3 = localMax;
+            isScaleInitS3 = true;
+        }
+
+        if (localMin < smoothMinS3)
+            smoothMinS3 = localMin; // Bắt ngay đáy sụt áp đề máy không trễ
+        else if (fabsf(localMin - smoothMinS3) > 0.02f)
+            smoothMinS3 += 0.12f * (localMin - smoothMinS3);
+
+        if (localMax > smoothMaxS3)
+            smoothMaxS3 = localMax; // Bắt ngay đỉnh sạc ga nổ máy
+        else if (fabsf(localMax - smoothMaxS3) > 0.02f)
+            smoothMaxS3 += 0.12f * (localMax - smoothMaxS3);
+
+        float currentSpanS3 = smoothMaxS3 - smoothMinS3;
+        if (currentSpanS3 < MIN_DSO_SPAN)
+        {
+            float midS3 = (smoothMaxS3 + smoothMinS3) * 0.5f;
+            smoothMinS3 = midS3 - (MIN_DSO_SPAN * 0.5f);
+            smoothMaxS3 = midS3 + (MIN_DSO_SPAN * 0.5f);
+            currentSpanS3 = MIN_DSO_SPAN;
         }
 
         // Tâm định vị toạ độ Graticule tinh tế (Subtle Center Crosshair)
@@ -1267,13 +1581,13 @@ void drawSTATUS()
         canvasSprite.drawPixel(cx, cy - 1, color565(80, 110, 150));
         canvasSprite.drawPixel(cx, cy + 1, color565(80, 110, 150));
 
-        // Vẽ đường sóng liên tục chuyển màu Neon Gradient mượt mà theo từng điểm sóng (Smooth Spectrum Wave)
+        // Vẽ đường sóng 1:1 liên tục, không bị đứt đoạn hay nhấp nháy bỏ mẫu
         int plotW = ow - 4; // 184 điểm
         int prevPx = -1, prevPy = -1;
+        int offsetStart = (VOLT_HISTORY_SIZE >= plotW) ? (VOLT_HISTORY_SIZE - plotW) : 0;
         for (int i = 0; i < plotW; i++)
         {
-            int histOffset = (i * (VOLT_HISTORY_SIZE - 1)) / (plotW - 1);
-            int bufIdx = (voltHistoryIdx + histOffset) % VOLT_HISTORY_SIZE;
+            int bufIdx = (voltHistoryIdx + offsetStart + i) % VOLT_HISTORY_SIZE;
             float val = voltHistory[bufIdx];
             uint16_t segColor = getVoltNeonColor(val);
 
@@ -1421,7 +1735,7 @@ void drawSTATUS()
         // 8. Cửa sổ sóng Oscilloscope Radar 3D (x=24, y=100, w=192, oh=64)
         int ox = 24, oy = 100, ow = 192, oh = 64;
 
-        // Auto-Zoom Calculation
+        // THUẬT TOÁN AUTO-ZOOM CHỐNG RUNG GIẬT & ĐỘ NHẠY CAO CHO SÓNG DAO ĐỘNG:
         float localMin = 99.0f, localMax = -99.0f;
         for (int i = 0; i < VOLT_HISTORY_SIZE; i++)
         {
@@ -1429,40 +1743,60 @@ void drawSTATUS()
             if (val < localMin) localMin = val;
             if (val > localMax) localMax = val;
         }
-        if (localMin > 50.0f) localMin = batteryVoltage - 0.5f;
-        if (localMax < -50.0f) localMax = batteryVoltage + 0.5f;
+        if (localMin > 50.0f) localMin = batteryVoltage - 0.25f;
+        if (localMax < -50.0f) localMax = batteryVoltage + 0.25f;
 
         float span = localMax - localMin;
-        if (span < 0.5f)
+        const float MIN_DSO_SPAN = 0.50f; // Sàn quan sát 500mV zoom to sóng rõ nét
+        if (span < MIN_DSO_SPAN)
         {
             float mid = (localMax + localMin) * 0.5f;
-            localMin = mid - 0.25f;
-            localMax = mid + 0.25f;
+            localMin = mid - (MIN_DSO_SPAN * 0.5f);
+            localMax = mid + (MIN_DSO_SPAN * 0.5f);
         }
         else
         {
-            float margin = span * 0.05f;
+            float margin = span * 0.08f;
             localMin -= margin;
             localMax += margin;
         }
 
-        static float smoothMinM4A = 10.5f, smoothMaxM4A = 15.5f;
-        smoothMinM4A += 0.25f * (localMin - smoothMinM4A);
-        smoothMaxM4A += 0.25f * (localMax - smoothMaxM4A);
-        float currentSpanM4A = smoothMaxM4A - smoothMinM4A;
-        if (currentSpanM4A < 0.4f)
+        // Bắt tức thì khi sụt áp đề máy hoặc sạc nổ máy, mượt khi tĩnh
+        static float smoothMinM4A = 11.0f, smoothMaxM4A = 13.5f;
+        static bool isScaleInitM4A = false;
+        if (!isScaleInitM4A)
         {
-            smoothMaxM4A = smoothMinM4A + 0.4f;
-            currentSpanM4A = 0.4f;
+            smoothMinM4A = localMin;
+            smoothMaxM4A = localMax;
+            isScaleInitM4A = true;
         }
 
-        // Sóng Oscilloscope 3D chuyển màu Neon Gradient mượt mà từng điểm sóng (Smooth Spectrum Wave)
+        if (localMin < smoothMinM4A)
+            smoothMinM4A = localMin; // Bắt ngay đáy sụt áp đề máy không trễ
+        else if (fabsf(localMin - smoothMinM4A) > 0.02f)
+            smoothMinM4A += 0.12f * (localMin - smoothMinM4A);
+
+        if (localMax > smoothMaxM4A)
+            smoothMaxM4A = localMax; // Bắt ngay đỉnh sạc ga nổ máy
+        else if (fabsf(localMax - smoothMaxM4A) > 0.02f)
+            smoothMaxM4A += 0.12f * (localMax - smoothMaxM4A);
+
+        float currentSpanM4A = smoothMaxM4A - smoothMinM4A;
+        if (currentSpanM4A < MIN_DSO_SPAN)
+        {
+            float midM4A = (smoothMaxM4A + smoothMinM4A) * 0.5f;
+            smoothMinM4A = midM4A - (MIN_DSO_SPAN * 0.5f);
+            smoothMaxM4A = midM4A + (MIN_DSO_SPAN * 0.5f);
+            currentSpanM4A = MIN_DSO_SPAN;
+        }
+
+        // Sóng Oscilloscope 3D 1:1 liên tục, không bị đứt đoạn hay nhấp nháy bỏ mẫu
         int plotW = ow - 4; // 188 điểm
         int prevPx = -1, prevPy = -1;
+        int offsetStart = (VOLT_HISTORY_SIZE >= plotW) ? (VOLT_HISTORY_SIZE - plotW) : 0;
         for (int i = 0; i < plotW; i++)
         {
-            int histOffset = (i * (VOLT_HISTORY_SIZE - 1)) / (plotW - 1);
-            int bufIdx = (voltHistoryIdx + histOffset) % VOLT_HISTORY_SIZE;
+            int bufIdx = (voltHistoryIdx + offsetStart + i) % VOLT_HISTORY_SIZE;
             float val = voltHistory[bufIdx];
             uint16_t segColor = getVoltNeonColor(val);
 
@@ -1497,6 +1831,414 @@ void drawSTATUS()
         myFont.set_font(vietnamtimes12);
         uint16_t mmLen = myFont.getLength(minMaxBuf);
         myFont.print(120 - mmLen / 2, 202, minMaxBuf, color565(148, 163, 184), TFT_BLACK);
+    }
+    else if (statusStyle == 7)
+    {
+        // ==================== MẪU 4B CHÍNH THỨC: CYBER SUPERBIKE 3D SPEED PRO (GPS SPEED FOCUS) ====================
+        // 1. Dynamic Speed Color (Chuyển tiếp mượt mà dải màu Neon RGB theo tốc độ GPS)
+        uint16_t spdColor = getSpeedNeonColor(gpsSpeed);
+
+        // 2. Viền Bezel ngoài cùng phát sáng theo dải tốc độ GPS
+        canvasSprite.drawCircle(120, 120, 118, spdColor);
+        canvasSprite.drawCircle(120, 120, 117, color565(15, 23, 42));
+
+        // 3. Header: Đồng hồ thời gian lớn (y = 12) + Ngày | Thời tiết | Pin ĐT (y = 36)
+        String timeStr = rtc.getTime("%H:%M");
+        myFont.set_font(FONT_HUD_DIST);
+        uint16_t timeLen = myFont.getLength(timeStr);
+        myFont.print(120 - timeLen / 2, 12, timeStr, TFT_WHITE, TFT_BLACK);
+
+        char wxBuf[16];
+        if (weatherTemp > -50.0f && weatherTemp < 60.0f)
+            snprintf(wxBuf, sizeof(wxBuf), "%.0f°C", weatherTemp);
+        else
+            snprintf(wxBuf, sizeof(wxBuf), "28°C");
+
+        String dateStr = rtc.getTime("%d/%m");
+        char pBuf[16];
+        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
+        snprintf(pBuf, sizeof(pBuf), "%d%%", pBat);
+
+        char subHdrBuf[48];
+        snprintf(subHdrBuf, sizeof(subHdrBuf), "%s | %s | %s", dateStr.c_str(), wxBuf, pBuf);
+        myFont.set_font(vietnamtimes12);
+        uint16_t shLen = myFont.getLength(subHdrBuf);
+        myFont.print(120 - shLen / 2, 36, subHdrBuf, color565(148, 163, 184), TFT_BLACK);
+
+        // BLE status dot
+        canvasSprite.fillCircle(120 + shLen / 2 + 6, 40, 2, bleConnected ? TFT_CYAN : color565(71, 85, 105));
+
+        // 4. Đường lưới 3D Perspective Road Grid chuyển động theo tốc độ GPS
+        const int horizonY = 104;
+        static float gridOffsetS7 = 0.0f;
+        float speedFactor = (gpsSpeed / 60.0f) * 3.5f;
+        if (speedFactor < 0.2f && gpsSpeed > 0) speedFactor = 0.2f;
+        gridOffsetS7 = fmodf(gridOffsetS7 + speedFactor, 22.0f);
+
+        for (int x = 10; x <= 230; x += 24)
+        {
+            canvasSprite.drawLine(120, horizonY, x, 240, color565(15, 30, 50));
+        }
+        for (int y = horizonY + 8; y < 240; y += 18)
+        {
+            int actualY = y + (int)(gridOffsetS7 * ((float)(y - horizonY) / 135.0f));
+            if (actualY <= 238)
+            {
+                canvasSprite.drawLine(20, actualY, 220, actualY, color565(20, 40, 65));
+            }
+        }
+
+        // 5. Thang đo cao độ tốc độ dọc 2 bên sườn (0..120 KM/H)
+        for (int ly = 48; ly <= 118; ly += 14)
+        {
+            canvasSprite.drawLine(18, ly, 26, ly, spdColor);
+            canvasSprite.drawLine(214, ly, 222, ly, spdColor);
+        }
+
+        // 6. Cụm Tốc Độ Trung Tâm (Focus lớn nhất)
+        char sBuf[16];
+        snprintf(sBuf, sizeof(sBuf), "%d", gpsSpeed);
+        myFont.set_font(FONT_CLOCK);
+        uint16_t sLen = myFont.getLength(sBuf);
+        myFont.print(112 - sLen / 2, 50, sBuf, TFT_WHITE, TFT_BLACK);
+
+        myFont.set_font(FONT_STATUS_INFO);
+        myFont.print(116 + sLen / 2, 60, "KM/H", spdColor, TFT_BLACK);
+
+        // 7. Xe Moto Phân Khối Lớn 3D Ninja H2 (Lửa pô theo tốc độ)
+        const int bx = 120, by = 172;
+        canvasSprite.fillEllipse(bx, by + 14, 24, 5, color565(6, 12, 20));
+        if (gpsSpeed > 0)
+        {
+            int flameH = (int)((gpsSpeed / 120.0f) * 18.0f) + (millis() % 4);
+            canvasSprite.fillTriangle(bx - 12, by + 6, bx - 9, by + 6 + flameH, bx - 6, by + 6, spdColor);
+            canvasSprite.fillTriangle(bx + 6, by + 6, bx + 9, by + 6 + flameH, bx + 12, by + 6, spdColor);
+        }
+        canvasSprite.fillRoundRect(bx - 9, by - 5, 18, 20, 4, color565(15, 23, 42));
+        canvasSprite.drawRoundRect(bx - 9, by - 5, 18, 20, 4, color565(30, 41, 59));
+        canvasSprite.drawLine(bx - 5, by - 1, bx + 5, by - 1, spdColor);
+        canvasSprite.drawLine(bx - 5, by + 5, bx + 5, by + 5, spdColor);
+
+        canvasSprite.fillRect(bx - 14, by - 2, 5, 10, color565(51, 65, 85));
+        canvasSprite.fillRect(bx + 9, by - 2, 5, 10, color565(51, 65, 85));
+
+        canvasSprite.fillTriangle(bx, by - 24, bx - 15, by - 6, bx + 15, by - 6, color565(15, 23, 42));
+        canvasSprite.drawLine(bx, by - 22, bx - 13, by - 5, spdColor);
+        canvasSprite.drawLine(bx, by - 22, bx + 13, by - 5, spdColor);
+
+        canvasSprite.drawLine(bx - 12, by - 10, bx - 2, by - 7, TFT_RED);
+        canvasSprite.drawLine(bx - 12, by - 9, bx - 2, by - 6, TFT_RED);
+        canvasSprite.drawLine(bx + 12, by - 10, bx + 2, by - 7, TFT_RED);
+        canvasSprite.drawLine(bx + 12, by - 9, bx + 2, by - 6, TFT_RED);
+
+        canvasSprite.fillCircle(bx, by - 28, 5, color565(30, 41, 59));
+        canvasSprite.drawCircle(bx, by - 28, 4, spdColor);
+
+        // 8. Cửa sổ sóng Oscilloscope TỐC ĐỘ GPS (x=24, y=100, w=192, oh=64)
+        int ox = 24, oy = 100, ow = 192, oh = 64;
+        float localMinSpd = 999.0f, localMaxSpd = -999.0f;
+        for (int i = 0; i < SPEED_HISTORY_SIZE; i++)
+        {
+            float val = speedHistory[i];
+            if (val < localMinSpd) localMinSpd = val;
+            if (val > localMaxSpd) localMaxSpd = val;
+        }
+        if (localMinSpd > 500.0f) localMinSpd = (float)gpsSpeed;
+        if (localMaxSpd < -500.0f) localMaxSpd = (float)gpsSpeed;
+
+        float spanSpd = localMaxSpd - localMinSpd;
+        const float MIN_SPEED_SPAN = 20.0f; // Sàn quan sát tối thiểu 20 km/h
+        if (spanSpd < MIN_SPEED_SPAN)
+        {
+            float mid = (localMaxSpd + localMinSpd) * 0.5f;
+            localMinSpd = (mid - (MIN_SPEED_SPAN * 0.5f) < 0.0f) ? 0.0f : (mid - (MIN_SPEED_SPAN * 0.5f));
+            localMaxSpd = localMinSpd + MIN_SPEED_SPAN;
+            spanSpd = MIN_SPEED_SPAN;
+        }
+
+        static float smoothMinM4B = 0.0f, smoothMaxM4B = 60.0f;
+        static bool isScaleInitM4B = false;
+        if (!isScaleInitM4B)
+        {
+            smoothMinM4B = localMinSpd;
+            smoothMaxM4B = localMaxSpd;
+            isScaleInitM4B = true;
+        }
+
+        if (localMinSpd < smoothMinM4B) smoothMinM4B = localMinSpd;
+        else if (fabsf(localMinSpd - smoothMinM4B) > 0.5f) smoothMinM4B += 0.15f * (localMinSpd - smoothMinM4B);
+
+        if (localMaxSpd > smoothMaxM4B) smoothMaxM4B = localMaxSpd;
+        else if (fabsf(localMaxSpd - smoothMaxM4B) > 0.5f) smoothMaxM4B += 0.15f * (localMaxSpd - smoothMaxM4B);
+
+        float currentSpanM4B = smoothMaxM4B - smoothMinM4B;
+        if (currentSpanM4B < MIN_SPEED_SPAN) currentSpanM4B = MIN_SPEED_SPAN;
+
+        int plotW = ow - 4; // 188 điểm
+        int prevPx = -1, prevPy = -1;
+        int offsetStart = (SPEED_HISTORY_SIZE >= plotW) ? (SPEED_HISTORY_SIZE - plotW) : 0;
+        for (int i = 0; i < plotW; i++)
+        {
+            int bufIdx = (speedHistoryIdx + offsetStart + i) % SPEED_HISTORY_SIZE;
+            float val = speedHistory[bufIdx];
+            uint16_t segColor = getSpeedNeonColor(val);
+
+            int py = oy + oh - 3 - (int)(((val - smoothMinM4B) / currentSpanM4B) * (oh - 6));
+            if (py < oy + 2) py = oy + 2;
+            if (py > oy + oh - 2) py = oy + oh - 2;
+            int px = ox + 2 + i;
+
+            if (i == 0)
+            {
+                prevPx = px;
+                prevPy = py;
+            }
+            else
+            {
+                canvasSprite.drawLine(prevPx, prevPy, px, py, segColor);
+                canvasSprite.drawLine(prevPx, prevPy + 1, px, py + 1, segColor);
+                prevPx = px;
+                prevPy = py;
+            }
+        }
+
+        // 9. Footer Telemetry: Điện Áp Ắc Quy & Max Speed
+        uint16_t vCol = getVoltNeonColor(batteryVoltage);
+        char vFootBuf[16];
+        snprintf(vFootBuf, sizeof(vFootBuf), "%.2f V", batteryVoltage);
+        myFont.set_font(vietnamtimes12);
+        uint16_t vfLen = myFont.getLength(vFootBuf);
+        myFont.print(120 - vfLen / 2, 184, vFootBuf, vCol, TFT_BLACK);
+
+        char spdStatBuf[32];
+        snprintf(spdStatBuf, sizeof(spdStatBuf), "SPD MAX:%d   AVG:%d", (int)smoothMaxM4B, (int)((smoothMaxM4B + smoothMinM4B) * 0.5f));
+        myFont.set_font(vietnamtimes12);
+        uint16_t ssLen = myFont.getLength(spdStatBuf);
+        myFont.print(120 - ssLen / 2, 202, spdStatBuf, color565(148, 163, 184), TFT_BLACK);
+    }
+    else if (statusStyle == 8)
+    {
+        // ==================== MẪU 4C CHÍNH THỨC: CYBER SUPERBIKE 3D DUAL-TRACE PRO (VỪA ĐO VOL VỪA GPS 2 SÓNG) ====================
+        // 1. Dual Dynamic Colors
+        uint16_t voltColor = getVoltNeonColor(batteryVoltage);
+        uint16_t spdColor = getSpeedNeonColor(gpsSpeed);
+
+        // 2. Viền Bezel ngoài kép phát sáng (Nửa trái: Volt Color, Nửa phải: Speed Color)
+        for (int a = 90; a < 270; a += 4)
+        {
+            float rad = a * 0.0174533f;
+            int x1 = 120 + (int)(118 * cosf(rad));
+            int y1 = 120 + (int)(118 * sinf(rad));
+            canvasSprite.drawPixel(x1, y1, voltColor);
+        }
+        for (int a = -90; a < 90; a += 4)
+        {
+            float rad = a * 0.0174533f;
+            int x1 = 120 + (int)(118 * cosf(rad));
+            int y1 = 120 + (int)(118 * sinf(rad));
+            canvasSprite.drawPixel(x1, y1, spdColor);
+        }
+
+        // 3. Header: Đồng hồ thời gian + Ngày/Nhiệt độ/Pin
+        String timeStr = rtc.getTime("%H:%M");
+        myFont.set_font(FONT_HUD_DIST);
+        uint16_t timeLen = myFont.getLength(timeStr);
+        myFont.print(120 - timeLen / 2, 12, timeStr, TFT_WHITE, TFT_BLACK);
+
+        char wxBuf[16];
+        if (weatherTemp > -50.0f && weatherTemp < 60.0f)
+            snprintf(wxBuf, sizeof(wxBuf), "%.0f°C", weatherTemp);
+        else
+            snprintf(wxBuf, sizeof(wxBuf), "28°C");
+
+        String dateStr = rtc.getTime("%d/%m");
+        char pBuf[16];
+        int pBat = (phoneBatteryLevel >= 0) ? phoneBatteryLevel : 100;
+        snprintf(pBuf, sizeof(pBuf), "%d%%", pBat);
+
+        char subHdrBuf[48];
+        snprintf(subHdrBuf, sizeof(subHdrBuf), "%s | %s | %s", dateStr.c_str(), wxBuf, pBuf);
+        myFont.set_font(vietnamtimes12);
+        uint16_t shLen = myFont.getLength(subHdrBuf);
+        myFont.print(120 - shLen / 2, 36, subHdrBuf, color565(148, 163, 184), TFT_BLACK);
+
+        // BLE status dot
+        canvasSprite.fillCircle(120 + shLen / 2 + 6, 40, 2, bleConnected ? TFT_CYAN : color565(71, 85, 105));
+
+        // 4. Perspective Road Grid
+        const int horizonY = 104;
+        static float gridOffsetS8 = 0.0f;
+        float speedFactor = (gpsSpeed / 60.0f) * 3.5f;
+        if (speedFactor < 0.2f && gpsSpeed > 0) speedFactor = 0.2f;
+        gridOffsetS8 = fmodf(gridOffsetS8 + speedFactor, 22.0f);
+
+        for (int x = 10; x <= 230; x += 24)
+        {
+            canvasSprite.drawLine(120, horizonY, x, 240, color565(15, 30, 50));
+        }
+        for (int y = horizonY + 8; y < 240; y += 18)
+        {
+            int actualY = y + (int)(gridOffsetS8 * ((float)(y - horizonY) / 135.0f));
+            if (actualY <= 238)
+            {
+                canvasSprite.drawLine(20, actualY, 220, actualY, color565(20, 40, 65));
+            }
+        }
+
+        // 5. Thang đo kép 2 bên sườn: Trái đo Volt, Phải đo Tốc độ
+        for (int ly = 48; ly <= 118; ly += 14)
+        {
+            canvasSprite.drawLine(18, ly, 26, ly, voltColor); // Thang Volt
+            canvasSprite.drawLine(214, ly, 222, ly, spdColor); // Thang Speed
+        }
+
+        // 6. Cụm Số Đo Song Song (Speed số lớn + Volt sắc nét bên cạnh)
+        char sBuf[16];
+        snprintf(sBuf, sizeof(sBuf), "%d", gpsSpeed);
+        myFont.set_font(FONT_CLOCK);
+        uint16_t sLen = myFont.getLength(sBuf);
+        myFont.print(102 - sLen / 2, 50, sBuf, TFT_WHITE, TFT_BLACK);
+
+        char vBuf[16];
+        snprintf(vBuf, sizeof(vBuf), "%.2fV", batteryVoltage);
+        myFont.set_font(vietnamtimes12);
+        myFont.print(112 + sLen / 2, 56, "KM/H", spdColor, TFT_BLACK);
+        myFont.print(112 + sLen / 2, 70, vBuf, voltColor, TFT_BLACK);
+
+        // 7. Xe Moto Phân Khối Lớn 3D Ninja H2
+        const int bx = 120, by = 172;
+        canvasSprite.fillEllipse(bx, by + 14, 24, 5, color565(6, 12, 20));
+        if (gpsSpeed > 0)
+        {
+            int flameH = (int)((gpsSpeed / 120.0f) * 18.0f) + (millis() % 4);
+            canvasSprite.fillTriangle(bx - 12, by + 6, bx - 9, by + 6 + flameH, bx - 6, by + 6, spdColor);
+            canvasSprite.fillTriangle(bx + 6, by + 6, bx + 9, by + 6 + flameH, bx + 12, by + 6, spdColor);
+        }
+        canvasSprite.fillRoundRect(bx - 9, by - 5, 18, 20, 4, color565(15, 23, 42));
+        canvasSprite.drawRoundRect(bx - 9, by - 5, 18, 20, 4, color565(30, 41, 59));
+        canvasSprite.drawLine(bx - 5, by - 1, bx + 5, by - 1, spdColor);
+        canvasSprite.drawLine(bx - 5, by + 5, bx + 5, by + 5, spdColor);
+
+        canvasSprite.fillRect(bx - 14, by - 2, 5, 10, color565(51, 65, 85));
+        canvasSprite.fillRect(bx + 9, by - 2, 5, 10, color565(51, 65, 85));
+
+        canvasSprite.fillTriangle(bx, by - 24, bx - 15, by - 6, bx + 15, by - 6, color565(15, 23, 42));
+        canvasSprite.drawLine(bx, by - 22, bx - 13, by - 5, spdColor);
+        canvasSprite.drawLine(bx, by - 22, bx + 13, by - 5, spdColor);
+
+        canvasSprite.drawLine(bx - 12, by - 10, bx - 2, by - 7, TFT_RED);
+        canvasSprite.drawLine(bx - 12, by - 9, bx - 2, by - 6, TFT_RED);
+        canvasSprite.drawLine(bx + 12, by - 10, bx + 2, by - 7, TFT_RED);
+        canvasSprite.drawLine(bx + 12, by - 9, bx + 2, by - 6, TFT_RED);
+
+        canvasSprite.fillCircle(bx, by - 28, 5, color565(30, 41, 59));
+        canvasSprite.drawCircle(bx, by - 28, 4, spdColor);
+
+        // 8. Cửa sổ Oscilloscope Radar DUAL-TRACE (2 SÓNG HIỆN CÙNG LÚC!)
+        int ox = 24, oy = 100, ow = 192, oh = 64;
+        int plotW = ow - 4; // 188 điểm
+
+        // Scale cho Sóng Điện Áp (Channel 1)
+        float localMinV = 99.0f, localMaxV = -99.0f;
+        for (int i = 0; i < VOLT_HISTORY_SIZE; i++)
+        {
+            float val = voltHistory[i];
+            if (val < localMinV) localMinV = val;
+            if (val > localMaxV) localMaxV = val;
+        }
+        if (localMinV > 50.0f) localMinV = batteryVoltage - 0.25f;
+        if (localMaxV < -50.0f) localMaxV = batteryVoltage + 0.25f;
+        float spanV = localMaxV - localMinV;
+        if (spanV < 0.50f) {
+            float mid = (localMaxV + localMinV) * 0.5f;
+            localMinV = mid - 0.25f;
+            localMaxV = mid + 0.25f;
+            spanV = 0.50f;
+        }
+
+        // Scale cho Sóng Tốc Độ GPS (Channel 2)
+        float localMinS = 999.0f, localMaxS = -999.0f;
+        for (int i = 0; i < SPEED_HISTORY_SIZE; i++)
+        {
+            float val = speedHistory[i];
+            if (val < localMinS) localMinS = val;
+            if (val > localMaxS) localMaxS = val;
+        }
+        if (localMinS > 500.0f) localMinS = (float)gpsSpeed;
+        if (localMaxS < -500.0f) localMaxS = (float)gpsSpeed;
+        float spanS = localMaxS - localMinS;
+        if (spanS < 20.0f) {
+            float mid = (localMaxS + localMinS) * 0.5f;
+            localMinS = (mid - 10.0f < 0.0f) ? 0.0f : (mid - 10.0f);
+            localMaxS = localMinS + 20.0f;
+            spanS = 20.0f;
+        }
+
+        int offsetStartV = (VOLT_HISTORY_SIZE >= plotW) ? (VOLT_HISTORY_SIZE - plotW) : 0;
+        int offsetStartS = (SPEED_HISTORY_SIZE >= plotW) ? (SPEED_HISTORY_SIZE - plotW) : 0;
+
+        // VẼ SÓNG KÊNH 1: ĐIỆN ÁP (VOLT TRACE - Nét liền kép)
+        int prevVx = -1, prevVy = -1;
+        for (int i = 0; i < plotW; i++)
+        {
+            int bufIdx = (voltHistoryIdx + offsetStartV + i) % VOLT_HISTORY_SIZE;
+            float val = voltHistory[bufIdx];
+            uint16_t segCol = getVoltNeonColor(val);
+
+            int py = oy + oh - 4 - (int)(((val - localMinV) / spanV) * (oh - 8));
+            if (py < oy + 2) py = oy + 2;
+            if (py > oy + oh - 2) py = oy + oh - 2;
+            int px = ox + 2 + i;
+
+            if (i == 0) { prevVx = px; prevVy = py; }
+            else
+            {
+                canvasSprite.drawLine(prevVx, prevVy, px, py, segCol);
+                prevVx = px; prevVy = py;
+            }
+        }
+
+        // VẼ SÓNG KÊNH 2: TỐC ĐỘ GPS (SPEED TRACE - Nét đứt phân biệt)
+        int prevSx = -1, prevSy = -1;
+        for (int i = 0; i < plotW; i++)
+        {
+            int bufIdx = (speedHistoryIdx + offsetStartS + i) % SPEED_HISTORY_SIZE;
+            float val = speedHistory[bufIdx];
+            uint16_t segCol = getSpeedNeonColor(val);
+
+            int py = oy + oh - 4 - (int)(((val - localMinS) / spanS) * (oh - 8));
+            if (py < oy + 2) py = oy + 2;
+            if (py > oy + oh - 2) py = oy + oh - 2;
+            int px = ox + 2 + i;
+
+            if (i == 0) { prevSx = px; prevSy = py; }
+            else
+            {
+                if (i % 3 != 0) // Nét đứt dạ quang thể hiện kênh 2
+                {
+                    canvasSprite.drawLine(prevSx, prevSy, px, py, segCol);
+                }
+                prevSx = px; prevSy = py;
+            }
+        }
+
+        // Nhãn chú thích 2 kênh ở góc sóng
+        myFont.set_font(vietnamtimes12);
+        myFont.print(ox + 4, oy + 4, "CH1:V", voltColor, TFT_BLACK);
+        myFont.print(ox + 54, oy + 4, "CH2:SPD", spdColor, TFT_BLACK);
+
+        // 9. Footer Telemetry: Hiển thị song song cả 2 thông số
+        char dFootBuf[32];
+        snprintf(dFootBuf, sizeof(dFootBuf), "%.1fV  |  %d KM/H", batteryVoltage, gpsSpeed);
+        myFont.set_font(vietnamtimes12);
+        uint16_t dfLen = myFont.getLength(dFootBuf);
+        myFont.print(120 - dfLen / 2, 184, dFootBuf, TFT_WHITE, TFT_BLACK);
+
+        char dStatBuf[32];
+        snprintf(dStatBuf, sizeof(dStatBuf), "V:%.1f-%.1f  S_MAX:%d", (voltMin > 50.0f) ? batteryVoltage : voltMin, (voltMax < 5.0f) ? batteryVoltage : voltMax, (int)localMaxS);
+        myFont.set_font(vietnamtimes12);
+        uint16_t dsLen = myFont.getLength(dStatBuf);
+        myFont.print(120 - dsLen / 2, 202, dStatBuf, color565(148, 163, 184), TFT_BLACK);
     }
     else
     {
@@ -1810,6 +2552,12 @@ void drawSETTINGS()
     case 6:
         statusName = "M4A: Cyber Superbike 3D";
         break;
+    case 7:
+        statusName = "M4B: Cyber Speed 3D";
+        break;
+    case 8:
+        statusName = "M4C: Cyber Dual-Trace 3D";
+        break;
     default:
         statusName = "M4A: Cyber Superbike 3D";
         break;
@@ -1845,6 +2593,9 @@ void drawSETTINGS()
         break;
     case 4:
         mapHudName = "MH5: Pure Map";
+        break;
+    case 5:
+        mapHudName = "MH6: Galaxy Watch";
         break;
     default:
         mapHudName = "MH1: Compact Pill";
@@ -1949,12 +2700,12 @@ void drawINFO()
 
     // 7. Cache icon
     char cacheBuf[32];
-    snprintf(cacheBuf, sizeof(cacheBuf), "Icon Cache: %d/50", staticIconIndex);
+    snprintf(cacheBuf, sizeof(cacheBuf), "Icon Cache: %d/50", cacheSize);
     uint16_t cacheLen = myFont.getLength(cacheBuf);
     myFont.print(120 - cacheLen / 2, 160, cacheBuf, TFT_WHITE, TFT_BLACK);
 
     // 8. Phiên bản
-    String verStr = "TYMAP v1.0.9 | GC9A01";
+    String verStr = "TYMAP v" + String(FW_VERSION_STR) + " | GC9A01";
     uint16_t verLen = myFont.getLength(verStr);
     myFont.print(120 - verLen / 2, 180, verStr, TFT_DARKGREY, TFT_BLACK);
 
@@ -2167,6 +2918,8 @@ void parseAndApplyLayoutJson(const String &jsonStr)
         mapHudStyle = 3;
     else if (jsonStr.indexOf("mh5") != -1)
         mapHudStyle = 4;
+    else if (jsonStr.indexOf("mh6") != -1 || jsonStr.indexOf("galaxy") != -1)
+        mapHudStyle = 5;
 
     hasCustomLayoutConfig = true;
     Serial.printf("GUI: Applied custom layout JSON config via BLE (statusStyle=%d, notifStyle=%d, mapHudStyle=%d)\n", (int)statusStyle, (int)notifStyle, (int)mapHudStyle);

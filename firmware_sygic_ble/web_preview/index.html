@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TYMAP ESP32-C3 - Phát Thảo Chi Tiết HUD Classic Boxed</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070a12;
+    --card-bg: #111827;
+    --border: #1f293d;
+    --accent: #00e5ff;
+    --accent-glow: rgba(0, 229, 255, 0.3);
+    --oled-bg: #03060c;
+    --oled-pixel: #d4e8ff;
+    --oled-glow: rgba(212, 232, 255, 0.6);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: var(--bg);
+    color: #f1f5f9;
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  header {
+    text-align: center;
+    max-width: 960px;
+    margin-bottom: 24px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(0, 229, 255, 0.1);
+    color: var(--accent);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  p.subtitle { color: #94a3b8; font-size: 15px; }
+
+  .section-title {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 24px 0 16px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  .grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 24px;
+    max-width: 1200px;
+    width: 100%;
+  }
+
+  .preview-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.2s ease;
+  }
+  .preview-card:hover {
+    border-color: rgba(0, 229, 255, 0.5);
+    transform: translateY(-2px);
+  }
+  .card-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .card-title { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+  .tag {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #cbd5e1;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* OLED Bezel & Screen (Tỉ lệ chuẩn 128x64 phóng to 3x = 384x192) */
+  .oled-bezel {
+    width: 384px;
+    height: 192px;
+    background: #020408;
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 8px 24px rgba(0,0,0,0.5);
+    border: 3px solid #1e293b;
+    position: relative;
+  }
+  .oled-glass {
+    width: 100%;
+    height: 100%;
+    background: var(--oled-bg);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    color: var(--oled-pixel);
+    font-family: 'JetBrains Mono', monospace;
+    text-shadow: 0 0 2px var(--oled-glow);
+    border-radius: 4px;
+    overflow: hidden;
+    user-select: none;
+  }
+  .oled-glass::before {
+    content: " ";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+    background-size: 100% 3px, 3px 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .card-desc {
+    margin-top: 14px;
+    width: 100%;
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+  .card-desc ul { margin-left: 18px; margin-top: 4px; }
+
+  /* ------------------- MÀN HÌNH CHỜ ĐÃ CHỐT: MẪU 1 ------------------- */
+  .status-header {
+    height: 34px;
+    border-bottom: 2px solid var(--oled-pixel);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .volt-center {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    justify-content: center;
+  }
+  .volt-huge { font-size: 56px; font-weight: 700; }
+  .volt-unit { font-size: 20px; font-weight: 700; }
+  .volt-bar-box {
+    width: calc(100% - 20px);
+    height: 18px;
+    border: 2px solid var(--oled-pixel);
+    margin: 4px auto 0;
+    padding: 2px;
+    position: relative;
+  }
+  .volt-bar-fill { height: 100%; width: 58%; background: var(--oled-pixel); }
+  .volt-ticks {
+    display: flex;
+    justify-content: space-between;
+    width: calc(100% - 20px);
+    margin: 2px auto 0;
+    font-size: 9px;
+  }
+
+  /* ------------------- HUD CLASSIC BOXED PHÁT THẢO CHI TIẾT ------------------- */
+  .hud-wrap { display: flex; height: 100%; }
+  
+  /* Cột trái: Mũi tên rẽ lớn */
+  .hud-col-arrow {
+    width: 140px;
+    border-right: 2px dashed var(--oled-pixel);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+  }
+  .hud-svg-large {
+    width: 96px;
+    height: 96px;
+    fill: var(--oled-pixel);
+  }
+
+  /* Cột phải: Cự ly rẽ chữ to nổi bật + Biến thể thông tin phụ */
+  .hud-col-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 10px 14px;
+  }
+  .dist-huge {
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .speed-circle {
+    width: 44px;
+    height: 44px;
+    border: 3px solid var(--oled-pixel);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  /* Interactive Simulator */
+  .demo-container {
+    max-width: 1200px;
+    width: 100%;
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 30px;
+  }
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+  .btn {
+    background: #1e293b;
+    border: 1px solid var(--border);
+    color: #94a3b8;
+    padding: 9px 15px;
+    border-radius: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+  .btn.active {
+    background: var(--accent);
+    color: #050b14;
+    font-weight: 700;
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge">TYMAP ESP32-C3 SH1106 OLED • iOS Sygic BLE</div>
+  <h1>Phát Thảo Chi Tiết: HUD Classic Boxed (Chuẩn Sygic)</h1>
+  <p class="subtitle">Đã chốt Mẫu 1 (Đo Bình Thước Bar khi chờ). Khám phá 3 biến thể bố cục cự ly ngã rẽ to nổi bật.</p>
+</header>
+
+<!-- PHẦN 1: MÀN HÌNH CHỜ ĐÃ ĐƯỢC CHỐT -->
+<div class="section-title">
+  <span>✅ 1. MÀN HÌNH CHỜ ĐÃ CHỐT: ĐỒNG HỒ & ẮC QUY TRỰC QUAN (MẪU 1)</span>
+</div>
+
+<div class="grid-container" style="grid-template-columns: 1fr; max-width: 500px; margin: 0 auto 30px;">
+  <div class="preview-card" style="border-color: var(--accent);">
+    <div class="card-header">
+      <span class="card-title">Mẫu 1 Chốt: Giờ + Ắc Quy Số Lớn + Thước Nạp Bar</span>
+      <span class="tag" style="background: rgba(0,229,255,0.2); color: var(--accent);">CHỐT SỬ DỤNG</span>
+    </div>
+    <div class="oled-bezel">
+      <div class="oled-glass">
+        <div class="status-header">
+          <span id="clockTop">GIỜ: 14:35</span>
+          <span>● IPHONE (BLE OK)</span>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+          <div class="volt-center">
+            <div class="volt-huge" id="liveVoltMain">12.6</div>
+            <div class="volt-unit">VOLT</div>
+          </div>
+          <div class="volt-bar-box">
+            <div class="volt-bar-fill" id="liveBarMain" style="width: 58%;"></div>
+          </div>
+          <div class="volt-ticks">
+            <span>10.0V</span>
+            <span>12.0V (BÌNH)</span>
+            <span>14.8V (SẠC)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">
+      Khi không có chỉ dẫn bản đồ hoặc vừa nổ máy, ESP32-C3 hiển thị đồng hồ thời gian thực và đo điện áp bình số lớn kèm thước đo vạch nạp trực quan.
+    </div>
+  </div>
+</div>
+
+<!-- PHẦN 2: CÁC BIẾN THỂ PHÁT THẢO HUD CLASSIC BOXED (MŨI TÊN LỚN BÊN TRÁI + CỰ LY CHỮ TO NỔI BẬT) -->
+<div class="section-title">
+  <span>🧭 2. PHÁT THẢO CHI TIẾT 3 BIẾN THỂ HUD CLASSIC BOXED (SYGIC)</span>
+</div>
+
+<div class="grid-container">
+
+  <!-- BIẾN THỂ A: CỰ LY CỰC ĐẠI + BIỂN TỐC ĐỘ + ĐIỆN ÁP NHỎ -->
+  <div class="preview-card">
+    <div class="card-header">
+      <span class="card-title">Biến Thể A: Cự Ly Lớn + Biển Tốc Độ Tròn</span>
+      <span class="tag">RẤT DỄ NHÌN [KHUYÊN DÙNG]</span>
+    </div>
+    <div class="oled-bezel">
+      <div class="oled-glass">
+        <div class="hud-wrap">
+          <!-- Cột trái: Mũi tên lớn 48x48 (scale 2x) -->
+          <div class="hud-col-arrow">
+            <svg class="hud-svg-large" viewBox="0 0 48 48">
+              <!-- Rẽ phải -->
+              <path d="M14 42 V 16 H 32 L 24 8 H 34 L 46 20 L 34 32 H 24 L 32 24 H 22 V 42 Z"/>
+            </svg>
+          </div>
+          <!-- Cột phải: Cự ly 150 M cực to + Biển báo giới hạn tốc độ 60 -->
+          <div class="hud-col-info">
+            <div class="dist-huge">150 M</div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div class="speed-circle">60</div>
+              <div style="font-size: 11px; line-height:1.3;">
+                <div>GIỚI HẠN</div>
+                <div style="font-weight:700;">12.6V • BLE</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">
+      <strong>Bố cục:</strong>
+      <ul>
+        <li><strong>Cột trái:</strong> Mũi tên rẽ lớn 48x48 nét đậm, chiếm trọn chiều cao 64px.</li>
+        <li><strong>Cột phải:</strong> Cự ly rẽ chữ to 44px (`150 M`), bên dưới có biển giới hạn tốc độ xe tròn chuẩn phong cách Sygic kèm điện áp ắc quy.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- BIẾN THỂ B: CỰ LY SIÊU TO TỐI GIẢN (GIẢM THIỂU PHÂN TÂM KHI LÁI XE NHANH) -->
+  <div class="preview-card">
+    <div class="card-header">
+      <span class="card-title">Biến Thể B: Cự Ly Khổng Lồ + Đơn Vị Mét</span>
+      <span class="tag">TỐI GIẢN TỐC ĐỘ CAO</span>
+    </div>
+    <div class="oled-bezel">
+      <div class="oled-glass">
+        <div class="hud-wrap">
+          <div class="hud-col-arrow">
+            <!-- Mũi tên chếch trái 45 độ -->
+            <svg class="hud-svg-large" viewBox="0 0 48 48">
+              <path d="M30 42 V 22 L 18 10 L 12 16 L 8 4 L 20 8 L 14 14 L 24 24 V 42 Z"/>
+            </svg>
+          </div>
+          <div class="hud-col-info" style="justify-content:center;">
+            <div style="font-size: 52px; font-weight:700; line-height:1;">250</div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:4px;">
+              <span style="font-size: 16px; font-weight:700;">METRES</span>
+              <span style="font-size: 12px; font-weight:700;">MAX 50</span>
+            </div>
+            <div style="font-size: 10px; color:#cbd5e1; margin-top:2px;">ẮC QUY: 12.6V • BLE OK</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">
+      <strong>Bố cục:</strong>
+      <ul>
+        <li>Dành cho tài xế cần nhìn số cự ly cực đại (52pt) trong 0.2 giây khi chạy xe ban đêm hoặc trời nắng gắt.</li>
+        <li>Thông tin phụ (giới hạn tốc độ và điện áp) được đặt gọn gàng ở dải chân.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- BIẾN THỂ C: CỰ LY LỚN + TÊN ĐƯỜNG / HƯỚNG ĐI TIẾNG VIỆT -->
+  <div class="preview-card">
+    <div class="card-header">
+      <span class="card-title">Biến Thể C: Cự Ly Lớn + Hành Động Dẫn Đường</span>
+      <span class="tag">ĐẦY ĐỦ THÔNG TIN</span>
+    </div>
+    <div class="oled-bezel">
+      <div class="oled-glass">
+        <div class="hud-wrap">
+          <div class="hud-col-arrow">
+            <!-- U-Turn Quay đầu -->
+            <svg class="hud-svg-large" viewBox="0 0 48 48">
+              <path d="M12 40 V 20 C 12 10, 36 10, 36 20 V 40 H 28 V 20 C 28 16, 20 16, 20 20 V 40 Z"/>
+              <polygon points="6,34 16,34 11,44"/>
+            </svg>
+          </div>
+          <div class="hud-col-info">
+            <div style="font-size: 38px; font-weight:700;">80 M</div>
+            <div style="font-size: 13px; font-weight:700; border-top:1px solid var(--oled-pixel); padding-top:2px;">
+              QUAY ĐẦU XE
+            </div>
+            <div style="font-size: 10px; display:flex; justify-content:space-between; color:#cbd5e1;">
+              <span>MAX: 40 KM/H</span>
+              <span>12.6V</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">
+      <strong>Bố cục:</strong>
+      <ul>
+        <li>Hiển thị hành động rõ ràng bằng chữ: <em>RẼ PHẢI, RẼ TRÁI, ĐI THẲNG, QUAY ĐẦU</em> bên dưới cự ly rẽ to.</li>
+        <li>Hạn chế tối đa việc nhầm lẫn hướng rẽ ở các giao lộ phức tạp.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<!-- TRÌNH MÔ PHỎNG TƯƠNG TÁC LIVE TRÊN WEB -->
+<div class="demo-container">
+  <h2 style="font-size: 18px; color:var(--accent); margin-bottom: 8px;">🎮 Trình Giả Lập Trực Tiếp (Live Interactive Test)</h2>
+  <p style="color:#94a3b8; font-size: 13px;">Bấm chọn giữa Chế độ Chờ (Mẫu 1 đã chốt) và 3 Biến thể HUD để xem thử trên khung OLED mô phỏng:</p>
+
+  <div class="toolbar">
+    <button class="btn active" id="btnLive0" onclick="setLiveTest('idle')">🔋 1. Chế Độ Chờ: Mẫu 1 (Đo Bình Bar)</button>
+    <button class="btn" id="btnLive1" onclick="setLiveTest('hud_a')">🧭 2. HUD Biến Thể A (Cự Ly To + Biển 60)</button>
+    <button class="btn" id="btnLive2" onclick="setLiveTest('hud_b')">🚀 3. HUD Biến Thể B (Cự Ly Khổng Lồ 52pt)</button>
+    <button class="btn" id="btnLive3" onclick="setLiveTest('hud_c')">🔄 4. HUD Biến Thể C (Cự Ly + Chữ Hướng Đi)</button>
+    <button class="btn" id="btnLive4" onclick="setLiveTest('hud_round')">⭕ 5. HUD Vòng Xuyến Lối Ra Số 2</button>
+  </div>
+
+  <div style="display:flex; justify-content:center; margin:20px 0;">
+    <div class="oled-bezel" style="width: 440px; height: 220px;">
+      <div class="oled-glass" id="liveSimBox" style="font-size: 15px;">
+        <!-- Dynamic JS Content -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let testMode = 'idle';
+  let dynamicVolt = 12.6;
+
+  function updateClock() {
+    const now = new Date();
+    const tStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const el = document.getElementById('clockTop');
+    if (el) el.innerText = `GIỜ: ${tStr}`;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  function updateVolt() {
+    dynamicVolt += (Math.random() - 0.5) * 0.04;
+    if (dynamicVolt < 12.2) dynamicVolt = 12.2;
+    if (dynamicVolt > 13.8) dynamicVolt = 13.8;
+    const vStr = dynamicVolt.toFixed(1);
+
+    const vMain = document.getElementById('liveVoltMain');
+    if (vMain) vMain.innerText = vStr;
+    const bMain = document.getElementById('liveBarMain');
+    if (bMain) {
+      const pct = Math.min(100, Math.max(0, ((dynamicVolt - 10) / 4.8) * 100));
+      bMain.style.width = pct + '%';
+    }
+    renderLiveBox();
+  }
+  setInterval(updateVolt, 800);
+
+  function renderLiveBox() {
+    const box = document.getElementById('liveSimBox');
+    const now = new Date();
+    const tStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const vStr = dynamicVolt.toFixed(1);
+    const pct = Math.min(100, Math.max(0, ((dynamicVolt - 10) / 4.8) * 100));
+
+    if (testMode === 'idle') {
+      box.innerHTML = `
+        <div class="status-header" style="height:38px;">
+          <span>GIỜ: ${tStr}</span>
+          <span>● IPHONE (BLE OK)</span>
+        </div>
+        <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+          <div class="volt-center">
+            <div class="volt-huge" style="font-size: 64px;">${vStr}</div>
+            <div class="volt-unit" style="font-size: 24px;">VOLT</div>
+          </div>
+          <div class="volt-bar-box" style="height: 20px;">
+            <div class="volt-bar-fill" style="width: ${pct}%;"></div>
+          </div>
+          <div class="volt-ticks" style="font-size: 10px;">
+            <span>10.0V</span>
+            <span>12.0V (BÌNH)</span>
+            <span>14.8V (SẠC)</span>
+          </div>
+        </div>
+      `;
+    } else if (testMode === 'hud_a') {
+      box.innerHTML = `
+        <div class="hud-wrap">
+          <div class="hud-col-arrow" style="width: 160px;">
+            <svg class="hud-svg-large" style="width: 110px; height: 110px;" viewBox="0 0 48 48">
+              <path d="M14 42 V 16 H 32 L 24 8 H 34 L 46 20 L 34 32 H 24 L 32 24 H 22 V 42 Z"/>
+            </svg>
+          </div>
+          <div class="hud-col-info" style="padding: 14px 18px;">
+            <div style="font-size: 48px; font-weight:700;">150 M</div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div class="speed-circle" style="width: 52px; height: 52px; font-size: 22px;">60</div>
+              <div style="font-size: 12px; line-height:1.3;">
+                <div>GIỚI HẠN</div>
+                <div style="font-weight:700;">${vStr}V • BLE OK</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (testMode === 'hud_b') {
+      box.innerHTML = `
+        <div class="hud-wrap">
+          <div class="hud-col-arrow" style="width: 160px;">
+            <svg class="hud-svg-large" style="width: 110px; height: 110px;" viewBox="0 0 48 48">
+              <path d="M30 42 V 22 L 18 10 L 12 16 L 8 4 L 20 8 L 14 14 L 24 24 V 42 Z"/>
+            </svg>
+          </div>
+          <div class="hud-col-info" style="justify-content:center; padding: 14px 18px;">
+            <div style="font-size: 60px; font-weight:700; line-height:1;">250</div>
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:6px;">
+              <span style="font-size: 18px; font-weight:700;">METRES</span>
+              <span style="font-size: 14px; font-weight:700; border:1px solid var(--oled-pixel); padding:2px 6px; border-radius:4px;">MAX 50</span>
+            </div>
+            <div style="font-size: 11px; color:#cbd5e1; margin-top:6px;">ẮC QUY: ${vStr}V • BLE OK</div>
+          </div>
+        </div>
+      `;
+    } else if (testMode === 'hud_c') {
+      box.innerHTML = `
+        <div class="hud-wrap">
+          <div class="hud-col-arrow" style="width: 160px;">
+            <svg class="hud-svg-large" style="width: 110px; height: 110px;" viewBox="0 0 48 48">
+              <path d="M12 40 V 20 C 12 10, 36 10, 36 20 V 40 H 28 V 20 C 28 16, 20 16, 20 20 V 40 Z"/>
+              <polygon points="6,34 16,34 11,44"/>
+            </svg>
+          </div>
+          <div class="hud-col-info" style="padding: 14px 18px;">
+            <div style="font-size: 44px; font-weight:700;">80 M</div>
+            <div style="font-size: 15px; font-weight:700; border-top:1px solid var(--oled-pixel); padding-top:4px;">
+              QUAY ĐẦU XE
+            </div>
+            <div style="font-size: 11px; display:flex; justify-content:space-between; color:#cbd5e1;">
+              <span>MAX: 40 KM/H</span>
+              <span>${vStr}V</span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (testMode === 'hud_round') {
+      box.innerHTML = `
+        <div class="hud-wrap">
+          <div class="hud-col-arrow" style="width: 160px;">
+            <div style="position:relative; width:100px; height:100px; display:flex; align-items:center; justify-content:center;">
+              <div style="width:90px; height:90px; border:4px solid var(--oled-pixel); border-radius:50%;"></div>
+              <div style="width:56px; height:56px; border:2px dashed var(--oled-pixel); border-radius:50%; position:absolute;"></div>
+              <div style="font-size:42px; font-weight:700; position:absolute;">2</div>
+            </div>
+          </div>
+          <div class="hud-col-info" style="padding: 14px 18px;">
+            <div style="font-size: 44px; font-weight:700;">300 M</div>
+            <div style="font-size: 14px; font-weight:700;">LỐI RA THỨ 2</div>
+            <div style="font-size: 12px; color:#cbd5e1;">MAX 50 KM/H • ${vStr}V</div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  function setLiveTest(mode) {
+    testMode = mode;
+    document.querySelectorAll('.toolbar .btn').forEach(b => b.classList.remove('active'));
+    if (mode === 'idle') document.getElementById('btnLive0').classList.add('active');
+    if (mode === 'hud_a') document.getElementById('btnLive1').classList.add('active');
+    if (mode === 'hud_b') document.getElementById('btnLive2').classList.add('active');
+    if (mode === 'hud_c') document.getElementById('btnLive3').classList.add('active');
+    if (mode === 'hud_round') document.getElementById('btnLive4').classList.add('active');
+    renderLiveBox();
+  }
+
+  renderLiveBox();
+</script>
+
+</body>
+</html>

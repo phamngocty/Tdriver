@@ -41,8 +41,9 @@ import com.example.tymap.utils.PrefsHelper
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -830,6 +831,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
             NavigationRepository.updateRoutes(emptyList()) // Xóa polyline
             binding.layoutRouteSteps.visibility = View.GONE
             clearDestination()
+            NavigationRepository.updateHudPreview(null)
+            NavigationService.activeInstance?.handleGmapsStopFromUi()
         }
     }
 
@@ -1477,32 +1480,38 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
 
         binding.fabDisplayMode.setOnClickListener {
-            val modes = arrayOf("Chế độ Bản đồ (MAP)", "Chế độ Dẫn đường (HUD)", "Thời gian & Trạng thái (STATUS)")
-            val currentMode = when {
-                NavigationRepository.mapModeState.value -> 0
-                else -> 1 // Default show HUD when not in map
+            val modes = arrayOf(
+                "Chế độ Bản đồ (MAP)",
+                "Chế độ Dẫn đường (HUD)",
+                "Thời gian & Trạng thái (STATUS)"
+            )
+            val currentMode = when (NavigationService.activeInstance?.lastManualOverrideMode) {
+                0x11.toByte(), 0x13.toByte() -> 0
+                0x10.toByte() -> 1
+                0x12.toByte() -> 2
+                else -> if (NavigationRepository.mapModeState.value) 0 else 1
             }
 
             AlertDialog.Builder(requireContext())
                 .setTitle("Chế độ hiển thị ESP32")
                 .setSingleChoiceItems(modes, currentMode) { dialog, which ->
-                    val activeService = com.example.tymap.service.NavigationService.activeInstance
+                    val activeService = NavigationService.activeInstance
                     if (activeService != null && activeService.bleManager.isConnected) {
                         when (which) {
                             0 -> {
-                                activeService.bleManager.sendRemoteCommand(0x11.toByte())
+                                activeService.evaluateAndApplyDisplayMode(manualOverride = 0x11.toByte())
                                 NavigationRepository.setMapModeActive(true)
-                                Toast.makeText(requireContext(), "Đã chuyển sang Bản đồ", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(requireContext(), "Đã chuyển sang Bản đồ (MAP)", Toast.LENGTH_SHORT).show()
                             }
                             1 -> {
-                                activeService.bleManager.sendRemoteCommand(0x10.toByte())
+                                activeService.evaluateAndApplyDisplayMode(manualOverride = 0x10.toByte())
                                 NavigationRepository.setMapModeActive(false)
-                                Toast.makeText(requireContext(), "Đã chuyển sang Dẫn đường HUD", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(requireContext(), "Đã chuyển sang Dẫn đường (HUD)", Toast.LENGTH_SHORT).show()
                             }
                             2 -> {
-                                activeService.bleManager.sendRemoteCommand(0x12.toByte())
+                                activeService.evaluateAndApplyDisplayMode(manualOverride = 0x12.toByte())
                                 NavigationRepository.setMapModeActive(false)
-                                Toast.makeText(requireContext(), "Đã chuyển sang Trạng thái", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(requireContext(), "Đã chuyển sang Trạng thái (STATUS)", Toast.LENGTH_SHORT).show()
                             }
                         }
                     } else {
@@ -1867,8 +1876,13 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
 
         lifecycleScope.launch {
-            NavigationRepository.navigationState.collect { running ->
-                if (running) {
+            combine(
+                NavigationRepository.navigationState,
+                NavigationRepository.hudPreviewData
+            ) { running, hud ->
+                running || (hud != null && hud.active && hud.isNavigation)
+            }.distinctUntilChanged().collect { isNavActive ->
+                if (isNavActive) {
                     isFollowing = true
                     NavigationRepository.setTrackUpMode(true)
                     binding.btnRecenter.hide()
@@ -1936,7 +1950,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     val ew = weather.etaPointWeather
                     binding.bottomSheet.tvNavWeather.text = "${ew.icon} ${ew.tempC}°C"
                     binding.bottomSheet.tvNavWeather.setTextColor(if (ew.isRainAlert) Color.parseColor("#F87171") else Color.parseColor("#38BDF8"))
-                    if (NavigationRepository.navigationState.value) {
+                    val isNavActive = NavigationRepository.navigationState.value || (NavigationRepository.hudPreviewData.value?.active == true)
+                    if (isNavActive) {
                         binding.bottomSheet.tvNavWeather.visibility = View.VISIBLE
                     }
                     routeStepsAdapter.destinationWeather = ew
@@ -1953,6 +1968,15 @@ class MapFragment : Fragment(), IOrientationConsumer {
         lifecycleScope.launch {
             NavigationRepository.isOfflineSelectionMode.collect { selectionMode ->
                 handleOfflineSelectionMode(selectionMode)
+            }
+        }
+
+        // Quan sát sự kiện nhận tọa độ/địa điểm chia sẻ từ Google Maps hoặc ứng dụng bên ngoài
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                NavigationRepository.sharedLocationEvent.collect { bundle ->
+                    processSharedLocation(bundle)
+                }
             }
         }
     }
@@ -2433,35 +2457,54 @@ class MapFragment : Fragment(), IOrientationConsumer {
     private fun handleSharedLocation() {
         val intent = activity?.intent ?: return
         if (!intent.hasExtra("SHARE_TYPE")) return
+        val extras = intent.extras ?: return
+        intent.removeExtra("SHARE_TYPE")
+        processSharedLocation(extras)
+    }
 
-        val type = intent.getStringExtra("SHARE_TYPE")
-        val label = intent.getStringExtra("LABEL") ?: "Vị trí đã chọn"
-        val destLat = intent.getDoubleExtra("DEST_LAT", 0.0)
-        val destLon = intent.getDoubleExtra("DEST_LON", 0.0)
-        
-        // Automatically sync vehicle travel mode (motorcycle/car) shared from Google Maps
-        if (intent.hasExtra("VEHICLE_TYPE")) {
-            val vehicleType = intent.getIntExtra("VEHICLE_TYPE", -1)
+    private fun processSharedLocation(bundle: Bundle) {
+        val type = bundle.getString("SHARE_TYPE") ?: return
+        val label = bundle.getString("LABEL") ?: "Vị trí đã chọn"
+        val destLat = bundle.getDouble("DEST_LAT", 0.0)
+        val destLon = bundle.getDouble("DEST_LON", 0.0)
+
+        if (destLat == 0.0 && destLon == 0.0) return
+
+        // 1. Dừng theo dõi vị trí hiện tại của người dùng ngay lập tức để không bị giật camera lại vị trí GPS cá nhân
+        isFollowing = false
+        updateLocationButtonState()
+        binding.btnRecenter.show()
+
+        // 2. Tự động đồng bộ phương tiện di chuyển (xe máy / ô tô) nếu được chia sẻ từ Google Maps
+        if (bundle.containsKey("VEHICLE_TYPE")) {
+            val vehicleType = bundle.getInt("VEHICLE_TYPE", -1)
             if (vehicleType != -1) {
                 PrefsHelper.putInt(requireContext(), "vehicle_type", vehicleType)
                 android.util.Log.d("MapFragment", "Shared vehicle type synced: $vehicleType")
             }
         }
 
-        // Clear intent extras to avoid re-triggering on rotation
-        intent.removeExtra("SHARE_TYPE")
-
         lifecycleScope.launch(Dispatchers.Main) {
+            // Đảm bảo mức zoom đủ chi tiết để người dùng thấy rõ vị trí điểm đến
+            if (binding.mapView.zoomLevelDouble < 15.0) {
+                binding.mapView.controller.setZoom(16.0)
+            }
+
             if (type == "ROUTE") {
-                val originLat = intent.getDoubleExtra("ORIGIN_LAT", 0.0)
-                val originLon = intent.getDoubleExtra("ORIGIN_LON", 0.0)
-                
-                // Trực tiếp ghim đích và tính toán lộ trình từ điểm xuất phát được share
+                val originLat = bundle.getDouble("ORIGIN_LAT", 0.0)
+                val originLon = bundle.getDouble("ORIGIN_LON", 0.0)
+
+                // Ghim điểm đích đến
                 onPlaceSelected(destLat, destLon, "Đích: $label")
-                // Gọi RoutingEngine với tọa độ xuất phát cố định
-                fetchCustomRoute(originLat, originLon, destLat, destLon)
+                if (originLat != 0.0 && originLon != 0.0) {
+                    // Lộ trình có điểm xuất phát cụ thể
+                    fetchCustomRoute(originLat, originLon, destLat, destLon)
+                } else {
+                    // Xuất phát từ vị trí GPS hiện tại của người dùng đến điểm đích
+                    showRoutePreview(destLat, destLon)
+                }
             } else if (type == "POI") {
-                // Ghim điểm trên bản đồ và mở bảng xem trước lộ trình
+                // Ghim điểm đích đến được chia sẻ
                 onPlaceSelected(destLat, destLon, label)
             }
         }
@@ -2719,6 +2762,11 @@ class MapFragment : Fragment(), IOrientationConsumer {
 
     override fun onResume() {
         super.onResume()
+        if (PrefsHelper.getBoolean(requireContext(), "keep_screen_on", true)) {
+            binding.root.keepScreenOn = true
+            activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            activity?.window?.decorView?.keepScreenOn = true
+        }
         val index = PrefsHelper.getInt(requireContext(), "tile_source", 0)
         binding.mapView.setTileSource(getTileSources()[if (index < getTileSources().size) index else 0])
         binding.mapView.onResume()

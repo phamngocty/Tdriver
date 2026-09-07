@@ -25,8 +25,10 @@ import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -178,6 +180,25 @@ class SettingsFragment : Fragment() {
         binding.rvDevices.layoutManager = LinearLayoutManager(requireContext())
 
         setupHistorySpinner()
+
+        binding.btnClearHistory.setOnClickListener {
+            val ctx = context ?: return@setOnClickListener
+            SavedDevicesDialog(
+                context = ctx,
+                onDeviceSelected = { mac, _ ->
+                    val manager = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+                    try {
+                        val device = manager.adapter.getRemoteDevice(mac)
+                        connectToDevice(device)
+                    } catch (e: Exception) {
+                        Toast.makeText(ctx, "Không thể kết nối tới $mac: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onHistoryChanged = {
+                    setupHistorySpinner()
+                }
+            ).show()
+        }
 
         binding.btnScan.setOnClickListener {
             checkPermissionsAndScan()
@@ -415,6 +436,15 @@ class SettingsFragment : Fragment() {
         // Hide obsolete permissions UI
         binding.cbPermScreenCapture.visibility = View.GONE
         binding.cbPermOverlay.visibility = View.GONE
+
+        // 5. Keep Screen On Switch
+        val isKeepScreenOn = PrefsHelper.getBoolean(context, "keep_screen_on", true)
+        binding.switchKeepScreenOn.setOnCheckedChangeListener(null)
+        binding.switchKeepScreenOn.isChecked = isKeepScreenOn
+        binding.switchKeepScreenOn.setOnCheckedChangeListener { _, isChecked ->
+            PrefsHelper.putBoolean(context, "keep_screen_on", isChecked)
+            (activity as? com.example.tymap.MainActivity)?.updateKeepScreenOn()
+        }
     }
 
     private fun setPermissionCheckBox(
@@ -444,6 +474,8 @@ class SettingsFragment : Fragment() {
         val context = requireContext()
         val goongKey = PrefsHelper.getSecureString(context, "api_key_goong", "")
         val weatherApiKey = PrefsHelper.getSecureString(context, "api_key_weatherapi", "")
+        val stadiaKey = PrefsHelper.getSecureString(context, "api_key_stadia", "")
+        val cartoKey = PrefsHelper.getSecureString(context, "api_key_carto", "")
 
         apiServicesList.clear()
         apiServicesList.addAll(listOf(
@@ -452,6 +484,8 @@ class SettingsFragment : Fragment() {
             ApiService("nas_geo", "Nominatim & Photon NAS (Primary)", "Tìm kiếm & giải mã tọa độ Việt Nam từ NAS (8081 / DuckDNS).", NasConnectionManager.getNominatimBaseUrl(context), false, status = ServiceStatus.FREE),
             ApiService("weatherapi", "WeatherAPI.com (Khuyên dùng)", "Dự báo thời tiết & mưa Việt Nam cực chuẩn (1.000.000 req/tháng miễn phí).", "https://www.weatherapi.com/signup.aspx", true, apiKey = weatherApiKey, status = if (weatherApiKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("goong", "Goong.io API (Việt Nam)", "Cảnh báo biển báo, camera phạt nguội & dẫn đường Việt Nam.", "https://account.goong.io/", true, apiKey = goongKey, status = if (goongKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("stadia", "Stadia Maps (Stamen Toner / Alidade)", "Bản đồ tối giản Stamen Toner Lines & Alidade Dark cho OLED. Yêu cầu API Key miễn phí.", "https://stadiamaps.com/", true, apiKey = stadiaKey, status = if (stadiaKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
+            ApiService("carto", "CartoDB Basemap (MapCN)", "Cung cấp bản đồ Positron / Dark Matter / Voyager. Nhập API Key để dùng ổn định.", "https://carto.com/signup/", true, apiKey = cartoKey, status = if (cartoKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("osrm", "OSRM Backend Engine (Cloud)", "Dẫn đường dự phòng cực nhanh miễn phí.", "https://router.project-osrm.org/", false, status = ServiceStatus.FREE),
             ApiService("valhalla", "Valhalla Routing Engine (Cloud)", "Dẫn đường đa phương tiện dự phòng đám mây.", "https://valhalla.opentripplanner.org/", false, status = ServiceStatus.FREE),
             ApiService("open_meteo", "Open-Meteo Multi-Model (ECMWF/JMA)", "Dự báo thời tiết Châu Âu & Nhật Bản miễn phí.", "https://open-meteo.com/", false, status = ServiceStatus.FREE),
@@ -484,6 +518,8 @@ class SettingsFragment : Fragment() {
         val keyName = when(serviceId) {
             "goong" -> "api_key_goong"
             "weatherapi" -> "api_key_weatherapi"
+            "stadia" -> "api_key_stadia"
+            "carto" -> "api_key_carto"
             else -> null
         }
         keyName?.let { 
@@ -504,6 +540,8 @@ class SettingsFragment : Fragment() {
                 "nas_geo" -> testNasNominatim()
                 "weatherapi" -> testWeatherApi(service.apiKey)
                 "goong" -> testGoongKey(service.apiKey)
+                "stadia" -> testStadiaKey(service.apiKey)
+                "carto" -> testCartoKey(service.apiKey)
                 "osrm" -> testOsrm()
                 "valhalla" -> testValhalla()
                 "open_meteo" -> testOpenMeteo()
@@ -648,6 +686,31 @@ class SettingsFragment : Fragment() {
         return false
     }
 
+    private fun testStadiaKey(key: String): Boolean {
+        if (key.isBlank()) return false
+        val trimmed = key.trim()
+        val url = "https://tiles.stadiamaps.com/tiles/stamen_toner_lines/0/0/0.png?api_key=$trimmed"
+        return try {
+            val client = OkHttpClient.Builder().connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS).readTimeout(8, java.util.concurrent.TimeUnit.SECONDS).build()
+            val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun testCartoKey(key: String): Boolean {
+        val url = if (key.isNotBlank()) "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/0/0/0.png?api_key=${key.trim()}" 
+                  else "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/0/0/0.png"
+        return try {
+            val client = OkHttpClient.Builder().connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS).readTimeout(8, java.util.concurrent.TimeUnit.SECONDS).build()
+            val request = Request.Builder().url(url).header("User-Agent", "TYMAP/1.0").build()
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun testNasGraphhopper(): Boolean {
         val url = NasConnectionManager.getGraphHopperBaseUrl(requireContext()) + "/health"
         return try { OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
@@ -673,8 +736,40 @@ class SettingsFragment : Fragment() {
     // ----------------------------------------------------
 
     private fun updateOledSettingsVisibility(isOledConnected: Boolean = false) {
-        if (_binding == null) return
-        binding.layoutOledSettings.visibility = View.VISIBLE
+        // Managed dynamically by setupDisplayHardwareCard and observeDeviceType
+    }
+
+    private fun setupDisplayHardwareCard() {
+        val context = context ?: return
+        val savedDevice = PrefsHelper.getString(context, "display_device_type", "OLED")
+        if (savedDevice == "GC9A01") {
+            binding.toggleDisplayDeviceType.check(R.id.btnSelectGc9a01)
+            binding.layoutOledSection.visibility = View.GONE
+            binding.layoutGc9a01Section.visibility = View.VISIBLE
+        } else {
+            binding.toggleDisplayDeviceType.check(R.id.btnSelectOled)
+            binding.layoutOledSection.visibility = View.VISIBLE
+            binding.layoutGc9a01Section.visibility = View.GONE
+        }
+
+        binding.toggleDisplayDeviceType.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                when (checkedId) {
+                    R.id.btnSelectOled -> {
+                        PrefsHelper.putString(context, "display_device_type", "OLED")
+                        binding.layoutOledSection.visibility = View.VISIBLE
+                        binding.layoutGc9a01Section.visibility = View.GONE
+                        Toast.makeText(context, "Đã chọn cấu hình OLED Đen/Trắng (128x64)", Toast.LENGTH_SHORT).show()
+                    }
+                    R.id.btnSelectGc9a01 -> {
+                        PrefsHelper.putString(context, "display_device_type", "GC9A01")
+                        binding.layoutOledSection.visibility = View.GONE
+                        binding.layoutGc9a01Section.visibility = View.VISIBLE
+                        Toast.makeText(context, "Đã chọn cấu hình Màn hình Màu GC9A01 (240x240)", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
     }
 
     private fun observeDeviceType() {
@@ -688,7 +783,20 @@ class SettingsFragment : Fragment() {
                              devName.contains("SH1106", ignoreCase = true) ||
                              devName.contains("OLED", ignoreCase = true)
                 
-                updateOledSettingsVisibility(isOled)
+                val isGc9a01 = display.contains("GC9A01", ignoreCase = true) || 
+                               devName.contains("GC9A01", ignoreCase = true)
+
+                if (_binding != null) {
+                    if (isOled) {
+                        binding.toggleDisplayDeviceType.check(R.id.btnSelectOled)
+                        binding.layoutOledSection.visibility = View.VISIBLE
+                        binding.layoutGc9a01Section.visibility = View.GONE
+                    } else if (isGc9a01) {
+                        binding.toggleDisplayDeviceType.check(R.id.btnSelectGc9a01)
+                        binding.layoutOledSection.visibility = View.GONE
+                        binding.layoutGc9a01Section.visibility = View.VISIBLE
+                    }
+                }
                 
                 if (isOled && _binding != null) {
                     val currentMode = PrefsHelper.getInt(requireContext(), "map_capture_mode", 0)
@@ -716,16 +824,14 @@ class SettingsFragment : Fragment() {
 
     private fun setupUI() {
         val context = requireContext()
-        
-        binding.switchManualShowOled.isChecked = PrefsHelper.getBoolean(context, "manual_show_oled", false)
-        binding.switchManualShowOled.setOnCheckedChangeListener { _, isChecked ->
-            PrefsHelper.putBoolean(context, "manual_show_oled", isChecked)
-            updateOledSettingsVisibility()
-        }
-        updateOledSettingsVisibility()
+        setupDisplayHardwareCard()
 
 
         // 0. THEME
+        binding.btnOpenThemeStudio.setOnClickListener {
+            startActivity(Intent(requireContext(), ThemeBuilderActivity::class.java))
+        }
+
         val themes = arrayOf("Hệ thống", "Sáng", "Tối")
         val currentTheme = PrefsHelper.getInt(context, "app_theme", 0)
         setupSpinner(binding.spinnerTheme, themes, currentTheme) {
@@ -748,10 +854,12 @@ class SettingsFragment : Fragment() {
             "Mẫu S4: Cyber Dual Gauges",
             "Mẫu S5: Classic Analog Watch",
             "Mẫu S3: Dual Energy Pill",
-            "Mẫu M4: Minimalist Luxury Horizon (Mẫu mới)",
+            "Mẫu M4: Minimalist Luxury Horizon",
             "Mẫu S7: Sport Dynamic",
             "Mẫu 1: Sport Chrono Radar (Oscilloscope)",
-            "Mẫu 4A: Cyber Superbike 3D Pro (Mặc định)"
+            "Mẫu 4A: Cyber Superbike 3D (Điện Áp Neon - Mặc định)",
+            "Mẫu 4B: Cyber Speed 3D (Tốc Độ GPS - Sóng Tốc Độ)",
+            "Mẫu 4C: Cyber Dual-Trace 3D (Đo Vol & GPS 2 Sóng Đồng Thời)"
         )
         setupSpinner(binding.spinnerStatusStyle, statusStyles, PrefsHelper.getInt(context, "status_style", 6)) { styleIdx ->
             PrefsHelper.putInt(context, "status_style", styleIdx)
@@ -778,7 +886,14 @@ class SettingsFragment : Fragment() {
             Toast.makeText(context, "Đã cài đặt Thời gian đóng HUD: ${hudTimeoutOptions[selectedIdx]}", Toast.LENGTH_SHORT).show()
         }
 
-        val mapHudStyles = arrayOf("Mẫu MH1: Compact Floating Pill (Mặc định)", "Mẫu MH2: Thanh Dưới", "Mẫu MH3: Big Turn", "Mẫu MH4: Mini HUD", "Mẫu MH5: Bản đồ thuần")
+        val mapHudStyles = arrayOf(
+            "Mẫu MH1: Compact Floating Pill (Mặc định)",
+            "Mẫu MH2: Thanh Dưới",
+            "Mẫu MH3: Big Turn",
+            "Mẫu MH4: Mini HUD",
+            "Mẫu MH5: Bản đồ thuần",
+            "Mẫu MH6: Galaxy Watch (WearOS Nav)"
+        )
         setupSpinner(binding.spinnerMapHudStyle, mapHudStyles, PrefsHelper.getInt(context, "map_hud_style", 0)) { styleIdx ->
             PrefsHelper.putInt(context, "map_hud_style", styleIdx)
             NavigationService.bleManager?.writeSettings("mapHudStyle=$styleIdx")
@@ -1019,6 +1134,18 @@ class SettingsFragment : Fragment() {
         }
 
         // 5.5. OLED OPTIONS
+        // OLED MAP Styles (Thuần Map M1, Chỉ có Map không, Map chia đôi M2)
+        val oledMapStyles = arrayOf(
+            "Mẫu 1: Thuần Map Toàn Màn Hình 128x64 (M1)",
+            "Mẫu 2: Chỉ có MAP không (Pure Map 100%)",
+            "Mẫu 3: Map Chia Đôi Kèm HUD (M2 - Mặc định)"
+        )
+        setupSpinner(binding.spinnerOledMapStyle, oledMapStyles, PrefsHelper.getInt(context, "oled_map_style", 0)) { styleIdx ->
+            PrefsHelper.putInt(context, "oled_map_style", styleIdx)
+            NavigationService.bleManager?.writeSettings("{\"oled_map_style\":$styleIdx}")
+            Toast.makeText(context, "Đã chọn Kiểu MAP OLED: ${oledMapStyles[styleIdx]}", Toast.LENGTH_SHORT).show()
+        }
+
         // OLED HUD Styles
         val oledHudStyles = arrayOf(
             "H1: Dẫn đường tập trung (Tên đường 3 dòng + Icon 48px)",
@@ -1129,16 +1256,26 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        // NÂNG CAO: toggle mở rộng các tùy chọn kỹ thuật
+        // NÂNG CAO: toggle mở rộng các tùy chọn kỹ thuật (Progressive Disclosure)
         binding.toggleMapAdvanced.setOnClickListener {
             val show = binding.layoutMapAdvanced.visibility != View.VISIBLE
             binding.layoutMapAdvanced.visibility = if (show) View.VISIBLE else View.GONE
             binding.toggleMapAdvanced.text = if (show) "Tùy chọn la bàn & khung hình  ▾" else "Tùy chọn la bàn & khung hình  ▸"
         }
+        binding.toggleRoutingAdvanced.setOnClickListener {
+            val show = binding.layoutRoutingAdvanced.visibility != View.VISIBLE
+            binding.layoutRoutingAdvanced.visibility = if (show) View.VISIBLE else View.GONE
+            binding.toggleRoutingAdvanced.text = if (show) "Tùy chọn dẫn đường & Máy chủ nâng cao  ▾" else "Tùy chọn dẫn đường & Máy chủ nâng cao  ▸"
+        }
+        binding.toggleOledAdvanced.setOnClickListener {
+            val show = binding.layoutOledAdvanced.visibility != View.VISIBLE
+            binding.layoutOledAdvanced.visibility = if (show) View.VISIBLE else View.GONE
+            binding.toggleOledAdvanced.text = if (show) "Tùy chọn tinh chỉnh màn hình & Bộ lọc màu  ▾" else "Tùy chọn tinh chỉnh màn hình & Bộ lọc màu  ▸"
+        }
         binding.toggleApiAdvanced.setOnClickListener {
             val show = binding.layoutApiAdvanced.visibility != View.VISIBLE
             binding.layoutApiAdvanced.visibility = if (show) View.VISIBLE else View.GONE
-            binding.toggleApiAdvanced.text = if (show) "Quân lý dịch vụ mạng & API  ▲" else "Quân lý dịch vụ mạng & API  ▼"
+            binding.toggleApiAdvanced.text = if (show) "Quản lý dịch vụ mạng & API  ▲" else "Quản lý dịch vụ mạng & API  ▼"
         }
 
         binding.layoutFrameSkipping.visibility = View.GONE
@@ -1211,30 +1348,113 @@ class SettingsFragment : Fragment() {
             }
         }
 
-        binding.chipGroupFilter.setOnCheckedStateChangeListener { _, checkedIds ->
-            val checkedId = checkedIds.firstOrNull() ?: R.id.chipAll
-            
-            binding.cardGeneral.visibility = View.GONE
-            binding.cardMap.visibility = View.GONE
-            binding.cardRouting.visibility = View.GONE
-            binding.cardOled.visibility = View.GONE
-            binding.cardSystem.visibility = View.GONE
-            
-            when (checkedId) {
-                R.id.chipGeneral -> binding.cardGeneral.visibility = View.VISIBLE
-                R.id.chipMap -> binding.cardMap.visibility = View.VISIBLE
-                R.id.chipRouting -> binding.cardRouting.visibility = View.VISIBLE
-                R.id.chipData -> binding.cardOled.visibility = View.VISIBLE
-                R.id.chipSystem -> binding.cardSystem.visibility = View.VISIBLE
-                else -> {
-                    binding.cardGeneral.visibility = View.VISIBLE
-                    binding.cardMap.visibility = View.VISIBLE
-                    binding.cardRouting.visibility = View.VISIBLE
-                    binding.cardOled.visibility = View.VISIBLE
-                    binding.cardSystem.visibility = View.VISIBLE
-                }
+        setupSettingsSearchAndFilter()
+    }
+
+    private fun setupSettingsSearchAndFilter() {
+        // Toggle search bar
+        binding.btnToggleSearchSettings.setOnClickListener {
+            val isCurrentlyVisible = binding.layoutSearchSettings.visibility == View.VISIBLE
+            if (isCurrentlyVisible) {
+                binding.layoutSearchSettings.visibility = View.GONE
+                binding.etSearchSettings.setText("")
+                hideKeyboard(binding.etSearchSettings)
+                applyFilterChip(binding.chipGroupFilter.checkedChipId)
+            } else {
+                binding.layoutSearchSettings.visibility = View.VISIBLE
+                binding.etSearchSettings.requestFocus()
+                showKeyboard(binding.etSearchSettings)
+                binding.nestedScrollViewSettings.smoothScrollTo(0, 0)
             }
         }
+
+        binding.btnClearSearchSettings.setOnClickListener {
+            binding.etSearchSettings.setText("")
+            applyFilterChip(binding.chipGroupFilter.checkedChipId)
+        }
+
+        binding.etSearchSettings.addTextChangedListener { text ->
+            val query = text?.toString()?.trim() ?: ""
+            binding.btnClearSearchSettings.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
+            filterSettingsByQuery(query)
+        }
+
+        binding.chipGroupFilter.setOnCheckedStateChangeListener { _, checkedIds ->
+            val checkedId = checkedIds.firstOrNull() ?: R.id.chipAll
+            if (binding.etSearchSettings.text.isNotEmpty()) {
+                binding.etSearchSettings.setText("")
+                hideKeyboard(binding.etSearchSettings)
+            }
+            applyFilterChip(checkedId)
+        }
+    }
+
+    private fun applyFilterChip(checkedId: Int) {
+        binding.tvSearchNoResults.visibility = View.GONE
+        binding.cardGeneral.visibility = View.GONE
+        binding.cardDisplays.visibility = View.GONE
+        binding.cardMapRouting.visibility = View.GONE
+        binding.cardSystem.visibility = View.GONE
+
+        when (checkedId) {
+            R.id.chipGeneral -> binding.cardGeneral.visibility = View.VISIBLE
+            R.id.chipDisplays -> binding.cardDisplays.visibility = View.VISIBLE
+            R.id.chipRouting -> binding.cardMapRouting.visibility = View.VISIBLE
+            R.id.chipSystem -> binding.cardSystem.visibility = View.VISIBLE
+            else -> {
+                binding.cardGeneral.visibility = View.VISIBLE
+                binding.cardDisplays.visibility = View.VISIBLE
+                binding.cardMapRouting.visibility = View.VISIBLE
+                binding.cardSystem.visibility = View.VISIBLE
+            }
+        }
+        binding.nestedScrollViewSettings.smoothScrollTo(0, 0)
+    }
+
+    private fun filterSettingsByQuery(query: String) {
+        if (query.isEmpty()) {
+            applyFilterChip(binding.chipGroupFilter.checkedChipId)
+            return
+        }
+
+        val cards = listOf(
+            binding.cardGeneral,
+            binding.cardDisplays,
+            binding.cardMapRouting,
+            binding.cardSystem
+        )
+
+        var anyVisible = false
+        for (card in cards) {
+            val matches = viewContainsText(card, query)
+            card.visibility = if (matches) View.VISIBLE else View.GONE
+            if (matches) anyVisible = true
+        }
+
+        binding.tvSearchNoResults.visibility = if (anyVisible) View.GONE else View.VISIBLE
+        binding.nestedScrollViewSettings.smoothScrollTo(0, 0)
+    }
+
+    private fun viewContainsText(view: View, query: String): Boolean {
+        if (view is TextView && view.text != null && view.text.contains(query, ignoreCase = true)) {
+            return true
+        }
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                if (viewContainsText(view.getChildAt(i), query)) return true
+            }
+        }
+        return false
+    }
+
+    private fun showKeyboard(view: View) {
+        val imm = view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun hideKeyboard(view: View) {
+        val imm = view.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(view.windowToken, 0)
     }
 
     private fun setupOtaUpdateUI() {

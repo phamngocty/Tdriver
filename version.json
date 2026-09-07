@@ -1,21 +1,21 @@
 {
   "app": {
-    "versionCode": 15,
-    "versionName": "1.0.15",
+    "versionCode": 19,
+    "versionName": "1.0.19",
     "apkUrl": "",
-    "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
+    "changelog": "• Bỏ cơ chế Popup Map chuyển đổi ngã rẽ.\n• Viết lại State Machine 5 chế độ hiển thị (HUD, Map, Kết hợp Map+HUD, Manual Override, Standby).\n• Cập nhật kênh phân phối OTA trực tiếp qua máy chủ NAS Fusion Engine SSL.\n• Sửa toàn bộ lỗi đồng bộ trạng thái BLE và màn hình đen."
   },
   "firmware": {
-    "versionCode": 15,
-    "versionName": "1.0.15",
-    "binUrl": "http://192.168.1.114:3002/attachments/e3253e2e-27df-4b6e-94e4-94cd632153a7",
-    "oledBinUrl": "http://192.168.1.114:3002/attachments/0d269d7a-1786-4f20-b04b-1d18e3c0c3f1",
-    "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
+    "versionCode": 19,
+    "versionName": "1.0.19",
+    "binUrl": "",
+    "oledBinUrl": "",
+    "changelog": "• Bỏ cơ chế Popup Map chuyển đổi ngã rẽ.\n• Viết lại State Machine 5 chế độ hiển thị (HUD, Map, Kết hợp Map+HUD, Manual Override, Standby).\n• Cập nhật kênh phân phối OTA trực tiếp qua máy chủ NAS Fusion Engine SSL.\n• Sửa toàn bộ lỗi đồng bộ trạng thái BLE và màn hình đen."
   },
   "firmware_oled": {
-    "versionCode": 15,
-    "versionName": "1.0.15",
-    "binUrl": "http://192.168.1.114:3002/attachments/0d269d7a-1786-4f20-b04b-1d18e3c0c3f1",
-    "changelog": "• Loại bỏ thông báo văn bản khi quá tốc độ, thay bằng biển báo đồ họa compact P.127 & viền chớp 360°.\n• Sửa lỗi cảnh báo không xuất hiện trên Map Mode (ESP32 GC9A01 & OLED).\n• Sửa lỗi tự động nhảy từ Map Mode sang HUD Mode khi hết ngã rẽ.\n• Tự động tải và đồng bộ biển báo tốc độ/camera từ NAS Fusion Engine & Overpass.\n• Đồng bộ liên tục tốc độ GPS sang ESP32."
+    "versionCode": 19,
+    "versionName": "1.0.19",
+    "binUrl": "",
+    "changelog": "• Bỏ cơ chế Popup Map chuyển đổi ngã rẽ.\n• Viết lại State Machine 5 chế độ hiển thị (HUD, Map, Kết hợp Map+HUD, Manual Override, Standby).\n• Cập nhật kênh phân phối OTA trực tiếp qua máy chủ NAS Fusion Engine SSL.\n• Sửa toàn bộ lỗi đồng bộ trạng thái BLE và màn hình đen."
   }
 }

@@ -15,16 +15,27 @@
 
 Hệ thống sử dụng **Nginx Proxy Manager (NPM)** làm Gateway bảo mật, cấp chứng chỉ **SSL Let's Encrypt tự động** và chia luồng trực tiếp đến các container backend:
 
-| Dịch vụ Backend | Port Nội bộ (LAN) | Public Subdomain (4G/5G HTTPS) | Container Docker | Chức năng chính |
-| :--- | :--- | :--- | :--- | :--- |
-| **NPM Web UI** | `http://192.168.1.114:81` | *(Chỉ mở nội bộ LAN)* | `tymap_npm` | Giao diện điều phối luồng mạng & quản lý chứng chỉ SSL |
-| **GraphHopper Routing API** | `http://192.168.1.114:8989/route` | `https://route.nas152.duckdns.org/route` | `tymap_graphhopper` | Định tuyến dẫn đường Turn-by-Turn cho xe máy & ô tô |
-| **Photon Autocomplete** | `http://192.168.1.114:2322/api` | `https://search.nas152.duckdns.org/api` | `tymap_photon` | Tìm kiếm địa chỉ mờ tiếng Việt cực nhanh (< 50ms) |
-| **Nominatim Geocoding** | `http://192.168.1.114:8081/reverse` | `https://geo.nas152.duckdns.org/reverse` | `tymap_nominatim` | Bóc tách & tìm kiếm tọa độ chính xác, reverse geocoding |
-| **Gitea Private Git Server** | `http://192.168.1.114:3002/` | `https://git.nas152.duckdns.org/` | `gitea_old-gitea_old-1` | Máy chủ lưu trữ mã nguồn, Releases APK, Firmware OTA & version.json |
-| **Fusion Engine (Node.js & OTA)** | `http://192.168.1.114:8088/` | `https://alert.nas152.duckdns.org/` | `tymap_fusion_engine` | Cảnh báo camera phạt nguội, tốc độ & cấp phát version.json |
-| **Dashboard Quản lý Chính** | `http://192.168.1.114:8085/` | *(Nội bộ LAN)* | `python3 -m http.server` | Giao diện điều khiển trung tâm, HUD simulation, dự báo mưa |
-| **API Webhook Cập nhật PBF** | `http://192.168.1.114:8990/update_pbf` | *(Nội bộ LAN)* | `webhook_server.py` | Tự động tải OSM PBF Việt Nam mới nhất & build lại cache |
+| Nhóm Dịch Vụ | Tên Dịch vụ | Port Nội bộ (LAN) | Public Subdomain (4G/5G HTTPS) | Container / Service | Chức năng chính |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Hệ thống & Quản trị** | **CasaOS Dashboard** | `http://192.168.1.114/` | *(Chỉ mở LAN)* | `casaos-gateway` | Quản trị giao diện hệ điều hành CasaOS gốc (Port 80 mặc định) |
+| | **NPM Web UI** | `http://192.168.1.114:81` | *(Chỉ mở LAN)* | `tymap_npm` | Quản trị Nginx Proxy Manager, điều phối luồng mạng & SSL |
+| | **NPM Gateway Ports** | `Port 8082` (HTTP) / `Port 443` (HTTPS) | `https://*.nas152.duckdns.org` | `tymap_npm` | Cổng tiếp nhận lưu lượng HTTPS Let's Encrypt ra Internet |
+| | **FileBrowser** | `http://192.168.1.114:8080` | *(Chỉ mở LAN)* | `big-bear-filebrowser` | Quản lý, tải lên/tải xuống tệp tin qua Web |
+| | **Uptime Kuma** | `http://192.168.1.114:3003` | *(Chỉ mở LAN)* | `uptime-kuma` | Giám sát trạng thái uptime & tình trạng sống chết của services |
+| | **SSH Server** | `Port 22` | *(Chỉ mở LAN / VPN)* | `sshd` (Systemd) | Truy cập dòng lệnh máy chủ (`ssh nas152@192.168.1.114`) |
+| | **Windows SMB Share** | `Port 139, 445` | *(Chỉ mở LAN)* | `smbd` / `nmbd` | Chia sẻ thư mục qua mạng nội bộ Windows Network Drive |
+| **Hệ sinh thái TyMap** | **GraphHopper Routing** | `http://192.168.1.114:8989/route` | `https://route.nas152.duckdns.org/route` | `tymap_graphhopper` | Định tuyến dẫn đường Turn-by-Turn cho xe máy & ô tô |
+| | **Fusion Engine (HUD & Alert)** | `http://192.168.1.114:8088/` | `https://alert.nas152.duckdns.org/` | `tymap_fusion_engine` | Cảnh báo camera phạt nguội, tốc độ & cấp phát version.json |
+| | **Nominatim Geocoding** | `http://192.168.1.114:8081/reverse` | `https://geo.nas152.duckdns.org/reverse` | `nominatim-vn` | Bóc tách & tìm kiếm tọa độ chính xác, reverse geocoding VN |
+| | **Photon Autocomplete** | `http://192.168.1.114:2322/api` | `https://search.nas152.duckdns.org/api` | `tymap_photon` | Tìm kiếm địa chỉ mờ tiếng Việt cực nhanh (< 50ms) |
+| | **DuckDNS Updater** | *(Chạy nền nội bộ)* | — | `tymap_duckdns` | Tự động đồng bộ IP Public lên DuckDNS mỗi 5 phút |
+| | **Dashboard Quản lý Chính** | `http://192.168.1.114:8085/` | *(Chỉ mở LAN)* | `python3 -m http.server` | Giao diện điều khiển trung tâm, HUD simulation, radar mưa |
+| | **Webhook Cập nhật PBF** | `http://192.168.1.114:8990/update_pbf` | *(Chỉ mở LAN)* | `webhook_server.py` | Tự động tải OSM PBF Việt Nam mới nhất & build lại cache |
+| **Ứng dụng Lưu trữ & Khác** | **Gitea Git Server** | `http://192.168.1.114:3002/` (SSH: 222) | `https://git.nas152.duckdns.org/` | `gitea_old-gitea_old-1` | Máy chủ Git cá nhân, lưu mã nguồn, APK releases & firmware |
+| | **Immich Photos** | `http://192.168.1.114:2283` | *(Chỉ mở LAN)* | `immich-server` | Quản lý, sao lưu & nhận diện ảnh/video tương tự Google Photos |
+| | **Kaneo Kanban** | `http://192.168.1.114:5173` | *(Chỉ mở LAN)* | `kaneo-kaneo-1` | Quản lý dự án, công việc Kanban (Postgres Port 5432) |
+| | **Karakeep** | `http://192.168.1.114:14592` | *(Chỉ mở LAN)* | `karakeep` | Quản lý và phát nhạc Karaoke gia đình |
+| | **Tailscale VPN** | `100.81.207.28` | *(VPN nội bộ)* | `big-bear-tailscale` | Mạng riêng ảo kết nối NAS an toàn từ xa không cần mở port |
 
 ---
 
@@ -63,7 +74,7 @@ services:
     container_name: tymap_npm
     restart: unless-stopped
     ports:
-      - "80:80"     # Đón HTTP Let's Encrypt & Redirect HTTPS
+      - "8082:80"   # Port HTTP phụ cho NPM (nhường Port 80 mặc định cho CasaOS)
       - "443:443"   # Đón HTTPS bảo mật từ 4G/5G vào App Android
       - "81:81"     # Web UI quản trị (LAN: http://192.168.1.114:81)
     environment:

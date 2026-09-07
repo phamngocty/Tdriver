@@ -46,10 +46,12 @@ object UrlParser {
                                 stepUrl = loc
                                 stepCount++
                                 
-                                // If the location header already contains coordinates, return it immediately
+                                // If the location header already contains definitive destination coordinates, return it immediately
                                 val coordRegex = "([-+]?\\d+\\.\\d+)[,%2C]([-+]?\\d+\\.\\d+)"
-                                val hasCoords = stepUrl.contains("!3d") && stepUrl.contains("!4d") || 
-                                                Pattern.compile("(@|q=|query=)$coordRegex").matcher(stepUrl).find()
+                                val hasCoords = (stepUrl.contains("!3d") && stepUrl.contains("!4d")) ||
+                                                stepUrl.contains("!2m2!1d") ||
+                                                Pattern.compile("(?:destination|daddr|q=|query=)$coordRegex").matcher(stepUrl).find() ||
+                                                (!stepUrl.contains("/dir/") && Pattern.compile("@$coordRegex").matcher(stepUrl).find())
                                 if (hasCoords) {
                                     return stepUrl
                                 }
@@ -98,116 +100,389 @@ object UrlParser {
         return currentUrl
     }
 
-    fun parseCoordinates(url: String): Bundle? {
-        val coordRegex = "([-+]?\\d+\\.\\d+)[,%2C]([-+]?\\d+\\.\\d+)"
-        val googleDataRegex = "!3d([-+]?\\d+\\.\\d+)!4d([-+]?\\d+\\.\\d+)"
-        
-        var bundle: Bundle? = null
+    fun parseDmsCoordinates(text: String): Pair<Double, Double>? {
+        // e.g. 10°46'23.4"N 106°41'45.0"E or 10°46'23.4 N, 106°41'45.0 E
+        try {
+            val dmsPattern = Pattern.compile(
+                "(\\d+)[°\\s]+(\\d+)['\\s]+([\\d.]+)\"?\\s*([NSns])[,;\\s]+(\\d+)[°\\s]+(\\d+)['\\s]+([\\d.]+)\"?\\s*([EWew])"
+            )
+            val m = dmsPattern.matcher(text)
+            if (m.find()) {
+                val degLat = m.group(1)!!.toDouble()
+                val minLat = m.group(2)!!.toDouble()
+                val secLat = m.group(3)!!.toDouble()
+                val dirLat = m.group(4)!!.uppercase()
 
-        // 1. Highest Priority for Routes: Check if URL is a route but contains destination coordinate metadata (!3d...!4d...)
-        if (url.contains("/dir/")) {
-            val dataMatcher = Pattern.compile(googleDataRegex).matcher(url)
-            if (dataMatcher.find()) {
-                bundle = Bundle().apply {
-                    putString("SHARE_TYPE", "POI")
-                    putDouble("DEST_LAT", dataMatcher.group(1)!!.toDouble())
-                    putDouble("DEST_LON", dataMatcher.group(2)!!.toDouble())
-                    putString("LABEL", "Điểm đến từ Google Maps")
-                }
-            }
-        }
+                val degLon = m.group(5)!!.toDouble()
+                val minLon = m.group(6)!!.toDouble()
+                val secLon = m.group(7)!!.toDouble()
+                val dirLon = m.group(8)!!.uppercase()
 
-        // 2. Highest Priority for POIs: Extract exact location coordinates from POI data (!3d...!4d...)
-        if (bundle == null) {
-            val dataMatcher = Pattern.compile(googleDataRegex).matcher(url)
-            if (dataMatcher.find()) {
-                bundle = Bundle().apply {
-                    putString("SHARE_TYPE", "POI")
-                    putDouble("DEST_LAT", dataMatcher.group(1)!!.toDouble())
-                    putDouble("DEST_LON", dataMatcher.group(2)!!.toDouble())
-                    putString("LABEL", "Điểm từ Google Maps")
-                }
-            }
-        }
+                var lat = degLat + (minLat / 60.0) + (secLat / 3600.0)
+                if (dirLat == "S") lat = -lat
 
-        // 3. Second Priority: Extract coordinates from @lat,lon or q=lat,lon
-        if (bundle == null) {
-            val poiMatcher = Pattern.compile("(@|q=|query=)$coordRegex").matcher(url)
-            if (poiMatcher.find()) {
-                bundle = Bundle().apply {
-                    putString("SHARE_TYPE", "POI")
-                    putDouble("DEST_LAT", poiMatcher.group(2)!!.toDouble())
-                    putDouble("DEST_LON", poiMatcher.group(3)!!.toDouble())
-                    putString("LABEL", "Vị trí đã chọn")
-                }
-            }
-        }
+                var lon = degLon + (minLon / 60.0) + (secLon / 3600.0)
+                if (dirLon == "W") lon = -lon
 
-        // 4. Third Priority: Extract any generic valid coordinates sequence in the URL
-        if (bundle == null) {
-            val genericMatcher = Pattern.compile(coordRegex).matcher(url)
-            if (genericMatcher.find()) {
-                val lat = genericMatcher.group(1)!!.toDouble()
-                val lon = genericMatcher.group(2)!!.toDouble()
                 if (lat in -90.0..90.0 && lon in -180.0..180.0) {
-                    bundle = Bundle().apply {
+                    return Pair(lat, lon)
+                }
+            }
+        } catch (e: Exception) {}
+        return null
+    }
+
+    fun extractDestinationFromText(text: String?): String? {
+        if (text.isNullOrBlank()) return null
+        
+        // 1. Vietnamese share: "Đến <Điểm đến> qua <Tên đường>."
+        val vnMatcher = Pattern.compile("(?i)(?:Đến|toi|tới)\\s+(.+?)\\s+(?:qua|bằng|theo)\\s+").matcher(text)
+        if (vnMatcher.find()) {
+            val place = vnMatcher.group(1)?.trim()
+            if (!place.isNullOrBlank() && !isCurrentLocationIndicator(place)) return place
+        }
+
+        // 2. English share: "To <Destination> via <Road>."
+        val enMatcher = Pattern.compile("(?i)To\\s+(.+?)\\s+via\\s+").matcher(text)
+        if (enMatcher.find()) {
+            val place = enMatcher.group(1)?.trim()
+            if (!place.isNullOrBlank() && !isCurrentLocationIndicator(place)) return place
+        }
+
+        // 3. Multiline text: take first non-URL line if it's a specific place
+        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("http", ignoreCase = true) }
+        for (line in lines) {
+            if (isCurrentLocationIndicator(line) || line.startsWith("Đã ghim vị trí", ignoreCase = true)
+                || line.startsWith("Vị trí đã thả ghim", ignoreCase = true)
+                || line.startsWith("Dropped pin", ignoreCase = true)) {
+                continue
+            }
+            if (line.length in 3..120) {
+                return line
+            }
+        }
+        return null
+    }
+
+    private fun isCurrentLocationIndicator(name: String?): Boolean {
+        if (name == null || name.isBlank()) return true
+        val lower = name.trim().lowercase()
+        return lower in listOf(
+            "vị trí của tôi", "vị trí của bạn", "vị trí hiện tại",
+            "my location", "current location", "your location",
+            "here", "vị trí này", "tại đây"
+        )
+    }
+
+    fun parseCoordinates(url: String, rawSharedText: String? = null): Bundle? {
+        val coordRegex = "([-+]?\\d+\\.\\d+)[,%2C]([-+]?\\d+\\.\\d+)"
+        
+        // Auto-assign vehicle travel mode if detected in URL
+        val vehicleType = when {
+            url.contains("!3e9") || url.contains("travelmode=two-wheeler") || url.contains("travelmode=motorcycle") -> 1 // Motorcycle
+            url.contains("!3e0") || url.contains("travelmode=driving") -> 0 // Car
+            else -> -1
+        }
+
+        fun Bundle.withVehicle(): Bundle {
+            if (vehicleType != -1) putInt("VEHICLE_TYPE", vehicleType)
+            return this
+        }
+
+        val textDest = extractDestinationFromText(rawSharedText)
+
+        // 1. Highest Priority: Explicit destination parameter in URL (?destination=... or &destination=... or &daddr=...)
+        val destParamMatcher = Pattern.compile("[?&](?:destination|daddr)=([^&]+)").matcher(url)
+        if (destParamMatcher.find()) {
+            val rawDest = URLDecoder.decode(destParamMatcher.group(1)!!.replace("+", " "), "UTF-8").trim()
+            val coordM = Pattern.compile("^$coordRegex$").matcher(rawDest)
+            if (coordM.matches()) {
+                val lat = coordM.group(1)!!.toDouble()
+                val lon = coordM.group(2)!!.toDouble()
+                if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    return Bundle().apply {
                         putString("SHARE_TYPE", "POI")
                         putDouble("DEST_LAT", lat)
                         putDouble("DEST_LON", lon)
-                        putString("LABEL", "Tọa độ từ liên kết")
+                        putString("LABEL", textDest ?: "Điểm đến từ Google Maps")
+                    }.withVehicle()
+                }
+            } else if (!isCurrentLocationIndicator(rawDest)) {
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "DIR_NAME")
+                    putString("DEST_NAME", rawDest)
+                    putString("LABEL", rawDest)
+                }.withVehicle()
+            }
+        }
+
+        // 2. Directions URL (/dir/...)
+        if (url.contains("/dir/")) {
+            // A. Extract waypoints in data=!4m... parameter
+            // Google Maps encodes waypoints as !2m2!1d<lon>!2d<lat>
+            // Note: In Google Maps !2m2, 1d is LONGITUDE and 2d is LATITUDE!
+            val waypointMatcher = Pattern.compile("!2m2!1d([-+]?\\d+\\.\\d+)!2d([-+]?\\d+\\.\\d+)").matcher(url)
+            val waypoints = mutableListOf<Pair<Double, Double>>() // (lat, lon)
+            while (waypointMatcher.find()) {
+                val lon = waypointMatcher.group(1)!!.toDouble()
+                val lat = waypointMatcher.group(2)!!.toDouble()
+                if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    waypoints.add(Pair(lat, lon))
+                }
+            }
+
+            // B. Also check for !3d<lat>!4d<lon>
+            val data3d4dMatcher = Pattern.compile("!3d([-+]?\\d+\\.\\d+)!4d([-+]?\\d+\\.\\d+)").matcher(url)
+            val points3d4d = mutableListOf<Pair<Double, Double>>()
+            while (data3d4dMatcher.find()) {
+                val lat = data3d4dMatcher.group(1)!!.toDouble()
+                val lon = data3d4dMatcher.group(2)!!.toDouble()
+                if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    points3d4d.add(Pair(lat, lon))
+                }
+            }
+
+            // C. Extract path segments after /dir/
+            // e.g. /dir/Origin/Destination/@... or /dir//Destination/@...
+            val dirPathPattern = Pattern.compile("/dir/(.*?)(?:/@|/data=|\\?|#|$)")
+            val dirPathMatcher = dirPathPattern.matcher(url)
+            var originSegment: String? = null
+            var destSegment: String? = null
+
+            if (dirPathMatcher.find()) {
+                val pathContent = dirPathMatcher.group(1) ?: ""
+                val segments = pathContent.split("/").map { URLDecoder.decode(it.replace("+", " "), "UTF-8").trim() }
+                if (segments.size >= 2) {
+                    originSegment = segments[0]
+                    destSegment = segments.last { it.isNotEmpty() }
+                } else if (segments.size == 1 && segments[0].isNotEmpty()) {
+                    destSegment = segments[0]
+                }
+            }
+
+            val finalDestLabel = when {
+                !destSegment.isNullOrBlank() && !isCurrentLocationIndicator(destSegment) -> destSegment
+                !textDest.isNullOrBlank() -> textDest
+                else -> "Điểm đến từ Google Maps"
+            }
+
+            // Waypoints found: Point 0 is Origin (User current location), Last Point is Destination!
+            if (waypoints.isNotEmpty()) {
+                val destCoord = waypoints.last()
+                val originCoord = if (waypoints.size >= 2) waypoints.first() else null
+
+                return Bundle().apply {
+                    if (originCoord != null && !isCurrentLocationIndicator(originSegment)) {
+                        putString("SHARE_TYPE", "ROUTE")
+                        putDouble("ORIGIN_LAT", originCoord.first)
+                        putDouble("ORIGIN_LON", originCoord.second)
+                    } else {
+                        // Origin is user's current GPS location -> pin destination as POI
+                        putString("SHARE_TYPE", "POI")
                     }
+                    putDouble("DEST_LAT", destCoord.first)
+                    putDouble("DEST_LON", destCoord.second)
+                    putString("LABEL", finalDestLabel)
+                }.withVehicle()
+            }
+
+            // 3d/4d points found: last point is destination
+            if (points3d4d.isNotEmpty()) {
+                val destCoord = points3d4d.last()
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "POI")
+                    putDouble("DEST_LAT", destCoord.first)
+                    putDouble("DEST_LON", destCoord.second)
+                    putString("LABEL", finalDestLabel)
+                }.withVehicle()
+            }
+
+            // Destination segment contains raw coordinates (e.g. /dir/.../10.7725,106.6958/)
+            if (!destSegment.isNullOrBlank()) {
+                val coordM = Pattern.compile("^$coordRegex$").matcher(destSegment)
+                if (coordM.matches()) {
+                    val lat = coordM.group(1)!!.toDouble()
+                    val lon = coordM.group(2)!!.toDouble()
+                    if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                        return Bundle().apply {
+                            putString("SHARE_TYPE", "POI")
+                            putDouble("DEST_LAT", lat)
+                            putDouble("DEST_LON", lon)
+                            putString("LABEL", "Tọa độ đã ghim")
+                        }.withVehicle()
+                    }
+                }
+            }
+
+            // Destination segment has place name that needs geocoding
+            if (!destSegment.isNullOrBlank() && !isCurrentLocationIndicator(destSegment)) {
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "DIR_NAME")
+                    putString("DEST_NAME", destSegment)
+                    putString("LABEL", destSegment)
+                }.withVehicle()
+            }
+
+            if (!textDest.isNullOrBlank() && !isCurrentLocationIndicator(textDest)) {
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "DIR_NAME")
+                    putString("DEST_NAME", textDest)
+                    putString("LABEL", textDest)
+                }.withVehicle()
+            }
+
+            // CRITICAL: NEVER fallback to @lat,lon in /dir/ URLs because @ is the camera center, which is near origin/current location!
+        }
+
+        // 3. Place URLs (/place/...)
+        if (url.contains("/place/")) {
+            val placeNameMatcher = Pattern.compile("/place/([^/@?#]+)").matcher(url)
+            val placeName = if (placeNameMatcher.find()) {
+                URLDecoder.decode(placeNameMatcher.group(1)!!.replace("+", " "), "UTF-8").trim()
+            } else null
+
+            // Exact destination pin coordinates from !3d<lat>!4d<lon>
+            val dataMatcher = Pattern.compile("!3d([-+]?\\d+\\.\\d+)!4d([-+]?\\d+\\.\\d+)").matcher(url)
+            if (dataMatcher.find()) {
+                val lat = dataMatcher.group(1)!!.toDouble()
+                val lon = dataMatcher.group(2)!!.toDouble()
+                if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    return Bundle().apply {
+                        putString("SHARE_TYPE", "POI")
+                        putDouble("DEST_LAT", lat)
+                        putDouble("DEST_LON", lon)
+                        putString("LABEL", placeName ?: (textDest ?: "Điểm từ Google Maps"))
+                    }.withVehicle()
+                }
+            }
+
+            // Check if placeName is coordinates (decimal or DMS)
+            if (!placeName.isNullOrBlank()) {
+                val coordM = Pattern.compile("^$coordRegex$").matcher(placeName)
+                if (coordM.matches()) {
+                    val lat = coordM.group(1)!!.toDouble()
+                    val lon = coordM.group(2)!!.toDouble()
+                    return Bundle().apply {
+                        putString("SHARE_TYPE", "POI")
+                        putDouble("DEST_LAT", lat)
+                        putDouble("DEST_LON", lon)
+                        putString("LABEL", "Tọa độ đã ghim")
+                    }.withVehicle()
+                }
+                val dms = parseDmsCoordinates(placeName)
+                if (dms != null) {
+                    return Bundle().apply {
+                        putString("SHARE_TYPE", "POI")
+                        putDouble("DEST_LAT", dms.first)
+                        putDouble("DEST_LON", dms.second)
+                        putString("LABEL", "Tọa độ đã ghim")
+                    }.withVehicle()
+                }
+                if (!isCurrentLocationIndicator(placeName)) {
+                    return Bundle().apply {
+                        putString("SHARE_TYPE", "DIR_NAME")
+                        putString("DEST_NAME", placeName)
+                        putString("LABEL", placeName)
+                    }.withVehicle()
                 }
             }
         }
 
-        // 5. Fourth Priority for Routes: If no coordinates could be parsed, check if it's a route with names
-        if (bundle == null && url.contains("/dir/")) {
-            val matcher = Pattern.compile(coordRegex).matcher(url)
-            val matches = mutableListOf<Pair<Double, Double>>()
-            while (matcher.find()) {
-                matches.add(Pair(matcher.group(1)!!.toDouble(), matcher.group(2)!!.toDouble()))
-            }
-            if (matches.size >= 2) {
-                bundle = Bundle().apply {
-                    putString("SHARE_TYPE", "ROUTE")
-                    putDouble("ORIGIN_LAT", matches[0].first)
-                    putDouble("ORIGIN_LON", matches[0].second)
-                    putDouble("DEST_LAT", matches.last().first)
-                    putDouble("DEST_LON", matches.last().second)
-                    putString("LABEL", "Lộ trình Google Maps")
+        // 4. Query coordinates (q= or query=)
+        val queryMatcher = Pattern.compile("[?&](?:q|query|loc)=([^&]+)").matcher(url)
+        if (queryMatcher.find()) {
+            val rawQuery = URLDecoder.decode(queryMatcher.group(1)!!.replace("+", " "), "UTF-8").trim()
+            val stripped = rawQuery.removePrefix("loc:").trim()
+            val coordM = Pattern.compile("^$coordRegex$").matcher(stripped)
+            if (coordM.matches()) {
+                val lat = coordM.group(1)!!.toDouble()
+                val lon = coordM.group(2)!!.toDouble()
+                if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    return Bundle().apply {
+                        putString("SHARE_TYPE", "POI")
+                        putDouble("DEST_LAT", lat)
+                        putDouble("DEST_LON", lon)
+                        putString("LABEL", textDest ?: "Vị trí đã chọn")
+                    }.withVehicle()
                 }
-            } else {
-                // Parse destination place name for geocoding fallback
-                val dirPattern = Pattern.compile("/dir/([^/]+)/([^/\\?#]+)")
-                val dirMatcher = dirPattern.matcher(url)
-                if (dirMatcher.find()) {
-                    val destNameEncoded = dirMatcher.group(2)
-                    if (destNameEncoded != null) {
-                        try {
-                            val destName = URLDecoder.decode(destNameEncoded.replace("+", " "), "UTF-8")
-                            if (destName.isNotEmpty() && destName.lowercase() != "vị trí của tôi" && destName.lowercase() != "my location") {
-                                bundle = Bundle().apply {
-                                    putString("SHARE_TYPE", "DIR_NAME")
-                                    putString("DEST_NAME", destName)
-                                    putString("LABEL", destName)
-                                }
-                            }
-                        } catch (e: Exception) {}
-                    }
+            }
+            val dms = parseDmsCoordinates(stripped)
+            if (dms != null) {
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "POI")
+                    putDouble("DEST_LAT", dms.first)
+                    putDouble("DEST_LON", dms.second)
+                    putString("LABEL", textDest ?: "Tọa độ đã ghim")
+                }.withVehicle()
+            }
+            if (!isCurrentLocationIndicator(stripped)) {
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "DIR_NAME")
+                    putString("DEST_NAME", stripped)
+                    putString("LABEL", stripped)
+                }.withVehicle()
+            }
+        }
+
+        // 5. Check DMS in raw shared text
+        if (!rawSharedText.isNullOrBlank()) {
+            val dms = parseDmsCoordinates(rawSharedText)
+            if (dms != null) {
+                return Bundle().apply {
+                    putString("SHARE_TYPE", "POI")
+                    putDouble("DEST_LAT", dms.first)
+                    putDouble("DEST_LON", dms.second)
+                    putString("LABEL", textDest ?: "Tọa độ đã ghim")
+                }.withVehicle()
+            }
+        }
+
+        // 6. Generic !3d<lat>!4d<lon> anywhere in the URL (taking the last match)
+        val gen3d4dMatcher = Pattern.compile("!3d([-+]?\\d+\\.\\d+)!4d([-+]?\\d+\\.\\d+)").matcher(url)
+        var last3d4d: Pair<Double, Double>? = null
+        while (gen3d4dMatcher.find()) {
+            val lat = gen3d4dMatcher.group(1)!!.toDouble()
+            val lon = gen3d4dMatcher.group(2)!!.toDouble()
+            if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                last3d4d = Pair(lat, lon)
+            }
+        }
+        if (last3d4d != null) {
+            return Bundle().apply {
+                putString("SHARE_TYPE", "POI")
+                putDouble("DEST_LAT", last3d4d.first)
+                putDouble("DEST_LON", last3d4d.second)
+                putString("LABEL", textDest ?: "Điểm từ Google Maps")
+            }.withVehicle()
+        }
+
+        // 7. Fallback to raw text destination name
+        if (!textDest.isNullOrBlank() && !isCurrentLocationIndicator(textDest)) {
+            return Bundle().apply {
+                putString("SHARE_TYPE", "DIR_NAME")
+                putString("DEST_NAME", textDest)
+                putString("LABEL", textDest)
+            }.withVehicle()
+        }
+
+        // 8. Absolute last resort for non-route URLs: @lat,lon
+        if (!url.contains("/dir/")) {
+            val atMatcher = Pattern.compile("@$coordRegex").matcher(url)
+            if (atMatcher.find()) {
+                val lat = atMatcher.group(1)!!.toDouble()
+                val lon = atMatcher.group(2)!!.toDouble()
+                if (lat in -90.0..90.0 && lon in -180.0..180.0) {
+                    return Bundle().apply {
+                        putString("SHARE_TYPE", "POI")
+                        putDouble("DEST_LAT", lat)
+                        putDouble("DEST_LON", lon)
+                        putString("LABEL", "Vị trí bản đồ")
+                    }.withVehicle()
                 }
             }
         }
-        
-        // Auto-assign vehicle type if detected in the URL
-        if (bundle != null) {
-            if (url.contains("!3e9")) {
-                bundle.putInt("VEHICLE_TYPE", 1) // Motorcycle
-            } else if (url.contains("!3e0")) {
-                bundle.putInt("VEHICLE_TYPE", 0) // Car
-            }
-        }
-        
-        return bundle
+
+        return null
     }
 
     fun cleanPlaceName(name: String): String {

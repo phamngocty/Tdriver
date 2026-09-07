@@ -146,9 +146,9 @@ object NavigationRepository {
     private val _isServiceRunning = MutableStateFlow(false)
     val isServiceRunning = _isServiceRunning.asStateFlow()
 
-    fun updateLocation(location: Location) {
+    fun updateLocation(location: Location, overrideSpeedKmh: Int? = null) {
         _gpsLocation.value = location
-        val speedKmh = (location.speed * 3.6f).toInt().coerceAtLeast(0)
+        val speedKmh = (overrideSpeedKmh ?: (location.speed * 3.6f).toInt()).coerceAtLeast(0)
         _currentSpeedKmh.value = speedKmh
     }
 
@@ -305,6 +305,18 @@ object NavigationRepository {
         val current = _tileStreamingState.value.tiles
         current.values.forEach { if (!it.isRecycled) it.recycle() }
         _tileStreamingState.value = TileStreamingState()
+    }
+
+    // Shared Location Intent Event from Google Maps or external apps
+    private val _sharedLocationEvent = MutableSharedFlow<android.os.Bundle>(
+        replay = 0,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val sharedLocationEvent: SharedFlow<android.os.Bundle> = _sharedLocationEvent.asSharedFlow()
+
+    fun postSharedLocation(bundle: android.os.Bundle) {
+        _sharedLocationEvent.tryEmit(bundle)
     }
 }
 

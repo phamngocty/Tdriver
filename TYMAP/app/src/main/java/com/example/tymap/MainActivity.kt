@@ -63,16 +63,40 @@ class MainActivity : AppCompatActivity() {
         checkAndRequestPermissions()
     }
 
-    // Tự động giữ màn hình luôn sáng khi đang dẫn đường (nếu bật tùy chọn)
+    override fun onResume() {
+        super.onResume()
+        updateKeepScreenOn()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Chỉ xóa cờ khi người dùng tắt tùy chọn giữ màn hình hoặc thoát hẳn Activity
+        if (!PrefsHelper.getBoolean(this, "keep_screen_on", true) || isFinishing) {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window.decorView.keepScreenOn = false
+            binding.root.keepScreenOn = false
+        }
+    }
+
+    fun updateKeepScreenOn() {
+        val keepScreenOn = PrefsHelper.getBoolean(this, "keep_screen_on", true)
+        if (keepScreenOn) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window.decorView.keepScreenOn = true
+            binding.root.keepScreenOn = true
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window.decorView.keepScreenOn = false
+            binding.root.keepScreenOn = false
+        }
+    }
+
+    // Luôn giữ màn hình sáng khi mở app (theo tùy chọn keep_screen_on, mặc định bật)
     private fun observeKeepScreenOn() {
+        updateKeepScreenOn()
         lifecycleScope.launch {
-            NavigationRepository.navigationState.collect { running ->
-                val keepScreenOn = PrefsHelper.getBoolean(this@MainActivity, "keep_screen_on", true)
-                if (running && keepScreenOn) {
-                    window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                } else {
-                    window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                }
+            NavigationRepository.navigationState.collect {
+                updateKeepScreenOn()
             }
         }
     }
@@ -162,8 +186,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: android.content.Intent?) {
-        if (intent?.hasExtra("SHARE_TYPE") == true) {
+        val extras = intent?.extras
+        if (extras != null && extras.containsKey("SHARE_TYPE")) {
             binding.viewPager.currentItem = 0 // Switch to Map tab
+            NavigationRepository.postSharedLocation(extras)
+            intent.removeExtra("SHARE_TYPE")
         }
     }
 

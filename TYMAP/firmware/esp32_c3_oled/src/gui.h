@@ -20,8 +20,8 @@
 #define FONT_U8G2_TINY        u8g2_font_helvB08_tf    // Thông tin phụ siêu nhỏ
 // ====================================================================
 
-// Khai báo chế độ hiển thị hệ thống
-enum Mode { HUD_MODE, MAP_MODE, STATUS_MODE, INFO_MODE, NOTIF_MODE, SETTINGS_MODE };
+// Khai báo chế độ hiển thị hệ thống (Đồng bộ thứ tự với ESP32-S3)
+enum Mode { HUD_MODE, MAP_MODE, MAP_HUD_MODE, STATUS_MODE, INFO_MODE, NOTIF_MODE, SETTINGS_MODE };
 
 // Cấu trúc lưu trữ thông báo
 struct NotificationItem {
@@ -90,6 +90,7 @@ extern int brightness;
 extern uint8_t hudStyle;    // 0=H1 Classic Boxed, 1=H2 Split Dash, 2=H3 Big Arrow, 3=H4 Racing Bar, 4=H5 Banner, 5=H6 Dual Pill
 extern uint8_t statusStyle; // 0=S1 Classic Digital, 1=S2 Dual Gauges, 2=S3 Minimalist, 3=S4 Sport Telemetry
 extern uint8_t notifStyle;  // 0=N1 Rounded Card, 1=N2 Split App Focus, 2=N3 Top Banner
+extern uint8_t mapStyle;    // 0=M1 Fullscreen Map + Mini HUD, 1=Pure Map 100%, 2=M2 Split Map + Turn HUD
 
 // Trạng thái Cập nhật Firmware BLE OTA
 extern bool isOtaMode;

@@ -304,7 +304,7 @@ object TrafficWarningManager {
      * Thuật toán tính khoảng cách hoàn toàn Offline (Location.distanceBetween) không phụ thuộc mạng 4G.
      */
     fun checkGpsLocation(context: Context, location: Location, bleManager: MyBleManager?) {
-        val isNavigating = NavigationRepository.navigationState.value
+        val isNavigating = NavigationRepository.navigationState.value || (NavigationRepository.hudPreviewData.value?.active == true)
 
         // Nếu không trong chế độ dẫn đường hoặc RAM Cache đang trống, kích hoạt quét lân cận
         if (!isNavigating || warningCache.isEmpty()) {

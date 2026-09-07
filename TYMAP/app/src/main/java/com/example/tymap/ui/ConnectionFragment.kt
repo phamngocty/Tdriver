@@ -260,48 +260,21 @@ class ConnectionFragment : Fragment() {
         }
 
         binding.btnClearHistory.setOnClickListener {
-            val context = requireContext()
-            val historySet = PrefsHelper.getPairedHistory(context)
-            val historyList = historySet.toList().sorted()
-            if (historyList.isEmpty()) {
-                Toast.makeText(context, "Lịch sử kết nối đang trống", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val options = arrayOf("Xóa từng thiết bị...", "Xóa toàn bộ lịch sử (${historyList.size} thiết bị)")
-            androidx.appcompat.app.AlertDialog.Builder(context)
-                .setTitle("Quản lý lịch sử kết nối")
-                .setItems(options) { _, which ->
-                    if (which == 0) {
-                        // Chọn thiết bị để xóa
-                        val itemsArray = historyList.toTypedArray()
-                        androidx.appcompat.app.AlertDialog.Builder(context)
-                            .setTitle("Chọn thiết bị cần xóa")
-                            .setItems(itemsArray) { _, itemIdx ->
-                                val selectedItem = itemsArray[itemIdx]
-                                val mac = selectedItem.substringAfter("(").substringBefore(")").trim()
-                                PrefsHelper.removePairedDevice(context, mac)
-                                setupHistory()
-                                Toast.makeText(context, "Đã xóa: $selectedItem", Toast.LENGTH_SHORT).show()
-                            }
-                            .setNegativeButton("Hủy", null)
-                            .show()
-                    } else {
-                        // Xóa toàn bộ
-                        androidx.appcompat.app.AlertDialog.Builder(context)
-                            .setTitle("Xác nhận xóa tất cả")
-                            .setMessage("Bạn có chắc muốn xóa toàn bộ danh sách thiết bị đã lưu?")
-                            .setPositiveButton("Xóa tất cả") { _, _ ->
-                                PrefsHelper.clearPairedHistory(context)
-                                setupHistory()
-                                Toast.makeText(context, "Đã xóa toàn bộ lịch sử kết nối", Toast.LENGTH_SHORT).show()
-                            }
-                            .setNegativeButton("Hủy", null)
-                            .show()
+            SavedDevicesDialog(
+                context = requireContext(),
+                onDeviceSelected = { mac, _ ->
+                    val manager = requireContext().getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+                    try {
+                        val device = manager.adapter.getRemoteDevice(mac)
+                        connectToDevice(device)
+                    } catch (e: Exception) {
+                        Toast.makeText(requireContext(), "Không thể kết nối tới $mac: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
+                },
+                onHistoryChanged = {
+                    setupHistory()
                 }
-                .setNegativeButton("Đóng", null)
-                .show()
+            ).show()
         }
 
         binding.btnDisconnect.setOnClickListener {

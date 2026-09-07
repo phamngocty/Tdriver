@@ -52,13 +52,18 @@ object UpdateManager {
         if (customUrl.isNotEmpty()) {
             list.add(customUrl)
         }
-        list.add("https://git.nas152.duckdns.org/nas152/Tdriver/raw/branch/master/version.json")
-        list.add("http://192.168.1.114:3002/nas152/Tdriver/raw/branch/master/version.json")
-        list.add("https://git.nas152.duckdns.org/nas152/Tdriver/raw/branch/main/version.json")
-        list.add("http://192.168.1.114:3002/nas152/Tdriver/raw/branch/main/version.json")
+        // 1. Máy chủ NAS Fusion Engine (Public DuckDNS có SSL Let's Encrypt hợp lệ, hoạt động 24/7 trên cả WiFi & 4G)
         list.add("https://alert.nas152.duckdns.org/version.json")
+        // 2. Gitea NAS (Mạng nội bộ LAN)
+        list.add("http://192.168.1.114:3002/nas152/Tdriver/raw/branch/master/version.json")
+        list.add("http://192.168.1.114:3002/nas152/Tdriver/raw/branch/main/version.json")
+        // 3. Gitea NAS (Public DuckDNS)
+        list.add("https://git.nas152.duckdns.org/nas152/Tdriver/raw/branch/master/version.json")
+        list.add("https://git.nas152.duckdns.org/nas152/Tdriver/raw/branch/main/version.json")
+        // 4. Dự phòng repo TYMAP
         list.add("https://git.nas152.duckdns.org/nas152/TYMAP/raw/branch/main/version.json")
         list.add("http://192.168.1.114:3002/nas152/TYMAP/raw/branch/main/version.json")
+        // 5. GitHub Cloud (Dự phòng toàn cầu)
         list.add("https://raw.githubusercontent.com/phamn/TYMAP/main/version.json")
         return list
     }
@@ -69,6 +74,7 @@ object UpdateManager {
     suspend fun checkUpdate(context: Context): UpdateCheckResult = withContext(Dispatchers.IO) {
         val urls = getDefaultUpdateUrls(context)
         var lastError = "Không thể kết nối đến máy chủ cập nhật."
+        var fallbackInfo: UpdateInfo? = null
 
         for (updateUrl in urls) {
             try {
@@ -83,7 +89,12 @@ object UpdateManager {
                         return@use
                     }
                     val bodyStr = response.body?.string() ?: return@use
-                    val json = JSONObject(bodyStr)
+                    val json = try {
+                        JSONObject(bodyStr)
+                    } catch (e: Exception) {
+                        lastError = "Lỗi phân tích cú pháp JSON từ $updateUrl"
+                        return@use
+                    }
 
                     val appObj = json.optJSONObject("app") ?: JSONObject()
                     val appVerCode = appObj.optInt("versionCode", 0)
@@ -96,6 +107,12 @@ object UpdateManager {
                     var fwVerName = fwObj.optString("versionName", "")
                     var fwBinUrl = fwObj.optString("binUrl", "")
                     var fwChangelog = fwObj.optString("changelog", "Bản nâng cấp firmware mới cho ESP32 HUD.")
+
+                    // Bỏ qua nếu là dữ liệu test không hợp lệ (cả app lẫn fw versionCode đều <= 0)
+                    if (appVerCode <= 0 && fwVerCode <= 0) {
+                        NavigationRepository.addLog("UpdateManager: Bỏ qua $updateUrl (dữ liệu version.json không hợp lệ)")
+                        return@use
+                    }
 
                     // Tự động nhận diện thiết bị đang kết nối (GC9A01 hay OLED SH1106 / SSD1306)
                     val deviceDisplay = NavigationRepository.deviceStatus.value["display"]
@@ -161,12 +178,26 @@ object UpdateManager {
                         firmwareBinUrl = fwBinUrl,
                         firmwareChangelog = "[$displayLabel] $fwChangelog"
                     )
-                    NavigationRepository.addLog("UpdateManager: Kết nối thành công ($displayLabel) tới: $updateUrl")
-                    return@withContext UpdateCheckResult.Success(info)
+
+                    // Nếu tìm thấy cập nhật (App hoặc FW có link tải), trả về kết quả ngay
+                    if (hasAppUpdate || hasFirmwareUpdate) {
+                        NavigationRepository.addLog("UpdateManager: Tìm thấy bản cập nhật mới ($displayLabel) từ: $updateUrl")
+                        return@withContext UpdateCheckResult.Success(info)
+                    }
+
+                    // Nếu hợp lệ nhưng chưa cần cập nhật, ghi nhận làm fallback hợp lệ nếu các server sau không phản hồi
+                    if (fallbackInfo == null && (appApkUrl.isNotEmpty() || fwBinUrl.isNotEmpty())) {
+                        fallbackInfo = info
+                    }
                 }
             } catch (e: Exception) {
                 lastError = "Lỗi kết nối $updateUrl: ${e.message}"
             }
+        }
+
+        fallbackInfo?.let {
+            NavigationRepository.addLog("UpdateManager: Đang ở phiên bản mới nhất")
+            return@withContext UpdateCheckResult.Success(it)
         }
 
         UpdateCheckResult.Error(lastError)

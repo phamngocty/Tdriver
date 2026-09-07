@@ -12,7 +12,7 @@ services:
     container_name: tymap_npm
     restart: unless-stopped
     ports:
-      - "80:80"     # Đón HTTP Let's Encrypt & Redirect HTTPS
+      - "8082:80"   # Port HTTP phụ cho NPM (nhường Port 80 mặc định cho CasaOS)
       - "443:443"   # Đón HTTPS bảo mật từ 4G/5G vào App Android
       - "81:81"     # Web UI quản trị (LAN: http://192.168.1.114:81)
     environment:

@@ -41,10 +41,11 @@ class GMapsNotificationListener : NotificationListenerService() {
         val ete: String
     )
 
-    private fun parseGmapsNotification(title: String, text: String, subText: String): ParsedNavData {
+    private fun parseGmapsNotification(title: String, text: String, subText: String, bigText: String = ""): ParsedNavData {
         val rawTitle = title.trim()
         val rawText = text.trim()
         val rawSubText = subText.trim()
+        val rawBigText = bigText.trim()
         
         var distance = ""
         var instruction = ""
@@ -52,21 +53,23 @@ class GMapsNotificationListener : NotificationListenerService() {
         var eta = ""
         var ete = ""
 
-        // 1. Regex để nhận diện khoảng cách ở đầu chuỗi (ví dụ: "700 m · Chếch...", "1.2km Rẽ...", "150 m đi...")
+        val distRegex = Regex("""\b(\d+(?:[.,]\d+)?\s*(?:m|km))\b""", RegexOption.IGNORE_CASE)
         val leadingDistRegex = Regex("""^(\d+(?:[.,]\d+)?\s*(?:m|km))""", RegexOption.IGNORE_CASE)
-        
-        // Kiểm tra title trước
+
+        // 1. Trích xuất khoảng cách
         val titleMatch = leadingDistRegex.find(rawTitle)
         if (titleMatch != null) {
             distance = titleMatch.groups[1]?.value ?: ""
             var remaining = rawTitle.substring(titleMatch.range.last + 1).trim()
-            // Loại bỏ dấu ngăn cách nếu có
             if (remaining.startsWith("·") || remaining.startsWith("-") || remaining.startsWith(",")) {
                 remaining = remaining.substring(1).trim()
             }
-            instruction = remaining
-        } else {
-            // Kiểm tra text xem có khoảng cách ở đầu không (ví dụ: "150 m · Lê Lợi")
+            if (remaining.isNotEmpty()) {
+                instruction = remaining
+            }
+        }
+
+        if (distance.isEmpty()) {
             val textMatch = leadingDistRegex.find(rawText)
             if (textMatch != null) {
                 distance = textMatch.groups[1]?.value ?: ""
@@ -74,42 +77,74 @@ class GMapsNotificationListener : NotificationListenerService() {
                 if (remaining.startsWith("·") || remaining.startsWith("-") || remaining.startsWith(",")) {
                     remaining = remaining.substring(1).trim()
                 }
-                roadName = remaining
-                instruction = rawTitle
-            } else {
-                instruction = rawTitle
+                if (remaining.isNotEmpty()) {
+                    roadName = remaining
+                }
             }
         }
 
-        // 2. Phân tích chi tiết các phần phân tách bằng dấu "·" trong cả text và subText
-        val parts = mutableListOf<String>()
-        if (rawText.isNotEmpty()) {
-            parts.addAll(rawText.split("·").map { it.trim() })
-        }
-        if (rawSubText.isNotEmpty()) {
-            parts.addAll(rawSubText.split("·").map { it.trim() })
+        if (distance.isEmpty()) {
+            val inTitle = distRegex.find(rawTitle)
+            if (inTitle != null) {
+                distance = inTitle.groups[1]?.value ?: ""
+            } else {
+                val inText = distRegex.find(rawText)
+                if (inText != null) {
+                    distance = inText.groups[1]?.value ?: ""
+                }
+            }
         }
 
-        for (part in parts) {
+        // 2. Trích xuất câu chỉ dẫn (instruction)
+        if (instruction.isEmpty()) {
+            if (rawBigText.isNotEmpty() && !rawBigText.matches(distRegex)) {
+                instruction = rawBigText
+            } else if (rawTitle.isNotEmpty() && !rawTitle.matches(Regex("""^\d+(?:[.,]\d+)?\s*(?:m|km)$""", RegexOption.IGNORE_CASE))) {
+                instruction = rawTitle
+            } else if (rawText.isNotEmpty()) {
+                instruction = rawText.substringBefore("·").trim()
+            }
+        }
+
+        // 3. Trích xuất tên đường (roadName)
+        if (roadName.isEmpty()) {
+            if (rawText.isNotEmpty()) {
+                val candidate = rawText.substringBefore("·").trim()
+                if (candidate != instruction && !candidate.matches(Regex("""^\d+(?:[.,]\d+)?\s*(?:m|km)$""", RegexOption.IGNORE_CASE))) {
+                    roadName = candidate
+                } else if (rawText.contains("·")) {
+                    val afterDot = rawText.substringAfter("·").trim()
+                    if (!afterDot.contains("đến", ignoreCase = true) && !afterDot.matches(Regex(""".*\b\d{1,2}:\d{2}\b.*"""))) {
+                        roadName = afterDot.substringBefore("·").trim()
+                    }
+                }
+            }
+        }
+
+        // 4. Phân tích chi tiết ETA, ETE từ text, subText, bigText
+        val allParts = mutableListOf<String>()
+        if (rawText.isNotEmpty()) allParts.addAll(rawText.split("·").map { it.trim() })
+        if (rawSubText.isNotEmpty()) allParts.addAll(rawSubText.split("·").map { it.trim() })
+        if (rawBigText.isNotEmpty()) allParts.addAll(rawBigText.split("·").map { it.trim() })
+
+        for (part in allParts) {
             if (part.isEmpty()) continue
             
             when {
-                // Nhận diện ETA (Ví dụ: "23:21" hoặc "Đến nơi lúc 23:21")
                 part.matches(Regex(""".*\b\d{1,2}:\d{2}\b.*""")) || part.contains("đến nơi", ignoreCase = true) || part.contains("arrive", ignoreCase = true) -> {
                     val timeMatch = Regex("""\b\d{1,2}:\d{2}\b""").find(part)
-                    eta = timeMatch?.value ?: part
-                }
-                // Nhận diện ETE / Thời gian di chuyển (Ví dụ: "15 ph", "15 min", "1 giờ 10 ph")
-                part.contains("ph", ignoreCase = true) || part.contains("min", ignoreCase = true) || part.contains("giờ", ignoreCase = true) || part.contains("hour", ignoreCase = true) || part.contains(" h", ignoreCase = true) -> {
-                    ete = part
-                }
-                // Nhận diện khoảng cách phụ nếu chưa tìm thấy ở đầu chuỗi (ví dụ: "8.2 km")
-                part.matches(Regex("""\d+(?:[.,]\d+)?\s*(?:m|km)""", RegexOption.IGNORE_CASE)) -> {
-                    if (distance.isEmpty()) {
-                        distance = part
+                    if (timeMatch != null && eta.isEmpty()) {
+                        eta = timeMatch.value
                     }
                 }
-                // Nếu là thông tin text bình thường khác (ví dụ: tên đường)
+                part.contains("ph", ignoreCase = true) || part.contains("min", ignoreCase = true) || part.contains("giờ", ignoreCase = true) || part.contains("hour", ignoreCase = true) || part.contains(" h", ignoreCase = true) -> {
+                    if (ete.isEmpty()) {
+                        ete = part
+                    }
+                }
+                distance.isEmpty() && distRegex.matches(part) -> {
+                    distance = part
+                }
                 else -> {
                     if (roadName.isEmpty() && part != rawTitle && !part.contains("maps", ignoreCase = true)) {
                         roadName = part
@@ -118,13 +153,21 @@ class GMapsNotificationListener : NotificationListenerService() {
             }
         }
 
-        // 3. Dự phòng trích xuất tên đường (roadName) từ câu chỉ dẫn (instruction) nếu vẫn trống
+        // 5. Dự phòng trích xuất tên đường từ câu chỉ dẫn nếu vẫn trống
         if (roadName.isEmpty()) {
             if (instruction.contains("vào", ignoreCase = true)) {
                 roadName = instruction.substringAfter("vào").trim()
             } else if (instruction.contains("onto", ignoreCase = true)) {
                 roadName = instruction.substringAfter("onto").trim()
             }
+        }
+
+        // 6. Cross-fallback: Đảm bảo cả instruction và roadName không bị rỗng
+        if (instruction.isEmpty() && roadName.isNotEmpty()) {
+            instruction = roadName
+        }
+        if (roadName.isEmpty() && instruction.isNotEmpty()) {
+            roadName = instruction
         }
 
         return ParsedNavData(
@@ -141,20 +184,30 @@ class GMapsNotificationListener : NotificationListenerService() {
         val title = extras.getCharSequence("android.title")?.toString() ?: ""
         val text = extras.getCharSequence("android.text")?.toString() ?: ""
         val subText = extras.getCharSequence("android.subText")?.toString() ?: ""
+        val bigText = extras.getCharSequence("android.bigText")?.toString() ?: ""
 
         // Nếu thông báo trống rỗng hoàn toàn, bỏ qua
-        if (title.isEmpty() && text.isEmpty()) return
+        if (title.isEmpty() && text.isEmpty() && bigText.isEmpty()) return
 
         // Ưu tiên lấy icon
         val icon = sbn.notification.getLargeIcon() ?: sbn.notification.smallIcon
-        val iconBitmap = icon?.loadDrawable(this)?.let { IconUtils.drawableToBitmap(it) }
-        val icon1bppBytes = iconBitmap?.let { IconUtils.convertTo1bpp(it, 48, 48) }
+        val rawIconBitmap = icon?.loadDrawable(this)?.let { IconUtils.drawableToBitmap(it) }
+        val icon1bppBytes = rawIconBitmap?.let { IconUtils.convertTo1bpp(it, 48, 48) }
+        
+        // Thu nhỏ bitmap an toàn tối đa 96x96 để tránh lỗi TransactionTooLargeException gây crash app
+        val safeIconBitmap = rawIconBitmap?.let {
+            if (it.width > 96 || it.height > 96) {
+                android.graphics.Bitmap.createScaledBitmap(it, 96, 96, true)
+            } else {
+                it
+            }
+        }
 
-        val logIncoming = "Maps raw: title='$title', text='$text', subText='$subText'"
+        val logIncoming = "Maps raw: title='$title', text='$text', subText='$subText', bigText='$bigText'"
         Log.d("GMapsListener", logIncoming)
 
         // Bóc tách dữ liệu sử dụng bộ phân tích robust
-        val parsedData = parseGmapsNotification(title, text, subText)
+        val parsedData = parseGmapsNotification(title, text, subText, bigText)
 
         // Chấp nhận thông báo nếu có khoảng cách, câu hướng dẫn, hoặc là thông báo đang chạy (isOngoing)
         val isNav = parsedData.distance.isNotEmpty() || parsedData.instruction.isNotEmpty() || sbn.isOngoing
@@ -163,7 +216,7 @@ class GMapsNotificationListener : NotificationListenerService() {
             return
         }
 
-        val logMsg = "Maps Process: dist='${parsedData.distance}', title='${parsedData.instruction}', icon=${iconBitmap != null}"
+        val logMsg = "Maps Process: dist='${parsedData.distance}', title='${parsedData.instruction}', road='${parsedData.roadName}', icon=${safeIconBitmap != null}"
         Log.d("GMapsListener", logMsg)
         NavigationRepository.addLog(logMsg)
 
@@ -178,7 +231,7 @@ class GMapsNotificationListener : NotificationListenerService() {
             putExtra("ete", parsedData.ete)
             putExtra("iconIndex", iconIndex)
             putExtra("icon1bpp", icon1bppBytes)
-            putExtra("bitmap", iconBitmap)
+            putExtra("bitmap", safeIconBitmap)
             setPackage(this@GMapsNotificationListener.packageName)
         }
         sendBroadcast(intent)
@@ -218,14 +271,16 @@ class GMapsNotificationListener : NotificationListenerService() {
     private fun guessIconIndex(title: String, text: String): Int {
         val combined = (title + " " + text).lowercase()
         return when {
+            combined.contains("đến") || combined.contains("arrive") || combined.contains("đã tới") || combined.contains("đích") -> 14
             combined.contains("quay đầu") || combined.contains("u-turn") || combined.contains("uturn") -> if (combined.contains("phải")) 8 else 7
-            combined.contains("vòng xuyến") || combined.contains("roundabout") -> 9
-            combined.contains("gắt") || combined.contains("sharp") -> if (combined.contains("trái") || combined.contains("left")) 3 else 6
-            combined.contains("chếch") || combined.contains("slight") -> if (combined.contains("trái") || combined.contains("left")) 1 else 4
-            combined.contains("trái") || combined.contains("left") -> 2
-            combined.contains("phải") || combined.contains("right") -> 5
-            combined.contains("đến") || combined.contains("arrive") || combined.contains("đã tới") || combined.contains("đích") -> 10
-            combined.contains("thẳng") || combined.contains("straight") || combined.contains("continue") -> 0
+            combined.contains("vòng xuyến") || combined.contains("bùng binh") || combined.contains("roundabout") || combined.contains("rotary") -> 12
+            combined.contains("gắt") || combined.contains("sharp") || combined.contains("ngoặt") -> if (combined.contains("trái") || combined.contains("left")) 6 else 3
+            combined.contains("chếch") || combined.contains("slight") || combined.contains("nhẹ") -> if (combined.contains("trái") || combined.contains("left")) 4 else 1
+            combined.contains("trái") || combined.contains("left") -> 5
+            combined.contains("phải") || combined.contains("right") -> 2
+            combined.contains("sát") || combined.contains("keep") -> if (combined.contains("trái") || combined.contains("left")) 4 else 1
+            combined.contains("nhập làn") || combined.contains("merge") -> 15
+            combined.contains("thẳng") || combined.contains("straight") || combined.contains("continue") || combined.contains("tiếp") -> 0
             else -> 0
         }
     }

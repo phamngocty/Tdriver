@@ -1,8 +1,0 @@
-id,lat,lng,speed_limit,camera_type,road_name,description
-1,10.776889,106.700806,50,speed,Nguyen Hue,Camera giam sat toc do pho di bo Nguyen Hue
-2,10.792415,106.684128,60,red_light,Nam Ky Khoi Nghia,Camera phat nguoi vuot den do giao lo NKKN - Dien Bien Phu
-3,10.823120,106.629700,50,speed,Quoc Lo 1A,Camera toc do QL1A doan qua An Suong
-4,10.852300,106.771900,60,speed,Xa Lo Ha Noi,Camera ban toc do Xa Lo Ha Noi - Thu Duc
-5,21.028511,105.854167,50,red_light,Trang Tien,Camera phat nguoi vuot den do Trang Tien - Hang Khay
-6,21.036800,105.782500,60,speed,Pham Van Dong,Camera toc do duong Pham Van Dong - Cau Giay
-7,16.054400,108.202200,50,speed,Nguyen Van Linh,Camera giam sat toc do duong Nguyen Van Linh Da Nang

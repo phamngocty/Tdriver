@@ -33,12 +33,16 @@ class CropOverlayService : Service() {
             
             if (cropType == "gmaps") {
                 val launchIntent = packageManager.getLaunchIntentForPackage("com.google.android.apps.maps")
-                launchIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(launchIntent)
+                launchIntent?.let { intent ->
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                }
             } else {
                 val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
-                launchIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(launchIntent)
+                launchIntent?.let { intent ->
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                }
             }
         }
         

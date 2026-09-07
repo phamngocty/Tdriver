@@ -53,16 +53,71 @@
         </LinearLayout>
 
         <FrameLayout
+            android:id="@+id/btnToggleSearchSettings"
             android:layout_width="38dp"
             android:layout_height="38dp"
             android:background="@drawable/bg_icon_tint"
+            android:clickable="true"
+            android:focusable="true"
             android:padding="9dp">
             <ImageView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:src="@drawable/ic_search"
-                app:tint="@color/colorTextMuted" />
+                app:tint="@color/colorAccentCyan" />
         </FrameLayout>
+    </LinearLayout>
+
+    <!-- Search Bar Layout -->
+    <LinearLayout
+        android:id="@+id/layoutSearchSettings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_glass_search"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_search"
+                app:tint="@color/colorAccentCyan" />
+
+            <EditText
+                android:id="@+id/etSearchSettings"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:background="@null"
+                android:hint="Tìm cài đặt (BLE, API, OLED, Zoom...)"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#64748B"
+                android:textSize="13sp"
+                android:singleLine="true"
+                android:imeOptions="actionDone"/>
+
+            <ImageView
+                android:id="@+id/btnClearSearchSettings"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_close"
+                android:visibility="gone"
+                android:clickable="true"
+                android:focusable="true"
+                app:tint="#94A3B8" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Filter Chips horizontal scroll -->
@@ -95,41 +150,35 @@
                 style="@style/Widget.Material3.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Kết nối"/>
+                android:text="Kết nối BLE"/>
 
             <com.google.android.material.chip.Chip
-                android:id="@+id/chipMap"
+                android:id="@+id/chipDisplays"
                 style="@style/Widget.Material3.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Bản đồ"/>
+                android:text="Màn hình ngoài xe"/>
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipRouting"
                 style="@style/Widget.Material3.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Dẫn đường"/>
-
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipData"
-                style="@style/Widget.Material3.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="OLED"/>
+                android:text="Bản đồ &amp; Dẫn đường"/>
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipSystem"
                 style="@style/Widget.Material3.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Hệ thống"/>
+                android:text="Hệ thống &amp; Dịch vụ"/>
 
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
     <!-- Scrollable content -->
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/nestedScrollViewSettings"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:fillViewport="true">
@@ -139,7 +188,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingHorizontal="16dp"
-            android:paddingBottom="24dp">
+            android:paddingBottom="96dp">
 
             <!-- Card 1: KẾT NỐI BLE · ESP32 HUD (CardGeneral) -->
             <com.google.android.material.card.MaterialCardView
@@ -492,9 +541,1013 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card 2: HIỂN THỊ & TRUYỀN ẢNH (CardMap) -->
+            <!-- Card 2: MÀN HÌNH NGOÀI XE · GIAO DIỆN HIỂN THỊ (CardDisplays: OLED & GC9A01) -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardMap"
+                android:id="@+id/cardDisplays"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="8dp"
+                app:strokeWidth="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <!-- Card header -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="12dp">
+
+                        <ImageView
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:src="@drawable/ic_status_dot"
+                            app:tint="#F59E0B" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:text="MÀN HÌNH NGOÀI XE · GIAO DIỆN"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="#F1F5F9" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="DISPLAYS"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#F59E0B" />
+                    </LinearLayout>
+
+                    <!-- BỘ CHỌN LOẠI THIẾT BỊ HIỂN THỊ (OLED vs GC9A01) -->
+                    <com.google.android.material.button.MaterialButtonToggleGroup
+                        android:id="@+id/toggleDisplayDeviceType"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        app:singleSelection="true"
+                        app:selectionRequired="true">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSelectOled"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="ESP32-C3 (OLED 128x64)"
+                            android:textSize="11sp"
+                            app:icon="@drawable/ic_turn_right"
+                            app:iconSize="16dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSelectGc9a01"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="ESP32-S3 (Tròn GC9A01)"
+                            android:textSize="11sp"
+                            app:icon="@drawable/ic_speedometer"
+                            app:iconSize="16dp" />
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                    <!-- ======================================================== -->
+                    <!-- NHÁNH A: DÀNH CHO MÀN HÌNH OLED (ESP32-C3 128x64)         -->
+                    <!-- ======================================================== -->
+                    <LinearLayout
+                        android:id="@+id/layoutOledSection"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="visible">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PHONG CÁCH GIAO DIỆN OLED"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:textColor="#F59E0B"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginBottom="6dp"/>
+
+                        <LinearLayout
+                            android:id="@+id/layoutOledSettings"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="visible">
+
+                            <!-- OLED MAP Style: Thuần Map M1, Chỉ có Map, Map chia đôi M2 -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_map"
+                                        app:tint="#F59E0B" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Kiểu hiển thị Bản đồ (MAP)"
+                                        android:textSize="13sp"
+                                        android:textStyle="bold"
+                                        android:textColor="#F1F5F9" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Thuần Map, Chỉ Map, hoặc Chia đôi"
+                                        android:textSize="10sp"
+                                        android:textColor="@color/colorTextMuted" />
+                                </LinearLayout>
+
+                                <Spinner
+                                    android:id="@+id/spinnerOledMapStyle"
+                                    android:layout_width="160dp"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- OLED HUD Style -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_turn_right"
+                                        app:tint="#F59E0B" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Kiểu dẫn đường HUD (OLED)"
+                                        android:textSize="13sp"
+                                        android:textStyle="bold"
+                                        android:textColor="#F1F5F9" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="4 phong cách Turn-by-Turn"
+                                        android:textSize="10sp"
+                                        android:textColor="@color/colorTextMuted" />
+                                </LinearLayout>
+
+                                <Spinner
+                                    android:id="@+id/spinnerOledHudStyle"
+                                    android:layout_width="160dp"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- OLED STATUS Clock Style -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_clock"
+                                        app:tint="#F59E0B" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Kiểu mặt đồng hồ (STATUS)"
+                                        android:textSize="13sp"
+                                        android:textStyle="bold"
+                                        android:textColor="#F1F5F9" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="5 kiểu hiển thị thông số xe"
+                                        android:textSize="10sp"
+                                        android:textColor="@color/colorTextMuted" />
+                                </LinearLayout>
+
+                                <Spinner
+                                    android:id="@+id/spinnerOledStatusStyle"
+                                    android:layout_width="160dp"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- OLED NOTIF Style -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_notifications"
+                                        app:tint="#F59E0B" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Kiểu thông báo (NOTIF)"
+                                        android:textSize="13sp"
+                                        android:textStyle="bold"
+                                        android:textColor="#F1F5F9" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Toàn màn hình hoặc Popup nổi"
+                                        android:textSize="10sp"
+                                        android:textColor="@color/colorTextMuted" />
+                                </LinearLayout>
+
+                                <Spinner
+                                    android:id="@+id/spinnerOledNotifStyle"
+                                    android:layout_width="160dp"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <com.google.android.material.divider.MaterialDivider
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginVertical="8dp"/>
+
+                        <!-- NÂNG CAO OLED: TÙY CHỌN KỸ THUẬT (PROGRESSIVE DISCLOSURE) -->
+                        <TextView
+                            android:id="@+id/toggleOledAdvanced"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="?attr/selectableItemBackground"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:paddingVertical="8dp"
+                            android:text="Tùy chọn tinh chỉnh màn hình &amp; Bộ lọc màu  ▸"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="#F59E0B" />
+
+                        <LinearLayout
+                            android:id="@+id/layoutOledAdvanced"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <!-- OLED Brightness / Contrast -->
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
+                                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_settings" app:tint="#F59E0B"/>
+                                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Độ sáng / Tương phản màn hình" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                                <TextView android:id="@+id/tvValueOledBrightness" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#F59E0B"/>
+                            </LinearLayout>
+                            <com.google.android.material.slider.Slider android:id="@+id/sliderOledBrightness" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="255" android:stepSize="5" />
+
+                            <!-- Threshold -->
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
+                                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_layers" app:tint="#F59E0B"/>
+                                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Ngưỡng đen trắng (Monochrome)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                                <TextView android:id="@+id/tvValueOledThreshold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#F59E0B"/>
+                            </LinearLayout>
+                            <com.google.android.material.slider.Slider android:id="@+id/sliderOledThreshold" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="255" android:stepSize="1" />
+
+                            <!-- Dithering -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="34dp"
+                                    android:layout_height="34dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="7dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_layers"
+                                        app:tint="#F59E0B" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Chế độ Dithering (Mịn ảnh)"
+                                        android:textSize="13sp"
+                                        android:textColor="#F1F5F9" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Khử răng cưa ảnh đen trắng OLED"
+                                        android:textSize="10sp"
+                                        android:textColor="@color/colorTextMuted" />
+                                </LinearLayout>
+
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchOledDithering"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- Invert -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="34dp"
+                                    android:layout_height="34dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="7dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_layers"
+                                        app:tint="#F59E0B" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Đảo ngược màu sắc"
+                                    android:textSize="13sp"
+                                    android:textColor="#F1F5F9" />
+
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchOledInvert"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- Color filter -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="34dp"
+                                    android:layout_height="34dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="7dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_palette"
+                                        app:tint="#F59E0B" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Bộ lọc màu thông minh"
+                                    android:textSize="13sp"
+                                    android:textColor="#F1F5F9" />
+
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchOledColorFilter"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/layoutOledColorFilterOptions"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:visibility="gone"
+                                android:paddingTop="4dp"
+                                android:layout_marginStart="46dp">
+
+                                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                                    <com.google.android.material.textfield.TextInputLayout android:id="@+id/tilOledTargetColor" style="@style/Widget.Material3.TextInputLayout.OutlinedBox" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="Mã màu HEX">
+                                        <com.google.android.material.textfield.TextInputEditText android:id="@+id/etOledTargetColor" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="text" />
+                                    </com.google.android.material.textfield.TextInputLayout>
+                                    <com.google.android.material.button.MaterialButton android:id="@+id/btnOledColorPicker" style="@style/Widget.Material3.Button.IconButton" android:layout_width="48dp" android:layout_height="48dp" android:layout_marginStart="8dp" app:icon="@drawable/ic_share" />
+                                </LinearLayout>
+
+                                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="10dp">
+                                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Dung sai màu (%)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                                    <TextView android:id="@+id/tvValueOledTolerance" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#F59E0B"/>
+                                </LinearLayout>
+                                <com.google.android.material.slider.Slider android:id="@+id/sliderOledTolerance" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="100" android:stepSize="1" />
+                                <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/switchOledFilterInvert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Đảo kết quả lọc" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- ======================================================== -->
+                    <!-- NHÁNH B: DÀNH CHO MÀN HÌNH MÀU TRÒN GC9A01 (ESP32-S3)     -->
+                    <!-- ======================================================== -->
+                    <LinearLayout
+                        android:id="@+id/layoutGc9a01Section"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <!-- Section: CÀI ĐẶT THEME (GIAO DIỆN) -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="CÀI ĐẶT THEME (GIAO DIỆN)"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/colorAccentCyan"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginBottom="6dp"/>
+
+                        <!-- Đồng hồ & Pin (STATUS) -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingVertical="4dp">
+
+                            <FrameLayout
+                                android:layout_width="38dp"
+                                android:layout_height="38dp"
+                                android:background="@drawable/bg_icon_tint"
+                                android:padding="8dp">
+                                <ImageView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:src="@drawable/ic_status_dot"
+                                    app:tint="@color/colorAccentCyan" />
+                            </FrameLayout>
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="12dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Đồng hồ &amp; Pin (STATUS)"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="9 phong cách mặt đồng hồ tròn"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/colorTextMuted" />
+                            </LinearLayout>
+
+                            <Spinner
+                                android:id="@+id/spinnerStatusStyle"
+                                android:layout_width="160dp"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <!-- Thông báo tin nhắn (NOTIF) -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingVertical="4dp">
+
+                            <FrameLayout
+                                android:layout_width="38dp"
+                                android:layout_height="38dp"
+                                android:background="@drawable/bg_icon_tint"
+                                android:padding="8dp">
+                                <ImageView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:src="@drawable/ic_notifications"
+                                    app:tint="@color/colorAccentCyan" />
+                            </FrameLayout>
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="12dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Thông báo tin nhắn (NOTIF)"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="4 kiểu thông báo nổi / toàn màn"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/colorTextMuted" />
+                            </LinearLayout>
+
+                            <Spinner
+                                android:id="@+id/spinnerNotifStyle"
+                                android:layout_width="160dp"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <!-- Thẻ nổi MAP HUD -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingVertical="4dp">
+
+                            <FrameLayout
+                                android:layout_width="38dp"
+                                android:layout_height="38dp"
+                                android:background="@drawable/bg_icon_tint"
+                                android:padding="8dp">
+                                <ImageView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:src="@drawable/ic_map"
+                                    app:tint="@color/colorAccentCyan" />
+                            </FrameLayout>
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="12dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Thẻ nổi MAP HUD"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="5 kiểu chỉ dẫn ngã rẽ trên bản đồ"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/colorTextMuted" />
+                            </LinearLayout>
+
+                            <Spinner
+                                android:id="@+id/spinnerMapHudStyle"
+                                android:layout_width="160dp"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <!-- Tự động đóng HUD -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingVertical="4dp">
+
+                            <FrameLayout
+                                android:layout_width="38dp"
+                                android:layout_height="38dp"
+                                android:background="@drawable/bg_icon_tint"
+                                android:padding="8dp">
+                                <ImageView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:src="@drawable/ic_clock"
+                                    app:tint="@color/colorAccentCyan" />
+                            </FrameLayout>
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="12dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Tự động đóng HUD"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Thời gian tắt thẻ nổi sau ngã rẽ"
+                                    android:textSize="10sp"
+                                    android:textColor="@color/colorTextMuted" />
+                            </LinearLayout>
+
+                            <Spinner
+                                android:id="@+id/spinnerHudTimeout"
+                                android:layout_width="160dp"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <!-- Nút mở Tùy biến Theme Studio (ThemeBuilderActivity) -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnOpenThemeStudio"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:layout_marginBottom="8dp"
+                            android:text="Mở Tùy biến Theme Studio (Kéo thả)"
+                            app:icon="@drawable/ic_palette"
+                            app:iconTint="@color/colorAccentCyan"
+                            android:textColor="@color/colorAccentCyan" />
+
+                        <com.google.android.material.divider.MaterialDivider
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginVertical="8dp"/>
+
+                        <!-- NÂNG CAO GC9A01: CẤU HÌNH TRUYỀN ẢNH & LA BÀN (THU GỌN) -->
+                        <TextView
+                            android:id="@+id/toggleMapAdvanced"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="?attr/selectableItemBackground"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:paddingVertical="8dp"
+                            android:text="Tùy chọn truyền ảnh &amp; la bàn GC9A01  ▸"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/colorAccentCyan" />
+
+                        <LinearLayout
+                            android:id="@+id/layoutMapAdvanced"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <!-- Chế độ truyền ảnh -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_camera"
+                                        app:tint="@color/colorAccentCyan" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Chế độ truyền ảnh"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <Spinner
+                                    android:id="@+id/spinnerMapCaptureMode"
+                                    android:layout_width="150dp"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- Cấu hình khung cắt truyền ảnh -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_crop"
+                                        app:tint="@color/colorAccentCyan" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:orientation="vertical">
+
+                                    <com.google.android.material.button.MaterialButton
+                                        android:id="@+id/btnConfigCropMapTab"
+                                        style="@style/Widget.Material3.Button.TonalButton"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Cấu hình khung cắt truyền ảnh"
+                                        android:visibility="visible"/>
+                                    <TextView
+                                        android:id="@+id/tvCropSummaryMapTab"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:text="Vị trí cắt: Mặc định"
+                                        android:textSize="10sp"
+                                        android:paddingHorizontal="4dp"
+                                        android:textColor="@color/colorTextMuted"/>
+                                </LinearLayout>
+                            </LinearLayout>
+
+                            <!-- FPS -->
+                            <LinearLayout
+                                android:id="@+id/layoutMapFps"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_speedometer"
+                                        app:tint="@color/colorAccentCyan" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Tốc độ khung hình"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <Spinner
+                                    android:id="@+id/spinnerMapFps"
+                                    android:layout_width="150dp"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- FPS Description -->
+                            <TextView
+                                android:id="@+id/tvMapFpsDesc"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="50dp"
+                                android:layout_marginEnd="12dp"
+                                android:layout_marginBottom="8dp"
+                                android:textColor="?attr/colorOnSurfaceVariant"
+                                android:textSize="11sp"
+                                android:text="Tự động tối ưu hóa tốc độ gửi ảnh theo trạng thái di chuyển và băng thông BLE." />
+
+                            <!-- JPEG quality -->
+                            <LinearLayout
+                                android:id="@+id/layoutJpegQuality"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:layout_marginTop="4dp">
+                                <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Chất lượng ảnh JPEG (%)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                                <TextView android:id="@+id/tvValueJpegQuality" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/colorAccentCyan"/>
+                            </LinearLayout>
+                            <com.google.android.material.slider.Slider android:id="@+id/sliderJpegQuality" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="20" android:valueTo="100" android:stepSize="5" />
+
+                            <!-- Frame skipping -->
+                            <LinearLayout
+                                android:id="@+id/layoutFrameSkipping"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_layers"
+                                        app:tint="@color/colorAccentCyan" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Bỏ qua khung trùng lặp (CRC32)"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchFrameSkipping"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- Invert heading -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_compass"
+                                        app:tint="@color/colorAccentCyan" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Đảo la bàn khi đứng yên (180°)"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchInvertHeading"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+
+                            <!-- Compass offset -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingVertical="4dp">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_compass"
+                                        app:tint="@color/colorAccentCyan" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:text="Hiệu chỉnh góc la bàn"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <Spinner
+                                    android:id="@+id/spinnerCompassOffset"
+                                    android:layout_width="150dp"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 3: BẢN ĐỒ & DẪN ĐƯỜNG THÔNG MINH (CardMapRouting) -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardMapRouting"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
@@ -529,7 +1582,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:layout_marginStart="8dp"
-                            android:text="HIỂN THỊ &amp; TRUYỀN ẢNH"
+                            android:text="BẢN ĐỒ &amp; DẪN ĐƯỜNG THÔNG MINH"
                             android:textSize="14sp"
                             android:textStyle="bold"
                             android:textColor="#F1F5F9" />
@@ -537,20 +1590,21 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="MAP"
+                            android:text="NAV"
                             android:textSize="10sp"
                             android:textStyle="bold"
                             android:textColor="@color/colorAccentCyan" />
                     </LinearLayout>
 
+                    <!-- PHẦN 1: BẢN ĐỒ NỀN & GÓC NHÌN -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="NGUỒN BẢN ĐỒ"
+                        android:text="BẢN ĐỒ NỀN &amp; HIỂN THỊ"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:textColor="@color/colorAccentCyan"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="4dp"
                         android:layout_marginBottom="2dp"/>
 
                     <!-- Nguồn bản đồ -->
@@ -601,7 +1655,15 @@
                         <com.google.android.material.textfield.TextInputEditText android:id="@+id/etCustomTileUrl" android:layout_width="match_parent" android:layout_height="wrap_content" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Chế độ truyền -->
+                    <!-- Default zoom -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
+                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_add" app:tint="@color/colorAccentCyan"/>
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Độ thu phóng mặc định" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                        <TextView android:id="@+id/tvValueDefaultZoom" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/colorAccentCyan"/>
+                    </LinearLayout>
+                    <com.google.android.material.slider.Slider android:id="@+id/sliderDefaultZoom" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="10" android:valueTo="18" android:stepSize="1" />
+
+                    <!-- Auto zoom -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -617,7 +1679,7 @@
                             <ImageView
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
-                                android:src="@drawable/ic_camera"
+                                android:src="@drawable/ic_my_location"
                                 app:tint="@color/colorAccentCyan" />
                         </FrameLayout>
 
@@ -626,18 +1688,18 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:layout_marginStart="12dp"
-                            android:text="Chế độ truyền ảnh"
+                            android:text="Tự động zoom khi đến ngã rẽ"
                             android:textSize="13sp"
                             android:textStyle="bold"
                             android:textColor="#F1F5F9" />
 
-                        <Spinner
-                            android:id="@+id/spinnerMapCaptureMode"
-                            android:layout_width="150dp"
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchAutoZoom"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content" />
                     </LinearLayout>
 
-                    <!-- Cấu hình khung cắt truyền ảnh -->
+                    <!-- Map orientation -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -653,7 +1715,55 @@
                             <ImageView
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
-                                android:src="@drawable/ic_crop"
+                                android:src="@drawable/ic_compass"
+                                app:tint="@color/colorAccentCyan" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:text="Hướng xoay bản đồ"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:textColor="#F1F5F9" />
+
+                        <Spinner
+                            android:id="@+id/spinnerMapOrientation"
+                            android:layout_width="150dp"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="8dp"/>
+
+                    <!-- PHẦN 2: CHỈ DẪN GIỌNG NÓI & LỘ TRÌNH -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="CHỈ DẪN GIỌNG NÓI &amp; LỘ TRÌNH"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorAccentCyan"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="2dp"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingVertical="4dp">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:padding="8dp">
+                            <ImageView
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:src="@drawable/ic_voice"
                                 app:tint="@color/colorAccentCyan" />
                         </FrameLayout>
 
@@ -664,243 +1774,140 @@
                             android:layout_marginStart="12dp"
                             android:orientation="vertical">
 
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnConfigCropMapTab"
-                                style="@style/Widget.Material3.Button.TonalButton"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Cấu hình khung cắt truyền ảnh"
-                                android:visibility="visible"/>
                             <TextView
-                                android:id="@+id/tvCropSummaryMapTab"
-                                android:layout_width="match_parent"
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Vị trí cắt: Mặc định"
+                                android:text="Chỉ dẫn giọng nói (TTS)"
+                                android:textSize="13sp"
+                                android:textStyle="bold"
+                                android:textColor="#F1F5F9" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Phát âm thanh báo rẽ &amp; cảnh báo qua loa/tai nghe"
                                 android:textSize="10sp"
-                                android:paddingHorizontal="4dp"
-                                android:textColor="@color/colorTextMuted"/>
+                                android:textColor="@color/colorTextMuted" />
+                        </LinearLayout>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchVoiceGuidance"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
+                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_voice" app:tint="@color/colorAccentCyan"/>
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Âm lượng giọng nói" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                        <TextView android:id="@+id/tvValueVoiceVolume" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/colorAccentCyan"/>
+                    </LinearLayout>
+                    <com.google.android.material.slider.Slider android:id="@+id/sliderVoiceVolume" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="100" android:stepSize="5" />
+
+                    <!-- Phương tiện di chuyển -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingVertical="4dp">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_icon_tint"
+                            android:padding="8dp">
+                            <ImageView
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:src="@drawable/ic_my_location"
+                                app:tint="@color/colorAccentCyan" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:text="Phương tiện di chuyển"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:textColor="#F1F5F9" />
+
+                        <Spinner
+                            android:id="@+id/spinnerVehicleType"
+                            android:layout_width="150dp"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="6dp"
+                        android:layout_marginStart="50dp">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Né trạm thu phí"
+                                android:textSize="12sp"
+                                android:textColor="#F1F5F9"/>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchAvoidTolls"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="Né phà / đò"
+                                android:textSize="12sp"
+                                android:textColor="#F1F5F9"/>
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchAvoidFerries"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
                         </LinearLayout>
                     </LinearLayout>
 
-                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="10dp"/>
+                    <!-- Cự ly báo rẽ chính (lần 1) -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
+                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_navigation_arrow" app:tint="@color/colorAccentCyan"/>
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Khoảng cách báo rẽ ngã ba/tư" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                        <TextView android:id="@+id/tvValuePopupTrigger1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/colorAccentCyan"/>
+                    </LinearLayout>
+                    <com.google.android.material.slider.Slider android:id="@+id/sliderPopupTrigger1" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="300" android:valueTo="1000" android:stepSize="50" />
 
+                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="8dp"/>
+
+                    <!-- PHẦN 3: BẢN ĐỒ OFFLINE -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="CHẤT LƯỢNG &amp; FPS"
+                        android:text="BẢN ĐỒ NGOẠI TUYẾN (OFFLINE)"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:textColor="@color/colorAccentCyan"
-                        android:layout_marginTop="8dp"
-                        android:layout_marginBottom="2dp"/>
-
-                    <!-- FPS -->
-                    <LinearLayout
-                        android:id="@+id/layoutMapFps"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_speedometer"
-                                app:tint="@color/colorAccentCyan" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Tốc độ khung hình"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <Spinner
-                            android:id="@+id/spinnerMapFps"
-                            android:layout_width="150dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- FPS Description -->
-                    <TextView
-                        android:id="@+id/tvMapFpsDesc"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="50dp"
-                        android:layout_marginEnd="12dp"
-                        android:layout_marginBottom="8dp"
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:textSize="11sp"
-                        android:text="Tự động tối ưu hóa tốc độ gửi ảnh theo trạng thái di chuyển và băng thông BLE." />
-
-                    <!-- JPEG quality -->
-                    <LinearLayout
-                        android:id="@+id/layoutJpegQuality"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginTop="4dp">
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Chất lượng ảnh JPEG (%)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValueJpegQuality" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/colorAccentCyan"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderJpegQuality" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="20" android:valueTo="100" android:stepSize="5" />
-
-                    <!-- Nâng cao: la bàn & khung hình (thu gọn) -->
-                    <TextView
-                        android:id="@+id/toggleMapAdvanced"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:background="?attr/selectableItemBackground"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:paddingVertical="8dp"
-                        android:text="Tùy chọn la bàn &amp; khung hình  ▸"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/colorAccentCyan" />
-
-                    <LinearLayout
-                        android:id="@+id/layoutMapAdvanced"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:visibility="gone">
-
-                    <!-- Frame skipping -->
-                    <LinearLayout
-                        android:id="@+id/layoutFrameSkipping"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_layers"
-                                app:tint="@color/colorAccentCyan" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Bỏ qua khung trùng lặp (CRC32)"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchFrameSkipping"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Invert heading -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_compass"
-                                app:tint="@color/colorAccentCyan" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Đảo la bàn khi đứng yên (180°)"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchInvertHeading"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Compass offset -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_compass"
-                                app:tint="@color/colorAccentCyan" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Hiệu chỉnh góc la bàn"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <Spinner
-                            android:id="@+id/spinnerCompassOffset"
-                            android:layout_width="150dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    </LinearLayout>
-
-                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="10dp"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="BẢN ĐỒ OFFLINE"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/colorAccentCyan"
-                        android:layout_marginTop="8dp"
                         android:layout_marginBottom="2dp"/>
 
-                    <!-- Bản đồ Offline -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -956,848 +1963,181 @@
                         android:layout_height="wrap_content"
                         android:text="Tải &amp; Quản lý bản đồ Offline"
                         app:icon="@drawable/ic_download" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card 3: POPUP NGÃ RẼ & DẪN ĐƯỜNG (CardRouting) -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardRouting"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@android:color/transparent"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="8dp"
-                app:strokeWidth="0dp">
+                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="8dp"/>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass_card"
-                    android:orientation="vertical"
-                    android:padding="14dp">
-
-                    <!-- Card header -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginBottom="12dp">
-
-                        <ImageView
-                            android:layout_width="10dp"
-                            android:layout_height="10dp"
-                            android:src="@drawable/ic_status_dot"
-                            app:tint="#22C55E" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="8dp"
-                            android:text="POPUP NGÃ RẼ &amp; DẪN ĐƯỜNG"
-                            android:textSize="14sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="ROUTE"
-                            android:textSize="10sp"
-                            android:textStyle="bold"
-                            android:textColor="#22C55E" />
-                    </LinearLayout>
-
+                    <!-- PHẦN 4: NÂNG CAO DẪN ĐƯỜNG & MÁY CHỦ (PROGRESSIVE DISCLOSURE) -->
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:id="@+id/toggleRoutingAdvanced"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="BÁO RẼ &amp; POPUP"
-                        android:textSize="11sp"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingVertical="8dp"
+                        android:text="Tùy chọn dẫn đường &amp; Máy chủ nâng cao  ▸"
+                        android:textSize="12sp"
                         android:textStyle="bold"
-                        android:textColor="#22C55E"
-                        android:layout_marginTop="8dp"
-                        android:layout_marginBottom="2dp"/>
+                        android:textColor="@color/colorAccentCyan" />
 
-                    <!-- Báo rẽ lần 1 -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
-                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_navigation_arrow" app:tint="#22C55E"/>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Khoảng cách báo rẽ lần 1" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValuePopupTrigger1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#22C55E"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderPopupTrigger1" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="300" android:valueTo="1000" android:stepSize="50" />
-
-                    <!-- Báo rẽ lần 2 -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
-                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_navigation_arrow" app:tint="#22C55E"/>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Khoảng cách báo rẽ lần 2" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValuePopupTrigger2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#22C55E"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderPopupTrigger2" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="50" android:valueTo="300" android:stepSize="10" />
-
-                    <!-- Popup duration -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
-                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_clock" app:tint="#22C55E"/>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Thời gian hiện Popup" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValuePopupDuration" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#22C55E"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderPopupDuration" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="3" android:valueTo="10" android:stepSize="1" />
-
-                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="10dp"/>
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="MÁY CHỦ &amp; DẪN ĐƯỜNG"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:textColor="#22C55E"
-                        android:layout_marginTop="8dp"
-                        android:layout_marginBottom="2dp"/>
-
-                    <!-- Routing engine -->
                     <LinearLayout
+                        android:id="@+id/layoutRoutingAdvanced"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
+                        android:orientation="vertical"
+                        android:visibility="gone">
 
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_directions"
-                                app:tint="#22C55E" />
-                        </FrameLayout>
+                        <!-- Báo rẽ lần 2 -->
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
+                            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_navigation_arrow" app:tint="@color/colorAccentCyan"/>
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Khoảng cách báo rẽ nhắc lại (lần 2)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                            <TextView android:id="@+id/tvValuePopupTrigger2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/colorAccentCyan"/>
+                        </LinearLayout>
+                        <com.google.android.material.slider.Slider android:id="@+id/sliderPopupTrigger2" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="50" android:valueTo="300" android:stepSize="10" />
 
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Máy chủ tính lộ trình"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
+                        <!-- Popup duration -->
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
+                            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_clock" app:tint="@color/colorAccentCyan"/>
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Thời gian hiện Popup trên HUD" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                            <TextView android:id="@+id/tvValuePopupDuration" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/colorAccentCyan"/>
+                        </LinearLayout>
+                        <com.google.android.material.slider.Slider android:id="@+id/sliderPopupDuration" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="3" android:valueTo="10" android:stepSize="1" />
 
-                        <Spinner
-                            android:id="@+id/spinnerRoutingEngine"
-                            android:layout_width="150dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilCustomRoutingUrl"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="URL Server Dẫn đường Tự host (CasaOS OSRM)"
-                        android:visibility="gone"
-                        android:layout_marginStart="50dp"
-                        android:layout_marginBottom="4dp">
-                        <com.google.android.material.textfield.TextInputEditText android:id="@+id/etCustomRoutingUrl" android:layout_width="match_parent" android:layout_height="wrap_content" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilCustomSearchUrl"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="URL Server Tìm kiếm Tự host (CasaOS Photon)"
-                        android:layout_marginStart="50dp"
-                        android:layout_marginBottom="4dp">
-                        <com.google.android.material.textfield.TextInputEditText android:id="@+id/etCustomSearchUrl" android:layout_width="match_parent" android:layout_height="wrap_content" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Vehicle type -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_my_location"
-                                app:tint="#22C55E" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Phương tiện di chuyển"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <Spinner
-                            android:id="@+id/spinnerVehicleType"
-                            android:layout_width="150dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Custom Weighting Options (GraphHopper NAS) -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginTop="6dp"
-                        android:layout_marginStart="50dp">
-
-                        <!-- Né trạm thu phí -->
+                        <!-- Off-route alert switch -->
                         <LinearLayout
-                            android:layout_width="0dp"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:orientation="horizontal"
+                            android:paddingVertical="4dp">
+
+                            <FrameLayout
+                                android:layout_width="34dp"
+                                android:layout_height="34dp"
+                                android:background="@drawable/bg_icon_tint"
+                                android:padding="7dp">
+                                <ImageView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:src="@drawable/ic_voice"
+                                    app:tint="@color/colorAccentCyan" />
+                            </FrameLayout>
+
                             <TextView
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="Né trạm thu phí (BOT)"
-                                android:textSize="12sp"
-                                android:textColor="#F1F5F9"/>
+                                android:layout_marginStart="12dp"
+                                android:text="Báo chệch hướng (ICE)"
+                                android:textSize="13sp"
+                                android:textColor="#F1F5F9" />
+
                             <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switchAvoidTolls"
+                                android:id="@+id/switchOffRouteAlert"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
 
-                        <!-- Né phà / đò -->
+                        <!-- Off-route distance slider -->
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
+                            <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_navigation_arrow" app:tint="@color/colorAccentCyan"/>
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="K.cách báo chệch hướng" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
+                            <TextView android:id="@+id/tvValueOffRouteDist" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="@color/colorAccentCyan"/>
+                        </LinearLayout>
+                        <com.google.android.material.slider.Slider android:id="@+id/sliderOffRouteDist" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="10" android:valueTo="50" android:stepSize="5" />
+
+                        <!-- Routing engine -->
                         <LinearLayout
-                            android:layout_width="0dp"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="8dp"
                             android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:orientation="horizontal"
+                            android:paddingVertical="4dp">
+
+                            <FrameLayout
+                                android:layout_width="34dp"
+                                android:layout_height="34dp"
+                                android:background="@drawable/bg_icon_tint"
+                                android:padding="7dp">
+                                <ImageView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:src="@drawable/ic_directions"
+                                    app:tint="@color/colorAccentCyan" />
+                            </FrameLayout>
+
                             <TextView
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="Né phà / đò"
-                                android:textSize="12sp"
-                                android:textColor="#F1F5F9"/>
-                            <com.google.android.material.switchmaterial.SwitchMaterial
-                                android:id="@+id/switchAvoidFerries"
-                                android:layout_width="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:text="Máy chủ tính lộ trình"
+                                android:textSize="13sp"
+                                android:textColor="#F1F5F9" />
+
+                            <Spinner
+                                android:id="@+id/spinnerRoutingEngine"
+                                android:layout_width="140dp"
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
-                    </LinearLayout>
 
-                    <!-- Off-route distance -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
-                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_navigation_arrow" app:tint="#22C55E"/>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="K.cách báo chệch hướng" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValueOffRouteDist" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#22C55E"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderOffRouteDist" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="10" android:valueTo="50" android:stepSize="5" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="GIỌNG NÓI &amp; CẢNH BÁO"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:textColor="#22C55E"
-                        android:layout_marginTop="8dp"
-                        android:layout_marginBottom="2dp"/>
-
-                    <!-- Voice guidance -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_voice"
-                                app:tint="#22C55E" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilCustomRoutingUrl"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:orientation="vertical">
+                            android:hint="URL Server Dẫn đường Tự host (CasaOS OSRM)"
+                            android:visibility="gone"
+                            android:layout_marginStart="46dp"
+                            android:layout_marginBottom="4dp">
+                            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etCustomRoutingUrl" android:layout_width="match_parent" android:layout_height="wrap_content" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilCustomSearchUrl"
+                            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="URL Server Tìm kiếm Tự host (CasaOS Photon)"
+                            android:layout_marginStart="46dp"
+                            android:layout_marginBottom="4dp">
+                            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etCustomSearchUrl" android:layout_width="match_parent" android:layout_height="wrap_content" />
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <!-- Language -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingVertical="4dp">
+
+                            <FrameLayout
+                                android:layout_width="34dp"
+                                android:layout_height="34dp"
+                                android:background="@drawable/bg_icon_tint"
+                                android:padding="7dp">
+                                <ImageView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:src="@drawable/ic_language"
+                                    app:tint="@color/colorAccentCyan" />
+                            </FrameLayout>
 
                             <TextView
-                                android:layout_width="wrap_content"
+                                android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:text="Chỉ dẫn giọng nói (TTS)"
+                                android:layout_weight="1"
+                                android:layout_marginStart="12dp"
+                                android:text="Ngôn ngữ giọng nói"
                                 android:textSize="13sp"
-                                android:textStyle="bold"
                                 android:textColor="#F1F5F9" />
 
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Đọc hướng dẫn bằng giọng nói"
-                                android:textSize="10sp"
-                                android:textColor="@color/colorTextMuted" />
+                            <Spinner
+                                android:id="@+id/spinnerLanguage"
+                                android:layout_width="140dp"
+                                android:layout_height="wrap_content" />
                         </LinearLayout>
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchVoiceGuidance"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Voice volume -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
-                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_voice" app:tint="#22C55E"/>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Âm lượng giọng nói" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValueVoiceVolume" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#22C55E"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderVoiceVolume" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="100" android:stepSize="5" />
-
-                    <!-- Off-route alert -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_voice"
-                                app:tint="#22C55E" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Báo chệch hướng (ICE)"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchOffRouteAlert"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Language -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_language"
-                                app:tint="#22C55E" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Ngôn ngữ giọng nói"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <Spinner
-                            android:id="@+id/spinnerLanguage"
-                            android:layout_width="150dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card 4: PHẦN CỨNG ESP32 & OLED (CardOled) -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardOled"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@android:color/transparent"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="8dp"
-                app:strokeWidth="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_glass_card"
-                    android:orientation="vertical"
-                    android:padding="14dp">
-
-                    <!-- Card header -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginBottom="12dp">
-
-                        <ImageView
-                            android:layout_width="10dp"
-                            android:layout_height="10dp"
-                            android:src="@drawable/ic_status_dot"
-                            app:tint="#F59E0B" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="8dp"
-                            android:text="PHẦN CỨNG ESP32 &amp; OLED"
-                            android:textSize="14sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="OLED"
-                            android:textSize="10sp"
-                            android:textStyle="bold"
-                            android:textColor="#F59E0B" />
-                    </LinearLayout>
-
-                    <!-- Default zoom -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
-                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_add" app:tint="#F59E0B"/>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Độ thu phóng mặc định" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValueDefaultZoom" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#F59E0B"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderDefaultZoom" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="10" android:valueTo="18" android:stepSize="1" />
-
-                    <!-- Auto zoom -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_my_location"
-                                app:tint="#F59E0B" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Tự động zoom khi đến ngã rẽ"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchAutoZoom"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Map orientation -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_compass"
-                                app:tint="#F59E0B" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Hướng xoay bản đồ"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <Spinner
-                            android:id="@+id/spinnerMapOrientation"
-                            android:layout_width="150dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="10dp"/>
-
-                    <LinearLayout
-                        android:id="@+id/layoutOledSettings"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:visibility="visible">
-
-                    <!-- OLED HUD Style -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_turn_right"
-                                app:tint="#F59E0B" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Kiểu dẫn đường HUD (OLED)"
-                                android:textSize="13sp"
-                                android:textStyle="bold"
-                                android:textColor="#F1F5F9" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="6 bản phác thảo Turn-by-Turn"
-                                android:textSize="10sp"
-                                android:textColor="@color/colorTextMuted" />
-                        </LinearLayout>
-
-                        <Spinner
-                            android:id="@+id/spinnerOledHudStyle"
-                            android:layout_width="160dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- OLED STATUS Clock Style -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_clock"
-                                app:tint="#F59E0B" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Kiểu mặt đồng hồ (STATUS)"
-                                android:textSize="13sp"
-                                android:textStyle="bold"
-                                android:textColor="#F1F5F9" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="4 phong cách hiển thị thông số xe"
-                                android:textSize="10sp"
-                                android:textColor="@color/colorTextMuted" />
-                        </LinearLayout>
-
-                        <Spinner
-                            android:id="@+id/spinnerOledStatusStyle"
-                            android:layout_width="160dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- OLED NOTIF Style -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_notifications"
-                                app:tint="#F59E0B" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Kiểu thông báo (NOTIF)"
-                                android:textSize="13sp"
-                                android:textStyle="bold"
-                                android:textColor="#F1F5F9" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Thẻ toàn màn hình hoặc Popup nổi"
-                                android:textSize="10sp"
-                                android:textColor="@color/colorTextMuted" />
-                        </LinearLayout>
-
-                        <Spinner
-                            android:id="@+id/spinnerOledNotifStyle"
-                            android:layout_width="160dp"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- OLED Brightness / Contrast -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
-                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_settings" app:tint="#F59E0B"/>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Độ sáng / Tương phản OLED" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValueOledBrightness" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#F59E0B"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderOledBrightness" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="255" android:stepSize="5" />
-
-                    <!-- Threshold -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="2dp">
-                        <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_marginEnd="6dp" android:src="@drawable/ic_layers" app:tint="#F59E0B"/>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Ngưỡng đen trắng OLED" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                        <TextView android:id="@+id/tvValueOledThreshold" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#F59E0B"/>
-                    </LinearLayout>
-                    <com.google.android.material.slider.Slider android:id="@+id/sliderOledThreshold" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="255" android:stepSize="1" />
-
-                    <!-- Dithering -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_layers"
-                                app:tint="#F59E0B" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Chế độ Dithering"
-                                android:textSize="13sp"
-                                android:textStyle="bold"
-                                android:textColor="#F1F5F9" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Mịn ảnh đen trắng"
-                                android:textSize="10sp"
-                                android:textColor="@color/colorTextMuted" />
-                        </LinearLayout>
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchOledDithering"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Invert -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_layers"
-                                app:tint="#F59E0B" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Đảo ngược màu"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchOledInvert"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Color filter -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_icon_tint"
-                            android:padding="8dp">
-                            <ImageView
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:src="@drawable/ic_palette"
-                                app:tint="#F59E0B" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:text="Bộ lọc màu thông minh"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            android:textColor="#F1F5F9" />
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchOledColorFilter"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/layoutOledColorFilterOptions"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:visibility="gone"
-                        android:paddingTop="4dp"
-                        android:layout_marginStart="50dp">
-
-                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
-                            <com.google.android.material.textfield.TextInputLayout android:id="@+id/tilOledTargetColor" style="@style/Widget.Material3.TextInputLayout.OutlinedBox" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:hint="Mã màu HEX">
-                                <com.google.android.material.textfield.TextInputEditText android:id="@+id/etOledTargetColor" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="text" />
-                            </com.google.android.material.textfield.TextInputLayout>
-                            <com.google.android.material.button.MaterialButton android:id="@+id/btnOledColorPicker" style="@style/Widget.Material3.Button.IconButton" android:layout_width="48dp" android:layout_height="48dp" android:layout_marginStart="8dp" app:icon="@drawable/ic_share" />
-                        </LinearLayout>
-
-                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="10dp">
-                            <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Dung sai màu (%)" android:textSize="12sp" android:textColor="?attr/colorOnSurfaceVariant"/>
-                            <TextView android:id="@+id/tvValueOledTolerance" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="12sp" android:textStyle="bold" android:textColor="#F59E0B"/>
-                        </LinearLayout>
-                        <com.google.android.material.slider.Slider android:id="@+id/sliderOledTolerance" android:layout_width="match_parent" android:layout_height="wrap_content" android:valueFrom="0" android:valueTo="100" android:stepSize="1" />
-                        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/switchOledFilterInvert" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Đảo kết quả lọc" />
-                    </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -1965,6 +2305,31 @@
                             android:layout_height="wrap_content" />
                     </LinearLayout>
 
+                    <!-- Tùy chọn: Giữ màn hình luôn sáng -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingVertical="4dp">
+                        <FrameLayout android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_icon_tint" android:padding="7dp">
+                            <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_speedometer" app:tint="@color/colorAccentCyan" />
+                        </FrameLayout>
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Giữ màn hình luôn bật" android:textSize="13sp" android:textColor="#F1F5F9" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Không để màn hình điện thoại tự tắt khi mở App" android:textSize="11sp" android:textColor="#94A3B8" />
+                        </LinearLayout>
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchKeepScreenOn"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+                    </LinearLayout>
+
                     <com.google.android.material.divider.MaterialDivider
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -2045,11 +2410,11 @@
                         android:layout_height="wrap_content"
                         android:layout_marginVertical="10dp"/>
 
-                    <!-- Section: CÀI ĐẶT THEME (GIAO DIỆN) -->
+                    <!-- Section: GIAO DIỆN ỨNG DỤNG -->
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="CÀI ĐẶT THEME (GIAO DIỆN)"
+                        android:text="GIAO DIỆN ỨNG DỤNG"
                         android:textSize="11sp"
                         android:textStyle="bold"
                         android:textColor="@color/colorAccentCyan"
@@ -2065,50 +2430,8 @@
                         <FrameLayout android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_icon_tint" android:padding="7dp">
                             <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_palette" app:tint="@color/colorAccentCyan" />
                         </FrameLayout>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:text="Giao diện ứng dụng" android:textSize="13sp" android:textColor="#F1F5F9" />
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:text="Chế độ giao diện (App Theme)" android:textSize="13sp" android:textColor="#F1F5F9" />
                         <Spinner android:id="@+id/spinnerTheme" android:layout_width="140dp" android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Status style -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-                        <FrameLayout android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_icon_tint" android:padding="7dp">
-                            <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_status_dot" app:tint="@color/colorAccentCyan" />
-                        </FrameLayout>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:text="Đồng hồ &amp; Pin (STATUS)" android:textSize="13sp" android:textColor="#F1F5F9" />
-                        <Spinner android:id="@+id/spinnerStatusStyle" android:layout_width="140dp" android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Notif style -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-                        <FrameLayout android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_icon_tint" android:padding="7dp">
-                            <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_notifications" app:tint="@color/colorAccentCyan" />
-                        </FrameLayout>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:text="Thông báo tin nhắn (NOTIF)" android:textSize="13sp" android:textColor="#F1F5F9" />
-                        <Spinner android:id="@+id/spinnerNotifStyle" android:layout_width="140dp" android:layout_height="wrap_content" />
-                    </LinearLayout>
-
-                    <!-- Map HUD style -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-                        <FrameLayout android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_icon_tint" android:padding="7dp">
-                            <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_map" app:tint="@color/colorAccentCyan" />
-                        </FrameLayout>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:text="Thẻ nổi MAP HUD" android:textSize="13sp" android:textColor="#F1F5F9" />
-                        <Spinner android:id="@+id/spinnerMapHudStyle" android:layout_width="140dp" android:layout_height="wrap_content" />
                     </LinearLayout>
 
                     <com.google.android.material.divider.MaterialDivider
@@ -2179,20 +2502,6 @@
                         <Spinner android:id="@+id/spinnerUnits" android:layout_width="140dp" android:layout_height="wrap_content" />
                     </LinearLayout>
 
-                    <!-- HUD timeout -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:paddingVertical="4dp">
-                        <FrameLayout android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/bg_icon_tint" android:padding="7dp">
-                            <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/ic_clock" app:tint="@color/colorAccentCyan" />
-                        </FrameLayout>
-                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:text="Tự động đóng HUD" android:textSize="13sp" android:textColor="#F1F5F9" />
-                        <Spinner android:id="@+id/spinnerHudTimeout" android:layout_width="140dp" android:layout_height="wrap_content" />
-                    </LinearLayout>
-
                     <com.google.android.material.divider.MaterialDivider
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -2261,6 +2570,18 @@
                         android:layout_marginTop="4dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+
+            <!-- Empty State when search matches nothing -->
+            <TextView
+                android:id="@+id/tvSearchNoResults"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="36dp"
+                android:text="Không tìm thấy mục cài đặt nào phù hợp với từ khóa"
+                android:textColor="@color/colorTextMuted"
+                android:textSize="14sp"
+                android:visibility="gone" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

@@ -56,6 +56,8 @@ class MyBleManager(context: Context) : BleManager(context) {
             override fun onDeviceDisconnecting(device: BluetoothDevice) {}
             override fun onDeviceDisconnected(device: BluetoothDevice, reason: Int) {
                 NavigationRepository.updateBleConnectionState(NavigationRepository.BleConnectionState.Disconnected)
+                lastSentSpeed = -1
+                lastSentNavData = ""
             }
         }
     }
@@ -189,6 +191,8 @@ class MyBleManager(context: Context) : BleManager(context) {
             mapTileChar = null
             mapCtrlChar = null
             mapStatusChar = null
+            warningChar = null
+            otaChar = null
         }
     }
 
@@ -245,22 +249,11 @@ class MyBleManager(context: Context) : BleManager(context) {
             syncTime()
         }
 
-        // Đồng bộ trạng thái hiển thị bản đồ của app khớp với ESP32
-        statusMap["mode"]?.let { mode ->
-            val isMap = mode.equals("MAP", ignoreCase = true)
-            NavigationRepository.setMapModeActive(isMap)
-        }
+        // Ghi nhận trạng thái thiết bị, không ép cập nhật MapModeActive để tránh vòng lặp phản hồi (ping-pong loop)
     }
 
     fun syncTime() {
-        val char = timeChar ?: return
-        val epochSeconds = System.currentTimeMillis() / 1000
-        val buffer = java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.LITTLE_ENDIAN).putInt(epochSeconds.toInt()).array()
-        NavigationRepository.addLog("BLE OUT: Sync Time -> $epochSeconds")
-        writeCharacteristic(char, buffer, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
-            .done { log(Log.INFO, "Time synchronized with device: $epochSeconds") }
-            .fail { _, status -> log(Log.WARN, "Failed to sync time: $status") }
-            .enqueue()
+        writeTime(System.currentTimeMillis())
     }
 
     fun writeHudData(json: String) {
@@ -319,6 +312,7 @@ class MyBleManager(context: Context) : BleManager(context) {
         
         NavigationRepository.addLog("BLE OUT: OLED Image Start -> Size=${bitmapData.size} bytes")
         writeCharacteristic(char, sizeBuffer.array(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).suspend()
+        kotlinx.coroutines.delay(12)
 
         val mtu = mtu - 3
         var offset = 0
@@ -327,11 +321,24 @@ class MyBleManager(context: Context) : BleManager(context) {
             val chunk = bitmapData.copyOfRange(offset, offset + length)
             writeCharacteristic(char, chunk, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).suspend()
             offset += length
+            if (offset < bitmapData.size) {
+                kotlinx.coroutines.delay(12)
+            }
         }
     }
 
+    private var lastSentNavData: String = ""
+    private var lastSentNavDataTime: Long = 0L
+
     fun writeNavigationData(data: String) {
         val char = navChar ?: return
+        val now = System.currentTimeMillis()
+        // Tối ưu băng thông: Bỏ qua nếu dữ liệu điều hướng y hệt lần trước và chưa quá 2 giây
+        if (data == lastSentNavData && (now - lastSentNavDataTime < 2000L)) {
+            return
+        }
+        lastSentNavData = data
+        lastSentNavDataTime = now
         NavigationRepository.updatePreparedBleData(data)
         NavigationRepository.addLog("BLE OUT: Nav Text ->\n$data")
         writeCharacteristic(char, data.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
@@ -344,17 +351,29 @@ class MyBleManager(context: Context) : BleManager(context) {
         writeCharacteristic(char, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
     }
 
+    private var lastSentSpeed: Int = -1
+    private var lastSentSpeedTime: Long = 0L
+
     fun writeSpeed(speed: Int) {
         val char = speedChar ?: return
-        NavigationRepository.addLog("BLE OUT: Speed -> $speed km/h")
-        writeCharacteristic(char, speed.toString().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+        val safeSpeed = speed.coerceIn(0, 250)
+        val now = System.currentTimeMillis()
+        // Tối ưu băng thông: Nếu tốc độ không đổi và chưa quá 3 giây thì không gửi lặp lại
+        if (safeSpeed == lastSentSpeed && (now - lastSentSpeedTime < 3000L)) {
+            return
+        }
+        lastSentSpeed = safeSpeed
+        lastSentSpeedTime = now
+        NavigationRepository.addLog("BLE OUT: Speed -> $safeSpeed km/h")
+        // Dùng WRITE_TYPE_NO_RESPONSE để không cạnh tranh round-trip ACK với luồng truyền ảnh JPEG (CHA_MAP_IMAGE)
+        writeCharacteristic(char, safeSpeed.toString().toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).enqueue()
     }
 
     fun writeGpsSpeedAndPosition(speed: Int, bearing: Int, px: Int, py: Int) {
         val char = speedChar ?: return
         val text = "speed=$speed,bearing=$bearing,px=$px,py=$py"
         NavigationRepository.addLog("BLE OUT: GPS Pos -> $text")
-        writeCharacteristic(char, text.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
+        writeCharacteristic(char, text.toByteArray(), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).enqueue()
     }
 
     fun writeSettings(settings: String) {
@@ -368,12 +387,16 @@ class MyBleManager(context: Context) : BleManager(context) {
         // Cộng thêm Offset múi giờ địa phương (ví dụ +7h cho Việt Nam)
         val tz = java.util.TimeZone.getDefault()
         val localTimestamp = timestamp + tz.getOffset(timestamp)
+        val epochSeconds = (localTimestamp / 1000).toInt()
         
         val buffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-        buffer.putInt((localTimestamp / 1000).toInt())
-        NavigationRepository.addLog("BLE OUT: Sync Time -> Epoch ${localTimestamp / 1000}")
-        writeCharacteristic(char, buffer.array(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
-        Log.d("BleManager", "Sent Local Time: ${localTimestamp / 1000} (Offset: ${tz.rawOffset / 3600000}h)")
+        buffer.putInt(epochSeconds)
+        NavigationRepository.addLog("BLE OUT: Sync Time -> Epoch $epochSeconds")
+        writeCharacteristic(char, buffer.array(), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            .done { log(Log.INFO, "Time synchronized with device: $epochSeconds (Local GMT+${tz.rawOffset / 3600000})") }
+            .fail { _, status -> log(Log.WARN, "Failed to sync time: $status") }
+            .enqueue()
+        Log.d("BleManager", "Sent Local Time: $epochSeconds (Offset: ${tz.rawOffset / 3600000}h)")
     }
 
     fun writeWeather(json: String) {
@@ -483,10 +506,10 @@ class MyBleManager(context: Context) : BleManager(context) {
         writeCharacteristic(char, startHeader, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
             .split()
             .suspend()
-        kotlinx.coroutines.delay(500)
+        kotlinx.coroutines.delay(600)
 
-        // 2. Stream Binary Chunks via BLE to CHA_OTA
-        val chunkSize = 512
+        // 2. Stream Binary Chunks via BLE to CHA_OTA (Chunk size 256B, pacing 35ms an toàn tuyệt đối cho SPI Flash Erase)
+        val chunkSize = 256
         var offset = 0
         while (offset < totalSize) {
             val length = Math.min(chunkSize, totalSize - offset)
@@ -500,15 +523,16 @@ class MyBleManager(context: Context) : BleManager(context) {
             offset += length
             val progress = ((offset.toLong() * 100) / totalSize).toInt()
             withContext(Dispatchers.Main) { onProgress(progress) }
-            kotlinx.coroutines.delay(20)
+            kotlinx.coroutines.delay(35)
         }
 
         // 3. Send OTA Finish & Reboot Command (1 byte 0x31) to CHA_OTA
-        kotlinx.coroutines.delay(300)
+        kotlinx.coroutines.delay(500)
         writeCharacteristic(char, byteArrayOf(0x31.toByte()), BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
             .split()
             .suspend()
-        NavigationRepository.addLog("BLE OTA: Đã hoàn tất nạp Firmware ESP32. Đợi ESP32 Reboot...")
+        NavigationRepository.addLog("BLE OTA: Đã gửi lệnh kết thúc (0x31). Đợi ESP32 hoàn tất ghi và Reboot...")
+        kotlinx.coroutines.delay(1000)
         return true
     }
 
@@ -519,7 +543,7 @@ class MyBleManager(context: Context) : BleManager(context) {
      * - Byte 1: Giá trị tốc độ giới hạn (ví dụ: 50, 60, 80 km/h; hoặc 0 cho Camera).
      */
     fun sendTrafficWarning(type: Byte, speedLimit: Byte) {
-        val char = warningChar ?: navChar ?: return
+        val char = warningChar ?: return
         
         // Tạo mảng byte Payload 2-byte
         val payload = byteArrayOf(type, speedLimit)

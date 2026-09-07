@@ -5,6 +5,8 @@
 #include <ESP32Time.h>
 #include <FontMaker.h>
 #include <TFT_eSPI.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 // ==================== CẤU HÌNH FONT CHỮ HỆ THỐNG ====================
 #define FONT_CLOCK f_to_vai               // Font đồng hồ lớn (STATUS)
@@ -19,6 +21,12 @@
 // ====================================================================
 
 #define color565(r, g, b) canvasSprite.color565(r, g, b)
+
+// Firmware Version
+#ifndef FW_VERSION_STR
+#define FW_VERSION_STR "1.0.16"
+#define FW_VERSION_CODE 16
+#endif
 
 // Khai báo chế độ hiển thị hệ thống
 enum Mode { HUD_MODE, MAP_MODE, MAP_HUD_MODE, STATUS_MODE, INFO_MODE, NOTIF_MODE, SETTINGS_MODE };
@@ -54,6 +62,7 @@ extern int16_t clipMaxY;
 extern volatile bool bleConnected;
 
 // Trạng thái dữ liệu Dẫn đường HUD
+extern SemaphoreHandle_t navMutex;
 extern String nextStreet;
 extern String distToNext;
 extern String totalDist;
@@ -79,7 +88,7 @@ extern bool timeSynced;           // đã đồng bộ thời gian chưa
 // Style Selections
 extern uint8_t statusStyle; // 0 = S4 Cyber Dual Gauges, 1 = S5 Classic Analog Watch, 2 = S3 Dual Energy Pill
 extern uint8_t notifStyle;  // 0 = N1 Floating Card 3D, 1 = N2 Fullscreen Focus Card (Mẫu N2-Alpha)
-extern uint8_t mapHudStyle; // 0 = MH1 Compact Floating Pill (85%), 1 = MH3 Minimalist Badge (92%)
+extern uint8_t mapHudStyle; // 0=MH1 Pill, 1=MH2 Thanh Dưới, 2=MH3 Tối Giản, 3=MH4 Mini, 4=MH5 Bản đồ thuần, 5=MH6 Galaxy Watch
 
 // Dữ liệu Notifications
 extern NotificationItem notifList[3];
@@ -103,7 +112,7 @@ extern uint32_t otaWritten;
 extern bool hasCustomLayoutConfig;
 void parseAndApplyLayoutJson(const String& jsonStr);
 
-#define VOLT_HISTORY_SIZE 400
+#define VOLT_HISTORY_SIZE 200
 
 // Bộ đệm sóng Oscilloscope thời gian thực
 extern float voltHistory[VOLT_HISTORY_SIZE];
@@ -111,7 +120,16 @@ extern uint16_t voltHistoryIdx;
 extern float voltMin;
 extern float voltMax;
 extern uint16_t autoSampleIntervalMs;
+extern float dynVoltMin;
+extern float dynVoltMax;
 void pushVoltSample(float v);
+uint16_t getVoltNeonColor(float v);
+
+#define SPEED_HISTORY_SIZE 200
+extern float speedHistory[SPEED_HISTORY_SIZE];
+extern uint16_t speedHistoryIdx;
+void pushSpeedSample(float spd);
+uint16_t getSpeedNeonColor(float spd);
 
 // Các nguyên mẫu hàm vẽ GUI
 void drawCustomIcon(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffset,

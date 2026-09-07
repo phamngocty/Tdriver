@@ -25,11 +25,39 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Ảnh bản đồ vị trí hiện tại:"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRefreshMap"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Chụp lại vị trí"
+                    android:textSize="11sp"
+                    app:icon="@drawable/ic_my_location"
+                    app:iconSize="14dp"
+                    android:paddingHorizontal="10dp" />
+            </LinearLayout>
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="Chạm để chọn màu, vuốt để di chuyển con trỏ"
+                android:text="Chạm vào đường nét trên bản đồ để chọn màu lọc"
                 android:textColor="#BBBBBB"
                 android:textSize="12sp" />
 
@@ -139,14 +167,58 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="+ THÊM VÀO DANH SÁCH"
-                android:textColor="#888888" />
+                android:text="+ THÊM VÀO BỘ LỌC"
+                android:textColor="@color/colorAccentCyan" />
+
+            <!-- Live OLED Preview Section (2:1 Aspect Ratio) -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Xem trước màn hình OLED (128x64 - Tỷ lệ 2:1):"
+                android:textColor="#00E5FF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <FrameLayout
+                android:layout_width="220dp"
+                android:layout_height="110dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_watch_frame"
+                android:padding="3dp">
+
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:cardCornerRadius="6dp"
+                    app:cardBackgroundColor="#000000"
+                    app:cardElevation="0dp">
+
+                    <ImageView
+                        android:id="@+id/ivOledPreview"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="fitXY"
+                        android:contentDescription="OLED Filtered Preview" />
+
+                </androidx.cardview.widget.CardView>
+            </FrameLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Danh sách bộ lọc màu đang áp dụng:"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvFilters"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp" />
+                android:layout_marginTop="8dp" />
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
