@@ -2,20 +2,20 @@
   "app": {
     "versionCode": 20,
     "versionName": "1.0.20",
-    "apkUrl": "",
+    "apkUrl": "https://alert.nas152.duckdns.org/downloads/app-debug.apk",
     "changelog": "• Bỏ cơ chế Popup Map chuyển đổi ngã rẽ.\n• Viết lại State Machine 5 chế độ hiển thị (HUD, Map, Kết hợp Map+HUD, Manual Override, Standby).\n• Cập nhật kênh phân phối OTA trực tiếp qua máy chủ NAS Fusion Engine SSL.\n• Sửa toàn bộ lỗi đồng bộ trạng thái BLE và màn hình đen."
   },
   "firmware": {
     "versionCode": 20,
     "versionName": "1.0.20",
-    "binUrl": "",
-    "oledBinUrl": "",
+    "binUrl": "https://alert.nas152.duckdns.org/downloads/firmware.bin",
+    "oledBinUrl": "https://alert.nas152.duckdns.org/downloads/firmware_oled.bin",
     "changelog": "• Bỏ cơ chế Popup Map chuyển đổi ngã rẽ.\n• Viết lại State Machine 5 chế độ hiển thị (HUD, Map, Kết hợp Map+HUD, Manual Override, Standby).\n• Cập nhật kênh phân phối OTA trực tiếp qua máy chủ NAS Fusion Engine SSL.\n• Sửa toàn bộ lỗi đồng bộ trạng thái BLE và màn hình đen."
   },
   "firmware_oled": {
     "versionCode": 20,
     "versionName": "1.0.20",
-    "binUrl": "",
+    "binUrl": "https://alert.nas152.duckdns.org/downloads/firmware_oled.bin",
     "changelog": "• Bỏ cơ chế Popup Map chuyển đổi ngã rẽ.\n• Viết lại State Machine 5 chế độ hiển thị (HUD, Map, Kết hợp Map+HUD, Manual Override, Standby).\n• Cập nhật kênh phân phối OTA trực tiếp qua máy chủ NAS Fusion Engine SSL.\n• Sửa toàn bộ lỗi đồng bộ trạng thái BLE và màn hình đen."
   }
 }
