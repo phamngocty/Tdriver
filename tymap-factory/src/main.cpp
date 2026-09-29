@@ -142,14 +142,18 @@ static String getModernHtml(const String &bodyContent,
       ".select{width:100%;padding:12px;background:#1e293b;border:1px solid "
       "var(--border);border-radius:12px;color:var(--text);margin-bottom:12px;"
       "font-size:14px}"
+      ".btn-guide{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:rgba(0,229,255,0.08);border:1px solid var(--accent);border-radius:14px;color:var(--accent);text-decoration:none;font-size:13px;font-weight:700;transition:all 0.2s}"
+      ".btn-guide:hover{background:rgba(0,229,255,0.2)}"
       ".footer{text-align:center;font-size:11px;color:var(--muted);margin-top:"
       "20px}"
       "</style></head><body><div class='wrap'><div class='header'><div "
       "class='logo'>⚡ TYMAP DUAL-BOOT</div>"
       "<div class='sub'>Hệ thống chuyển đổi Hệ điều hành ESP32-C3</div></div>");
   html += bodyContent;
-  html += F("<div class='footer'>TYMAP Hardware • TỰ LÀM ĐIỆN TỬ • Dual OS "
-            "System</div></div></body></html>");
+  html += F("<div class='footer'><a href='https://tulamdientu.carrd.co/' "
+            "target='_blank' style='color:var(--accent);text-decoration:none;"
+            "font-weight:600'>📖 Hướng dẫn sử dụng: tulamdientu.carrd.co</a><br><br>"
+            "TYMAP Hardware • TỰ LÀM ĐIỆN TỬ • Dual OS System</div></div></body></html>");
   return html;
 }
 
@@ -200,7 +204,12 @@ static void handleRoot() {
         "required>"
         "<button type='submit' class='btn-submit' "
         "style='background:#f59e0b'>TIẾN HÀNH NẠP FIRMWARE</button>"
-        "</form></div>");
+        "</form></div>"
+        "<div class='card' style='text-align:center'>"
+        "<div class='card-title' style='justify-content:center'>📖 HƯỚNG DẪN SỬ DỤNG</div>"
+        "<p style='font-size:12px;color:var(--muted);margin-bottom:12px'>Xem sơ đồ đấu nối 2 dây xe máy, kết nối Android & mở khóa Sygic iOS</p>"
+        "<a href='https://tulamdientu.carrd.co/' target='_blank' class='btn-guide'>👉 XEM HƯỚNG DẪN TẠI TỰ LÀM ĐIỆN TỬ</a>"
+        "</div>");
 
   server.send(200, "text/html", getModernHtml(body));
 }

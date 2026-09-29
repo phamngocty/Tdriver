@@ -1,4 +1,21 @@
 .pio/build/esp32-c3-devkitm-1/src/main.cpp.o: src/main.cpp \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/app_update/include/esp_ota_ops.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_err.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_compiler.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/spi_flash/include/esp_partition.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/spi_flash/include/esp_flash.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/hal/include/hal/spi_flash_types.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_types.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_bit_defs.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/hal/include/hal/esp_flash_err.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/spi_flash/include/esp_spi_flash.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/spi_flash/include/esp_spi_flash_counters.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/bootloader_support/include/esp_image_format.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/bootloader_support/include/esp_flash_partitions.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/bootloader_support/include/esp_app_format.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_assert.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/soc_caps.h \
+ src/gui.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp_arduino_version.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/freertos/include/freertos/FreeRTOS.h \
@@ -14,17 +31,12 @@
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_hw_support/include/soc/cpu.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_hw_support/include/esp_cpu.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/hal/include/hal/cpu_hal.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_err.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_compiler.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/soc_caps.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/hal/include/hal/cpu_types.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/hal/esp32c3/include/hal/cpu_ll.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/dport_access.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_attr.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_hw_support/include/soc/esp32c3/dport_access.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/soc.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_assert.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_bit_defs.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/uart_reg.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/system_reg.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/assist_debug_reg.h \
@@ -78,7 +90,6 @@
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-dac.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/driver/include/driver/gpio.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_hw_support/include/esp_intr_alloc.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_common/include/esp_types.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_rom/include/esp32c3/rom/gpio.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-adc.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-spi.h \
@@ -152,23 +163,23 @@
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_netif/include/esp_netif_sta_list.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/USBCDC.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/Esp.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/spi_flash/include/esp_partition.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/spi_flash/include/esp_flash.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/hal/include/hal/spi_flash_types.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/hal/include/hal/esp_flash_err.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/spi_flash/include/esp_spi_flash.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/spi_flash/include/esp_spi_flash_counters.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_hw_support/include/soc/esp32/spiram.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/io_pin_remap.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src/Wire.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/U8g2lib.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/Print.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/U8x8lib.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/clib/u8x8.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/clib/u8g2.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/clib/u8x8.h \
+ .pio/libdeps/esp32-c3-devkitm-1/ESP32Time/ESP32Time.h \
+ D:/Documents/Arduino/libraries/FontMaker/FontMaker.h \
+ D:/Documents/Arduino/libraries/FontMaker/IOT47_UTF8.h \
+ D:/Documents/Arduino/libraries/FontMaker/MyFontMaker.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/rtc_cntl_reg.h \
+ .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson.h \
+ .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson.hpp \
+ .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson/Configuration.hpp \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/NimBLEDevice.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimconfig.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/nimconfig_rename.h \
@@ -243,21 +254,10 @@
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/NimBLE2904.h \
  .pio/libdeps/esp32-c3-devkitm-1/NimBLE-Arduino/src/NimBLESecurity.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/bt/include/esp32c3/include/esp_bt.h \
- .pio/libdeps/esp32-c3-devkitm-1/ESP32Time/ESP32Time.h \
  .pio/libdeps/esp32-c3-devkitm-1/OneButton/src/OneButton.h \
- .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson.h \
- .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson.hpp \
- .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson/Configuration.hpp \
- D:/Documents/Arduino/libraries/FontMaker/FontMaker.h \
- D:/Documents/Arduino/libraries/FontMaker/IOT47_UTF8.h \
- D:/Documents/Arduino/libraries/FontMaker/MyFontMaker.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/libraries/Update/src/Update.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/MD5Builder.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/esp_rom/include/esp_rom_md5.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src/Preferences.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/rtc_cntl_reg.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/app_update/include/esp_ota_ops.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/bootloader_support/include/esp_image_format.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/bootloader_support/include/esp_flash_partitions.h \
- C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/bootloader_support/include/esp_app_format.h \
- src/gui.h
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src/Wire.h \
+ C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal.h

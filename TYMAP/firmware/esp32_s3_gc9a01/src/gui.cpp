@@ -242,6 +242,11 @@ void drawCustomIconResized(TFT_eSprite &sprite, const uint8_t *bitmap, int xOffs
 // ==========================================
 void drawHUD()
 {
+    static String cachedStreet = "";
+    static String cachedDist = "";
+    static String cachedTotal = "";
+    static String cachedEta = "";
+    static String cachedEte = "";
     String localStreet = "";
     String localDist = "";
     String localTotal = "";
@@ -249,21 +254,18 @@ void drawHUD()
     String localEte = "";
     if (navMutex != NULL && xSemaphoreTake(navMutex, pdMS_TO_TICKS(10)) == pdTRUE)
     {
-        localStreet = nextStreet;
-        localDist = distToNext;
-        localTotal = totalDist;
-        localEta = eta;
-        localEte = ete;
+        cachedStreet = nextStreet;
+        cachedDist = distToNext;
+        cachedTotal = totalDist;
+        cachedEta = eta;
+        cachedEte = ete;
         xSemaphoreGive(navMutex);
     }
-    else
-    {
-        localStreet = nextStreet;
-        localDist = distToNext;
-        localTotal = totalDist;
-        localEta = eta;
-        localEte = ete;
-    }
+    localStreet = cachedStreet;
+    localDist = cachedDist;
+    localTotal = cachedTotal;
+    localEta = cachedEta;
+    localEte = cachedEte;
 
     canvasSprite.fillSprite(TFT_BLACK);
 
@@ -445,6 +447,11 @@ void drawMapHudOverlay()
         return; // Không vẽ đè bất kỳ UI nào lên bản đồ
     }
 
+    static String cachedMapStreet = "";
+    static String cachedMapDist = "";
+    static String cachedMapEta = "";
+    static String cachedMapEte = "";
+    static String cachedMapTotal = "";
     String localStreet = "";
     String localDist = "";
     String localEta = "";
@@ -452,21 +459,18 @@ void drawMapHudOverlay()
     String localTotal = "";
     if (navMutex != NULL && xSemaphoreTake(navMutex, pdMS_TO_TICKS(10)) == pdTRUE)
     {
-        localStreet = nextStreet;
-        localDist = distToNext;
-        localEta = eta;
-        localEte = ete;
-        localTotal = totalDist;
+        cachedMapStreet = nextStreet;
+        cachedMapDist = distToNext;
+        cachedMapEta = eta;
+        cachedMapEte = ete;
+        cachedMapTotal = totalDist;
         xSemaphoreGive(navMutex);
     }
-    else
-    {
-        localStreet = nextStreet;
-        localDist = distToNext;
-        localEta = eta;
-        localEte = ete;
-        localTotal = totalDist;
-    }
+    localStreet = cachedMapStreet;
+    localDist = cachedMapDist;
+    localEta = cachedMapEta;
+    localEte = cachedMapEte;
+    localTotal = cachedMapTotal;
 
     if (mapHudStyle == 1)
     {
@@ -911,22 +915,22 @@ void drawMapHudOverlay()
 // ==========================================
 void drawMapOverlay()
 {
+    static String cachedOverlayTotal = "";
+    static String cachedOverlayEta = "";
+    static String cachedOverlayEte = "";
     String localTotal = "";
     String localEta = "";
     String localEte = "";
     if (navMutex != NULL && xSemaphoreTake(navMutex, pdMS_TO_TICKS(10)) == pdTRUE)
     {
-        localTotal = totalDist;
-        localEta = eta;
-        localEte = ete;
+        cachedOverlayTotal = totalDist;
+        cachedOverlayEta = eta;
+        cachedOverlayEte = ete;
         xSemaphoreGive(navMutex);
     }
-    else
-    {
-        localTotal = totalDist;
-        localEta = eta;
-        localEte = ete;
-    }
+    localTotal = cachedOverlayTotal;
+    localEta = cachedOverlayEta;
+    localEte = cachedOverlayEte;
 
     // 1. Vẽ dải nền tối mờ ở trên đỉnh màn hình để chữ dễ đọc
     canvasSprite.fillRoundRect(60, 10, 120, 24, 6, TFT_BLACK);

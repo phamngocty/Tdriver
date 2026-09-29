@@ -2,7 +2,7 @@
   "app": {
     "versionCode": 20,
     "versionName": "1.0.20",
-    "apkUrl": "https://alert.nas152.duckdns.org/downloads/app-debug.apk",
+    "apkUrl": "https://github.com/phamngocty/tymapwebside/releases/latest/download/TYMAP.apk",
     "changelog": "• Bỏ cơ chế Popup Map chuyển đổi ngã rẽ.\n• Viết lại State Machine 5 chế độ hiển thị (HUD, Map, Kết hợp Map+HUD, Manual Override, Standby).\n• Cập nhật kênh phân phối OTA trực tiếp qua máy chủ NAS Fusion Engine SSL.\n• Sửa toàn bộ lỗi đồng bộ trạng thái BLE và màn hình đen."
   },
   "firmware": {

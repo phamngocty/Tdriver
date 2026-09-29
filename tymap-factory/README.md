@@ -17,8 +17,9 @@ tymap-factory/
 │   ├── factory.bin        # Web Portal cấu hình (Offset 0x10000 - Phân vùng factory)
 │   ├── android.bin        # Firmware Android TYMAP BLE (Offset 0x110000 - Phân vùng ota_0)
 │   └── ios.bin            # Firmware iOS Sygic BLE (Offset 0x280000 - Phân vùng ota_1)
-└── tools/                 # Bộ công cụ nạp tự động (Auto COM port detection)
+└── tools/                 # Bộ công cụ nạp tự động (Interactive menu, auto COM, Erase Flash)
     ├── flasher.py         # Script Python điều khiển esptool thông minh
+    ├── flash_menu.bat     # [KHUYÊN DÙNG] Menu chọn cổng COM & tùy chọn Erase Flash
     ├── flash_all.bat      # Nạp trọn gói cả 2 hệ điều hành chỉ với 1 click
     ├── flash_android.bat  # Nạp nhanh firmware Android vào ota_0
     ├── flash_ios.bat      # Nạp nhanh firmware Sygic vào ota_1
@@ -74,8 +75,14 @@ tymap-factory/
 ## 5. Hướng Dẫn Nạp Firmware Mới Bằng Tool
 
 - Mở thư mục `tymap-factory/tools/`:
-  - Để nạp toàn bộ lần đầu: Nhấp đúp chuột vào file **`flash_all.bat`**.
-  - Để cập nhật riêng firmware Android: Nhấp đúp vào file **`flash_android.bat`**.
-  - Để cập nhật riêng firmware iOS Sygic: Nhấp đúp vào file **`flash_ios.bat`**.
-  - Để cập nhật riêng Web Portal: Nhấp đúp vào file **`flash_factory.bat`**.
-*(Công cụ sẽ tự động dò tìm cổng COM của mạch ESP32 và nạp với tốc độ cao 921600 baud).*
+  - **Khuyên dùng nhất:** Nhấp đúp chuột vào file **`flash_menu.bat`**
+    - Tự động quét và hiển thị toàn bộ cổng COM kết nối trên máy.
+    - Cho phép chọn cổng COM mong muốn hoặc gõ phím `R` để quét lại.
+    - Có tùy chọn **Xóa toàn bộ Flash (Erase Flash)** trước khi nạp (`y/N`) giúp làm sạch triệt để lỗi bootloop hoặc NVS cũ.
+    - Tùy chọn nạp: Trọn gói Dual-Boot hoặc nạp lẻ từng firmware (Factory / Android / iOS).
+  - Hoặc nạp nhanh trực tiếp (tự động nhận diện COM):
+    - Nạp toàn bộ: Nhấp đúp vào **`flash_all.bat`**.
+    - Cập nhật riêng Android: Nhấp đúp vào **`flash_android.bat`**.
+    - Cập nhật riêng iOS Sygic: Nhấp đúp vào **`flash_ios.bat`**.
+    - Cập nhật riêng Web Portal: Nhấp đúp vào **`flash_factory.bat`**.
+*(Công cụ sử dụng nạp tốc độ cao 921600 baud).*

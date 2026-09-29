@@ -128,6 +128,7 @@ class NavigationService : Service() {
     private var lastMapNavDataSentTime = 0L
     private var lastSentEta = ""
     private var lastSentEte = ""
+    private var lastMapPreviewUpdateTime = 0L
     
     // Tracking for Turn Screenshots
     // State Machine Display Mode
@@ -1056,23 +1057,23 @@ class NavigationService : Service() {
                     val loc = NavigationRepository.gpsLocation.value
                     
                     val baseFps = if (fpsVal == 0) {
-                        // Smart Mode
+                        // Smart Mode: Giới hạn an toàn tối đa 4.5 FPS khi tới ngã rẽ để đảm bảo băng thông BLE ổn định
                         val speedKmH = (loc?.speed ?: 0f) * 3.6f
                         val distToNext = currentDistanceToNextMeters
                         when {
-                            speedKmH < 1f -> 1.0 // 1 FPS when stopped
-                            distToNext > 500 -> 2.0 // 2 FPS when far
-                            distToNext > 200 -> 5.0 // 5 FPS when approaching
-                            else -> 20.0 // 20 FPS peak when turning
+                            speedKmH < 1f -> 1.0 // 1 FPS khi dừng xe
+                            distToNext > 500 -> 1.5 // 1.5 FPS khi ở xa
+                            distToNext > 200 -> 2.5 // 2.5 FPS khi sắp đến
+                            else -> 4.5 // 4.5 FPS khi đang rẽ
                         }
                     } else {
-                        // Max Mode (always request max 20 FPS, but still limited by BLE throughput below)
-                        20.0
+                        // Max Mode (Giới hạn tối đa 6.0 FPS để không làm nghẽn hàng đợi BLE)
+                        6.0
                     }
 
-                    // Limit FPS based on measured BLE write duration (with 0.85 safety factor to avoid queue congestion)
-                    val bleMaxFps = (1000.0 / averageWriteDurationMs) * 0.85
-                    val fps = minOf(baseFps, bleMaxFps).coerceIn(0.2, 20.0) // Allow up to 20.0 FPS if BLE link is fast and stable
+                    // Limit FPS based on measured BLE write duration (with 0.80 safety factor to avoid queue congestion)
+                    val bleMaxFps = (1000.0 / averageWriteDurationMs) * 0.80
+                    val fps = minOf(baseFps, bleMaxFps).coerceIn(0.2, 6.0)
 
                     // 1. Đọc chất lượng do người dùng cấu hình từ PrefsHelper
                     val userQuality = PrefsHelper.getFloat(this@NavigationService, "jpeg_quality", 60f).toInt()
@@ -1375,7 +1376,13 @@ class NavigationService : Service() {
         val renderWidth = 480
         val renderHeight = 800 // standard-ish aspect ratio
         
-        val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.RGB_565)
+        val bitmap: Bitmap
+        try {
+            bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.RGB_565)
+        } catch (t: Throwable) {
+            android.util.Log.e("NavigationService", "OOM creating base map bitmap: ${t.message}")
+            return null
+        }
         val canvas = Canvas(bitmap)
         try {
                 // 1. Prepare simplified polylines on IO thread to keep Main thread responsive
@@ -1524,6 +1531,8 @@ class NavigationService : Service() {
                             infoWindow = null
                         }
                         headlessDestMarker = marker
+                    } else {
+                        marker.icon = ContextCompat.getDrawable(this@NavigationService, R.drawable.ic_red_pin)
                     }
                     marker.position = org.osmdroid.util.GeoPoint(dest.first, dest.second)
                     if (headlessMapView?.overlays?.contains(marker) == false) {
@@ -1550,20 +1559,26 @@ class NavigationService : Service() {
             val safeY = absY.coerceIn(0, (renderHeight - absSize).coerceAtLeast(0))
             
             val cropped = Bitmap.createBitmap(bitmap, safeX, safeY, absSize, absSize)
-            try {
-                val fullMapCopy = bitmap.copy(bitmap.config ?: Bitmap.Config.RGB_565, false)
-                val croppedMapCopy = cropped.copy(cropped.config ?: Bitmap.Config.RGB_565, false)
-                NavigationRepository.updateMapPreviewInfo(
-                    NavigationRepository.MapPreviewInfo(
-                        fullMap = fullMapCopy,
-                        cropX = safeX,
-                        cropY = safeY,
-                        cropSize = absSize,
-                        croppedMap = croppedMapCopy
+            
+            // Giảm tải RAM: Chỉ sao chép Bitmap gửi Preview UI tối đa 1 lần mỗi 1.5 giây để tránh OOM
+            val now = System.currentTimeMillis()
+            if (now - lastMapPreviewUpdateTime > 1500L) {
+                lastMapPreviewUpdateTime = now
+                try {
+                    val fullMapCopy = bitmap.copy(bitmap.config ?: Bitmap.Config.RGB_565, false)
+                    val croppedMapCopy = cropped.copy(cropped.config ?: Bitmap.Config.RGB_565, false)
+                    NavigationRepository.updateMapPreviewInfo(
+                        NavigationRepository.MapPreviewInfo(
+                            fullMap = fullMapCopy,
+                            cropX = safeX,
+                            cropY = safeY,
+                            cropSize = absSize,
+                            croppedMap = croppedMapCopy
+                        )
                     )
-                )
-            } catch (e: Exception) {
-                android.util.Log.e("NavigationService", "Error copying preview maps: ${e.message}")
+                } catch (e: Throwable) {
+                    android.util.Log.e("NavigationService", "Error copying preview maps: ${e.message}")
+                }
             }
             try {
                 val scaled = Bitmap.createScaledBitmap(cropped, 240, 240, true)
@@ -1572,16 +1587,18 @@ class NavigationService : Service() {
                     scaled.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
                     return outputStream.toByteArray()
                 } finally {
-                    if (scaled != cropped && scaled != bitmap) scaled.recycle()
+                    if (scaled != cropped && scaled != bitmap && !scaled.isRecycled) scaled.recycle()
                 }
             } finally {
-                if (cropped != bitmap) cropped.recycle()
+                if (cropped != bitmap && !cropped.isRecycled) cropped.recycle()
             }
-        } catch (e: Exception) {
-            android.util.Log.e("NavigationService", "Error in renderOsmMap: ${e.message}", e)
+        } catch (t: Throwable) {
+            android.util.Log.e("NavigationService", "Error in renderOsmMap: ${t.message}", t)
             return null
         } finally {
-            bitmap.recycle()
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
         }
     }
 

@@ -418,16 +418,22 @@ class MyBleManager(context: Context) : BleManager(context) {
         writeCharacteristic(char, byteArrayOf(value), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT).enqueue()
     }
 
+    private var lastMapPreviewDecodeTime: Long = 0L
+
     suspend fun writeMapImage(jpegData: ByteArray) {
         val char = mapImageChar ?: return
         
-        try {
-            val bitmap = android.graphics.BitmapFactory.decodeByteArray(jpegData, 0, jpegData.size)
-            if (bitmap != null) {
-                NavigationRepository.updateLastSentMapImage(bitmap)
+        val now = System.currentTimeMillis()
+        if (now - lastMapPreviewDecodeTime > 2000L) {
+            lastMapPreviewDecodeTime = now
+            try {
+                val bitmap = android.graphics.BitmapFactory.decodeByteArray(jpegData, 0, jpegData.size)
+                if (bitmap != null) {
+                    NavigationRepository.updateLastSentMapImage(bitmap)
+                }
+            } catch (e: Throwable) {
+                Log.e("BleManager", "Error decoding sent map image: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e("BleManager", "Error decoding sent map image: ${e.message}")
         }
 
         val payload = ByteArray(4 + jpegData.size)

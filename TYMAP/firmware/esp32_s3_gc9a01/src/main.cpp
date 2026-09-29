@@ -95,7 +95,7 @@ unsigned long lastJpegReceiveTime = 0;
 volatile bool newMapImageAvailable = false;
 uint8_t *jpegBufferRender = nullptr;
 volatile uint32_t jpegSizeRender = 0;
-portMUX_TYPE mapBufferMux = portMUX_INITIALIZER_UNLOCKED;
+SemaphoreHandle_t mapRenderMutex = NULL;
 
 // Trạng thái Popup Bản đồ trong HUD (Đã loại bỏ cơ chế popup tự động)
 bool isPopupActive = false;
@@ -366,7 +366,7 @@ void saveTileToCache(uint32_t tx, uint32_t ty, uint8_t tz,
     }
     decodeTargetBuffer = tileCache[targetSlot].rgb565Data;
     if (decodeTargetBuffer) {
-      JPEGDEC tileDecoder;
+      static JPEGDEC tileDecoder;
       if (tileDecoder.openRAM((uint8_t *)jpegData, jpegLen, drawJPEGToBuffer)) {
         int scale = (TILE_SIZE == 128) ? 2 : 0; // scale 1/2 nếu không có PSRAM
         tileDecoder.decode(0, 0, scale);
@@ -690,23 +690,26 @@ void setDisplayBrightness(int pct) {
 
 // Giải mã và vẽ ảnh JPEG
 void renderJpegImage(const uint8_t *data, uint32_t size) {
-  canvasSprite.fillSprite(TFT_BLACK);
-  if (jpeg.openRAM((uint8_t *)data, size, drawJPEG)) {
-    canvasSprite.setSwapBytes(true);
-    jpeg.decode(0, 0, 0);
-    canvasSprite.setSwapBytes(false);
-    jpeg.close();
+  if (mapRenderMutex != NULL && xSemaphoreTake(mapRenderMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+    canvasSprite.fillSprite(TFT_BLACK);
+    if (jpeg.openRAM((uint8_t *)data, size, drawJPEG)) {
+      canvasSprite.setSwapBytes(true);
+      jpeg.decode(0, 0, 0);
+      canvasSprite.setSwapBytes(false);
+      jpeg.close();
 
-    // Vẽ thêm thông tin đè lên bản đồ nếu ở chế độ MAP_HUD hoặc MAP có bật HUD
-    // card
-    if (currentMode == MAP_HUD_MODE ||
-        (currentMode == MAP_MODE && showMapHudCard)) {
-      drawMapHudOverlay();
-    } else if (currentMode == MAP_MODE) {
-      drawMapOverlay();
+      // Vẽ thêm thông tin đè lên bản đồ nếu ở chế độ MAP_HUD hoặc MAP có bật HUD
+      // card
+      if (currentMode == MAP_HUD_MODE ||
+          (currentMode == MAP_MODE && showMapHudCard)) {
+        drawMapHudOverlay();
+      } else if (currentMode == MAP_MODE) {
+        drawMapOverlay();
+      }
+
+      canvasSprite.pushSprite(0, 0);
     }
-
-    canvasSprite.pushSprite(0, 0);
+    xSemaphoreGive(mapRenderMutex);
   }
 }
 
@@ -1037,12 +1040,13 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks {
 
             if (jpegWritten >= jpegSize) {
               isReceivingJpeg = false;
-              if (jpegBufferRender) {
-                taskENTER_CRITICAL(&mapBufferMux);
-                memcpy(jpegBufferRender, jpegBuffer, jpegSize);
-                jpegSizeRender = jpegSize;
-                newMapImageAvailable = true;
-                taskEXIT_CRITICAL(&mapBufferMux);
+              if (jpegBufferRender && mapRenderMutex != NULL) {
+                if (xSemaphoreTake(mapRenderMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+                  memcpy(jpegBufferRender, jpegBuffer, jpegSize);
+                  jpegSizeRender = jpegSize;
+                  newMapImageAvailable = true;
+                  xSemaphoreGive(mapRenderMutex);
+                }
               }
               screenNeedsRedraw = true;
             }
@@ -1065,12 +1069,13 @@ class ServerCallbacks : public NimBLECharacteristicCallbacks {
 
         if (jpegWritten >= jpegSize) {
           isReceivingJpeg = false;
-          if (jpegBufferRender) {
-            taskENTER_CRITICAL(&mapBufferMux);
-            memcpy(jpegBufferRender, jpegBuffer, jpegSize);
-            jpegSizeRender = jpegSize;
-            newMapImageAvailable = true;
-            taskEXIT_CRITICAL(&mapBufferMux);
+          if (jpegBufferRender && mapRenderMutex != NULL) {
+            if (xSemaphoreTake(mapRenderMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+              memcpy(jpegBufferRender, jpegBuffer, jpegSize);
+              jpegSizeRender = jpegSize;
+              newMapImageAvailable = true;
+              xSemaphoreGive(mapRenderMutex);
+            }
           }
           screenNeedsRedraw = true;
         }
@@ -1493,6 +1498,7 @@ void setup() {
   // Cấp phát buffer tile JPEG
   // Khởi tạo Mutex đồng bộ dữ liệu dẫn đường đa lõi
   navMutex = xSemaphoreCreateMutex();
+  mapRenderMutex = xSemaphoreCreateMutex();
 
   // Dùng 40KB: đủ cho tile JPEG 256x256 nén trung bình, an toàn cho SRAM 320KB
   tileBuffer = (uint8_t *)ps_malloc(40 * 1024);
@@ -1916,8 +1922,10 @@ void loop() {
       screenNeedsRedraw = true;
     }
 
-    if (currentMode == HUD_MODE || currentMode == MAP_HUD_MODE ||
-        currentMode == MAP_MODE) {
+    static unsigned long lastMarqueeCheckTime = 0;
+    if ((currentMode == HUD_MODE || currentMode == MAP_HUD_MODE ||
+        currentMode == MAP_MODE) && (millis() - lastMarqueeCheckTime >= 40)) {
+      lastMarqueeCheckTime = millis();
       String s = "";
       if (navMutex != NULL &&
           xSemaphoreTake(navMutex, pdMS_TO_TICKS(5)) == pdTRUE) {

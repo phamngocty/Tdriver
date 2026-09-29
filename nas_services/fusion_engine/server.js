@@ -442,7 +442,7 @@ const server = http.createServer((req, res) => {
             app: {
                 versionCode: 1,
                 versionName: "1.0.0",
-                apkUrl: "https://git.nas152.duckdns.org/nas152/TYMAP/releases/download/v1.0.0/app-debug.apk",
+                apkUrl: "https://github.com/phamngocty/tymapwebside/releases/latest/download/TYMAP.apk",
                 changelog: "Phiên bản khởi tạo chính thức từ máy chủ NAS152."
             },
             firmware: {

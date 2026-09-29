@@ -237,11 +237,19 @@ object NavigationRepository {
     val preparedBleData = _preparedBleData.asStateFlow()
 
     fun updateLastSentMapImage(bitmap: android.graphics.Bitmap?) {
+        val old = _lastSentMapImage.value
         _lastSentMapImage.value = bitmap
+        if (old != null && old != bitmap && !old.isRecycled) {
+            try { old.recycle() } catch (_: Exception) {}
+        }
     }
 
     fun updateOledBaseMap(bitmap: android.graphics.Bitmap?) {
+        val old = _oledBaseMap.value
         _oledBaseMap.value = bitmap
+        if (old != null && old != bitmap && !old.isRecycled) {
+            try { old.recycle() } catch (_: Exception) {}
+        }
     }
 
     fun updatePreparedBleData(data: String) {
@@ -260,7 +268,18 @@ object NavigationRepository {
     val mapPreviewInfo = _mapPreviewInfo.asStateFlow()
 
     fun updateMapPreviewInfo(info: MapPreviewInfo?) {
+        val old = _mapPreviewInfo.value
         _mapPreviewInfo.value = info
+        if (old != null && old != info) {
+            try {
+                if (old.fullMap != null && old.fullMap != info?.fullMap && !old.fullMap.isRecycled) {
+                    old.fullMap.recycle()
+                }
+                if (old.croppedMap != null && old.croppedMap != info?.croppedMap && !old.croppedMap.isRecycled) {
+                    old.croppedMap.recycle()
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     /**

@@ -1,0 +1,3291 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TYMAP Pro ESP32-C3 | Màn Hình HUD Dẫn Đường & Telemetry Xe Máy Thông Minh</title>
+    <!-- SEO & Metadata -->
+    <meta name="description"
+        content="Cẩm nang kỹ thuật & Trang giới thiệu thương mại Hệ thống HUD Dẫn Đường & Đo Kiểm Điện Áp Bình Xe Máy TYMAP Dual-Boot ESP32-C3 (Android TYMAP BLE & iOS Sygic BLE).">
+    <meta name="keywords"
+        content="TYMAP, HUD xe máy, ESP32-C3, Sygic BLE HUD, đo bình ắc quy, oscilloscope xe máy, dẫn đường xe máy">
+    <meta name="author" content="TYMAP Engineering Team">
+
+    <!-- Google Fonts: Outfit (Header) + JetBrains Mono (Code/Specs) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            /* Hi-Tech Cyberpunk Dark Palette */
+            --bg-deep: #05070b;
+            --bg-base: #07090e;
+            --bg-surface: #0e1422;
+            --bg-surface-elevated: #141c2e;
+            --bg-panel: #18233a;
+            --border-dim: #1f2d47;
+            --border-glow: rgba(0, 240, 255, 0.25);
+
+            /* Technology Colors */
+            --cyan-neon: #00f0ff;
+            --cyan-glow: rgba(0, 240, 255, 0.4);
+            --green-emerald: #00ff88;
+            --green-glow: rgba(0, 255, 136, 0.3);
+            --amber-racing: #ffaa00;
+            --amber-glow: rgba(255, 170, 0, 0.35);
+            --red-crimson: #ff2a5f;
+            --red-glow: rgba(255, 42, 95, 0.35);
+            --purple-electric: #b026ff;
+            --purple-glow: rgba(176, 38, 255, 0.3);
+
+            /* OS Identity Colors */
+            --android-color: #3ddc84;
+            --android-glow: rgba(61, 220, 132, 0.35);
+            --ios-color: #0099ff;
+            --ios-glow: rgba(0, 153, 255, 0.35);
+
+            /* Text & OLED */
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --oled-on: #67e8f9;
+            --oled-glow: rgba(103, 232, 249, 0.45);
+            --oled-bg: #03060c;
+
+            /* Radii & Shadows */
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --radius-pill: 9999px;
+            --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.6);
+            --shadow-neon: 0 0 20px var(--cyan-glow);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 15% 10%, rgba(0, 240, 255, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 30%, rgba(176, 38, 255, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 50% 70%, rgba(0, 255, 136, 0.05) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .container {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* ==================== KHỐI 1: HERO HEADER ==================== */
+        .hero {
+            padding: 70px 0 50px;
+            position: relative;
+            text-align: center;
+        }
+
+        .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: var(--radius-pill);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .badge-cyan {
+            background: rgba(0, 240, 255, 0.1);
+            color: var(--cyan-neon);
+            border: 1px solid rgba(0, 240, 255, 0.35);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+        }
+
+        .badge-android {
+            background: rgba(61, 220, 132, 0.1);
+            color: var(--android-color);
+            border: 1px solid rgba(61, 220, 132, 0.35);
+        }
+
+        .badge-ios {
+            background: rgba(0, 153, 255, 0.1);
+            color: var(--ios-color);
+            border: 1px solid rgba(0, 153, 255, 0.35);
+        }
+
+        .badge-amber {
+            background: rgba(255, 170, 0, 0.1);
+            color: var(--amber-racing);
+            border: 1px solid rgba(255, 170, 0, 0.35);
+        }
+
+        .hero-title {
+            font-size: clamp(34px, 5.5vw, 62px);
+            font-weight: 900;
+            line-height: 1.15;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+            margin-bottom: 18px;
+            background: linear-gradient(135deg, #ffffff 15%, var(--cyan-neon) 60%, var(--purple-electric) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-slogan {
+            font-size: clamp(16px, 2.2vw, 22px);
+            font-weight: 400;
+            color: var(--text-secondary);
+            max-width: 860px;
+            margin: 0 auto 36px;
+            line-height: 1.5;
+        }
+
+        .hero-slogan strong {
+            color: var(--cyan-neon);
+            font-weight: 600;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 50px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 13px 26px;
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--cyan-neon), #0099ff);
+            color: #030712;
+            box-shadow: 0 4px 20px var(--cyan-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 28px rgba(0, 240, 255, 0.6);
+        }
+
+        .btn-android {
+            background: rgba(61, 220, 132, 0.15);
+            color: var(--android-color);
+            border: 1px solid var(--android-color);
+        }
+
+        .btn-android:hover {
+            background: var(--android-color);
+            color: #000;
+            box-shadow: 0 0 20px var(--android-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-apk-cta {
+            background: linear-gradient(135deg, #3ddc84, #00e5ff);
+            color: #030712;
+            font-size: 15px;
+            font-weight: 800;
+            border: 1px solid rgba(61, 220, 132, 0.6);
+            box-shadow: 0 4px 22px rgba(61, 220, 132, 0.4);
+            letter-spacing: 0.3px;
+        }
+
+        .btn-apk-cta:hover {
+            background: linear-gradient(135deg, #00f0ff, #3ddc84);
+            color: #000;
+            box-shadow: 0 6px 28px rgba(61, 220, 132, 0.65), 0 0 15px rgba(0, 240, 255, 0.4);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .btn-ios {
+            background: rgba(0, 153, 255, 0.15);
+            color: var(--ios-color);
+            border: 1px solid var(--ios-color);
+        }
+
+        .btn-ios:hover {
+            background: var(--ios-color);
+            color: #fff;
+            box-shadow: 0 0 20px var(--ios-glow);
+            transform: translateY(-2px);
+        }
+
+        .btn-factory {
+            background: rgba(255, 170, 0, 0.15);
+            color: var(--amber-racing);
+            border: 1px solid var(--amber-racing);
+        }
+
+        .btn-factory:hover {
+            background: var(--amber-racing);
+            color: #000;
+            box-shadow: 0 0 20px var(--amber-glow);
+            transform: translateY(-2px);
+        }
+
+        /* 4 Key Metrics Bar */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .metric-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: 24px 20px;
+            text-align: left;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--cyan-neon);
+            opacity: 0.6;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--cyan-neon);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 240, 255, 0.15);
+        }
+
+        .metric-val {
+            font-size: 32px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--cyan-neon);
+            line-height: 1.1;
+            margin-bottom: 6px;
+        }
+
+        .metric-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .metric-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* ==================== KHỐI 2: STICKY MENU BAR ==================== */
+        .sticky-nav-wrapper {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(7, 9, 14, 0.9);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-top: 1px solid var(--border-dim);
+            border-bottom: 1px solid var(--border-dim);
+            padding: 10px 0;
+            margin: 30px 0 40px;
+        }
+
+        .nav-content {
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            white-space: nowrap;
+            gap: 10px;
+            scrollbar-width: none;
+        }
+
+        .nav-content::-webkit-scrollbar {
+            display: none;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: var(--radius-pill);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: var(--cyan-neon);
+            background: rgba(0, 240, 255, 0.08);
+            border-color: rgba(0, 240, 255, 0.3);
+        }
+
+        .nav-link.nav-android:hover,
+        .nav-link.nav-android.active {
+            color: var(--android-color);
+            background: rgba(61, 220, 132, 0.1);
+            border-color: rgba(61, 220, 132, 0.35);
+        }
+
+        .nav-link.nav-ios:hover,
+        .nav-link.nav-ios.active {
+            color: var(--ios-color);
+            background: rgba(0, 153, 255, 0.1);
+            border-color: rgba(0, 153, 255, 0.35);
+        }
+
+        .nav-link.nav-factory:hover,
+        .nav-link.nav-factory.active {
+            color: var(--amber-racing);
+            background: rgba(255, 170, 0, 0.1);
+            border-color: rgba(255, 170, 0, 0.35);
+        }
+
+        /* Section Commons */
+        section {
+            padding: 50px 0;
+        }
+
+        .section-header {
+            text-align: center;
+            max-width: 780px;
+            margin: 0 auto 46px;
+        }
+
+        .section-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--cyan-neon);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: clamp(26px, 3.8vw, 38px);
+            font-weight: 800;
+            line-height: 1.25;
+            color: #ffffff;
+            margin-bottom: 12px;
+        }
+
+        .section-subtitle {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Banner Phân Hệ */
+        .system-banner {
+            border-radius: var(--radius-lg);
+            padding: 24px 30px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .banner-android {
+            background: linear-gradient(135deg, rgba(61, 220, 132, 0.12) 0%, rgba(14, 20, 34, 0.9) 100%);
+            border: 1px solid rgba(61, 220, 132, 0.35);
+        }
+
+        .banner-ios {
+            background: linear-gradient(135deg, rgba(0, 153, 255, 0.12) 0%, rgba(14, 20, 34, 0.9) 100%);
+            border: 1px solid rgba(0, 153, 255, 0.35);
+        }
+
+        .banner-factory {
+            background: linear-gradient(135deg, rgba(255, 170, 0, 0.12) 0%, rgba(14, 20, 34, 0.9) 100%);
+            border: 1px solid rgba(255, 170, 0, 0.35);
+        }
+
+        .system-banner h3 {
+            font-size: 22px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .system-banner p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* OLED Simulator Box */
+        .oled-bezel {
+            background: #090d15;
+            padding: 28px 32px;
+            border-radius: 24px;
+            border: 3px solid #1a2438;
+            box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.9), 0 16px 40px rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            background: var(--oled-bg);
+            border: 2px solid #111a2c;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 25px rgba(103, 232, 249, 0.2);
+            width: 384px;
+            height: 192px;
+        }
+
+        @media (max-width: 480px) {
+            .canvas-wrapper {
+                width: 288px;
+                height: 144px;
+            }
+
+            .oled-bezel {
+                padding: 16px;
+            }
+        }
+
+        .canvas-wrapper canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            display: block;
+        }
+
+        .canvas-scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            opacity: 0.5;
+        }
+
+        .oled-caption {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 14px;
+            letter-spacing: 1px;
+        }
+
+        .btn-capture {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(0, 255, 136, 0.15));
+            border: 1px solid var(--cyan-neon);
+            color: var(--cyan-neon);
+            padding: 8px 18px;
+            font-size: 13px;
+            border-radius: var(--radius-sm);
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .btn-capture:hover {
+            background: var(--cyan-neon);
+            color: #000;
+            box-shadow: 0 0 18px var(--cyan-glow);
+        }
+
+        /* 2-Column Studio Grid */
+        .studio-layout {
+            display: grid;
+            grid-template-columns: 1fr 390px;
+            gap: 28px;
+            align-items: start;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 960px) {
+            .studio-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .studio-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .ctrl-block {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: 16px;
+        }
+
+        .ctrl-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--cyan-neon);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .btn-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .btn-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+
+        .btn-choice {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-dim);
+            color: var(--text-secondary);
+            padding: 8px 6px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s;
+        }
+
+        .btn-choice:hover {
+            color: #fff;
+            border-color: rgba(0, 240, 255, 0.5);
+        }
+
+        .btn-choice.active {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(59, 130, 246, 0.2));
+            border-color: var(--cyan-neon);
+            color: var(--cyan-neon);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+        }
+
+        .slider-control {
+            width: 100%;
+            height: 6px;
+            background: #1f2d47;
+            border-radius: 4px;
+            outline: none;
+            -webkit-appearance: none;
+            margin: 8px 0;
+        }
+
+        .slider-control::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--cyan-neon);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--cyan-glow);
+        }
+
+        /* Gallery Grid */
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+            gap: 20px;
+        }
+
+        .gallery-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.25s ease;
+        }
+
+        .gallery-card:hover {
+            border-color: var(--cyan-neon);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 240, 255, 0.1);
+        }
+
+        .gallery-card-top {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .gallery-card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .gallery-tag {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(0, 240, 255, 0.1);
+            color: var(--cyan-neon);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+        }
+
+        .gallery-canvas-wrap {
+            width: 256px;
+            height: 128px;
+            background: var(--oled-bg);
+            border: 1px solid #1a253a;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .gallery-canvas-wrap canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            display: block;
+        }
+
+        .gallery-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.45;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .gallery-footer {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border-dim);
+            padding-top: 10px;
+            margin-top: auto;
+        }
+
+        .btn-download-thumb {
+            font-size: 11px;
+            color: var(--cyan-neon);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 600;
+            padding: 4px 6px;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+
+        .btn-download-thumb:hover {
+            background: rgba(0, 240, 255, 0.1);
+        }
+
+        /* ==================== STYLES HƯỚNG DẪN THAO TÁC APP ANDROID & IOS ==================== */
+        .app-guide-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-lg);
+            padding: 30px;
+            margin-top: 36px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .app-guide-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 30px;
+            align-items: start;
+        }
+
+        @media (max-width: 960px) {
+            .app-guide-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .app-steps-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .app-step-card {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: 18px;
+            display: flex;
+            gap: 16px;
+            transition: all 0.25s ease;
+            position: relative;
+        }
+
+        .app-step-card:hover {
+            border-color: var(--cyan-neon);
+            transform: translateX(4px);
+        }
+
+        .app-step-card.card-android:hover {
+            border-color: var(--android-color);
+            box-shadow: 0 4px 20px rgba(61, 220, 132, 0.15);
+        }
+
+        .app-step-card.card-ios:hover {
+            border-color: var(--ios-color);
+            box-shadow: 0 4px 20px rgba(0, 153, 255, 0.15);
+        }
+
+        .app-step-badge {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .badge-step-and {
+            background: rgba(61, 220, 132, 0.12);
+            color: var(--android-color);
+            border: 1px solid rgba(61, 220, 132, 0.35);
+        }
+
+        .badge-step-ios {
+            background: rgba(0, 153, 255, 0.12);
+            color: var(--ios-color);
+            border: 1px solid rgba(0, 153, 255, 0.35);
+        }
+
+        .app-step-body h4 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .app-step-body p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .app-perm-tag {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .perm-vital {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.35);
+        }
+
+        .perm-active {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+
+        /* Mockup Phone for App Walkthrough */
+        .phone-mockup-frame {
+            background: #090d16;
+            border: 3px solid #26354d;
+            border-radius: 36px;
+            padding: 20px 16px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+        }
+
+        .phone-app-screen {
+            background: #0d131f;
+            border-radius: 20px;
+            padding: 16px;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+            font-size: 13px;
+            min-height: 480px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #1e293b;
+        }
+
+        .phone-app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #1e293b;
+            margin-bottom: 14px;
+        }
+
+        .phone-app-title {
+            font-size: 15px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .phone-status-pill {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2px 8px;
+            border-radius: 99px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .phone-item-box {
+            background: #141c2e;
+            border: 1px solid #22304a;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .phone-item-header {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .phone-nav-banner {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(59, 130, 246, 0.15));
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .phone-action-btn {
+            width: 100%;
+            padding: 11px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: auto;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        /* ==================== VIDEO HƯỚNG DẪN THỰC CHIẾN ==================== */
+        .video-guide-section {
+            margin-top: 26px;
+            background: rgba(14, 20, 34, 0.6);
+            border: 1px dashed var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: 20px;
+        }
+
+        .video-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .video-wrapper-16-9 {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%;
+            /* 16:9 Aspect Ratio */
+            height: 0;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-dim);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        }
+
+        .video-wrapper-16-9 iframe,
+        .video-wrapper-16-9 video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .video-placeholder-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, rgba(14, 28, 48, 0.92) 0%, rgba(5, 8, 14, 0.98) 100%);
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .play-btn-pulse {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .play-btn-pulse.play-and {
+            background: rgba(61, 220, 132, 0.15);
+            color: var(--android-color);
+            border: 2px solid var(--android-color);
+            box-shadow: 0 0 20px var(--android-glow);
+        }
+
+        .play-btn-pulse.play-ios {
+            background: rgba(0, 153, 255, 0.15);
+            color: var(--ios-color);
+            border: 2px solid var(--ios-color);
+            box-shadow: 0 0 20px var(--ios-glow);
+        }
+
+        .play-btn-pulse.play-wiring {
+            background: rgba(255, 107, 139, 0.15);
+            color: #ff6b8b;
+            border: 2px solid #ff6b8b;
+            box-shadow: 0 0 20px rgba(255, 107, 139, 0.35);
+        }
+
+        .play-btn-pulse:hover {
+            transform: scale(1.1);
+        }
+
+        .video-link-hint {
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            color: var(--cyan-neon);
+            margin-top: 10px;
+        }
+
+        /* ==================== PHẦN MÔ PHỎNG WEB PORTAL (TYMAP-FACTORY) ==================== */
+        .portal-sim-wrapper {
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 30px;
+            align-items: center;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-lg);
+            padding: 30px;
+            box-shadow: var(--shadow-card);
+        }
+
+        @media (max-width: 960px) {
+            .portal-sim-wrapper {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Smartphone Frame */
+        .phone-frame {
+            background: #090d16;
+            border: 3px solid #26354d;
+            border-radius: 36px;
+            padding: 24px 18px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+            max-width: 380px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .phone-notch {
+            width: 100px;
+            height: 16px;
+            background: #1a253a;
+            border-radius: 0 0 10px 10px;
+            margin: -24px auto 16px;
+        }
+
+        .portal-content {
+            background: #090d16;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+            border-radius: 18px;
+            padding: 14px;
+        }
+
+        .portal-header {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .portal-logo {
+            font-size: 20px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--cyan-neon), #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 0.5px;
+        }
+
+        .portal-sub {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 3px;
+        }
+
+        .portal-card {
+            background: #131b2e;
+            border: 1px solid #1e293b;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 14px;
+        }
+
+        .portal-card-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--cyan-neon);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .portal-btn-os {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #1e293b;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            color: #f8fafc;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .portal-btn-os:hover,
+        .portal-btn-os.active {
+            border-color: var(--cyan-neon);
+            background: #243248;
+        }
+
+        .portal-btn-os h4 {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .portal-btn-os p {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        .portal-btn-submit {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--cyan-neon), #2563eb);
+            border: none;
+            border-radius: 12px;
+            color: #000;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 229, 255, 0.3);
+            transition: all 0.2s;
+        }
+
+        .portal-btn-submit:hover {
+            opacity: 0.9;
+            transform: scale(0.99);
+        }
+
+        .portal-select {
+            width: 100%;
+            padding: 10px;
+            background: #1e293b;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            color: #f8fafc;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .portal-file-box {
+            padding: 10px;
+            background: #1e293b;
+            border: 1px dashed #334155;
+            border-radius: 10px;
+            color: #94a3b8;
+            font-size: 11px;
+            text-align: center;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        /* Benchmark Table */
+        .table-wrapper {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-card);
+        }
+
+        .benchmark-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .benchmark-table th {
+            background: var(--bg-panel);
+            padding: 18px 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.8px;
+            border-bottom: 1px solid var(--border-dim);
+        }
+
+        .benchmark-table th:nth-child(2) {
+            color: #f87171;
+        }
+
+        .benchmark-table th:nth-child(3) {
+            color: var(--cyan-neon);
+            background: rgba(0, 240, 255, 0.08);
+            border-left: 1px solid var(--cyan-glow);
+            border-right: 1px solid var(--cyan-glow);
+        }
+
+        .benchmark-table td {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-dim);
+            line-height: 1.5;
+        }
+
+        .benchmark-table td:nth-child(3) {
+            color: #ffffff;
+            font-weight: 600;
+            background: rgba(0, 240, 255, 0.03);
+            border-left: 1px solid rgba(0, 240, 255, 0.15);
+            border-right: 1px solid rgba(0, 240, 255, 0.15);
+        }
+
+        /* Wiring Grid */
+        .wiring-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 900px) {
+            .wiring-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .wiring-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+        }
+
+        .wire-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+            font-size: 13px;
+        }
+
+        .wire-table td,
+        .wire-table th {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-dim);
+        }
+
+        .wire-tag {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        .wire-red {
+            background: #ef4444;
+            box-shadow: 0 0 6px #ef4444;
+        }
+
+        .wire-black {
+            background: #334155;
+            border: 1px solid #64748b;
+        }
+
+        .wire-yellow {
+            background: #eab308;
+            box-shadow: 0 0 6px #eab308;
+        }
+
+        .wire-blue {
+            background: #3b82f6;
+            box-shadow: 0 0 6px #3b82f6;
+        }
+
+        /* Step List */
+        .step-item {
+            display: flex;
+            gap: 16px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: 18px;
+            margin-bottom: 14px;
+        }
+
+        .step-num {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(0, 240, 255, 0.12);
+            color: var(--cyan-neon);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            flex-shrink: 0;
+        }
+
+        /* Safety Warning Callout */
+        .alert-box {
+            background: rgba(255, 42, 95, 0.08);
+            border-left: 4px solid var(--red-crimson);
+            border-radius: var(--radius-sm);
+            padding: 18px 20px;
+            margin-top: 24px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        /* Specs Grid */
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .spec-item {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            padding: 18px;
+        }
+
+        .spec-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 4px;
+        }
+
+        .spec-val {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--cyan-neon);
+        }
+
+        /* FAQ */
+        .faq-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--radius-md);
+            margin-bottom: 14px;
+            overflow: hidden;
+        }
+
+        .faq-card summary {
+            padding: 18px 22px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .faq-card summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .faq-card summary::after {
+            content: "+";
+            font-size: 20px;
+            color: var(--cyan-neon);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .faq-card[open] summary::after {
+            content: "−";
+        }
+
+        .faq-body {
+            padding: 0 22px 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 14px;
+        }
+
+        /* CTA */
+        .cta-box {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.12) 0%, rgba(176, 38, 255, 0.1) 100%);
+            border: 1px solid rgba(0, 240, 255, 0.4);
+            border-radius: var(--radius-lg);
+            padding: 48px 30px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 240, 255, 0.15);
+        }
+
+        footer {
+            border-top: 1px solid var(--border-dim);
+            padding: 40px 0;
+            margin-top: 60px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Print Media */
+        @media print {
+            body {
+                background: #fff !important;
+                color: #000 !important;
+                background-image: none !important;
+            }
+
+            .sticky-nav-wrapper,
+            .hero-actions,
+            .btn-capture,
+            .btn-download-thumb,
+            .phone-frame {
+                display: none !important;
+            }
+
+            .hero-title {
+                background: none !important;
+                -webkit-text-fill-color: #000 !important;
+                color: #000 !important;
+                font-size: 26pt !important;
+            }
+
+            .metric-card,
+            .gallery-card,
+            .table-wrapper,
+            .wiring-box,
+            .step-item,
+            .spec-item,
+            .faq-card {
+                background: #fff !important;
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                break-inside: avoid;
+            }
+
+            .metric-val,
+            .spec-val {
+                color: #000 !important;
+            }
+
+            .benchmark-table th {
+                background: #eee !important;
+                color: #000 !important;
+            }
+
+            .benchmark-table td {
+                background: #fff !important;
+                color: #000 !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ==================== KHỐI 1: HERO HEADER ==================== -->
+    <header class="hero" id="top">
+        <div class="container">
+            <!-- Badges -->
+            <div class="badge-row">
+                <span class="badge-pill badge-cyan">DOC ID: TYMAP-C3-PRO-2026</span>
+                <span class="badge-pill badge-android">OTA_0: ANDROID TYMAP BLE</span>
+                <span class="badge-pill badge-ios">OTA_1: IOS SYGIC BLE HUD</span>
+                <span class="badge-pill badge-amber">FACTORY: WEB CAPTIVE PORTAL</span>
+            </div>
+
+            <!-- Title & Slogan -->
+            <h1 class="hero-title">TYMAP PRO ESP32-C3</h1>
+            <p class="hero-slogan">
+                Hệ Thống <strong>Màn Hình HUD Dẫn Đường Turn-by-Turn & Đo Kiểm Telemetry Xe Máy</strong> — Tách Biệt Độc
+                Lập 2 Phân Hệ <strong>Android (TYMAP BLE)</strong> & <strong>iOS (Sygic BLE Gốc)</strong> Kèm Giao Diện
+                Web Portal Thay Đổi Firmware Trực Quan.
+            </p>
+
+            <!-- Quick Action Buttons -->
+            <div class="hero-actions">
+                <!-- Nút Tải App APK Nổi Bật (Lead CTA) -->
+                <a href="https://github.com/phamngocty/tymapwebside/releases/latest/download/TYMAP.apk"
+                    class="btn btn-apk-cta" download="TYMAP.apk" title="Tải ứng dụng TYMAP APK phiên bản mới nhất cho Android">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    ⚡ Tải App TYMAP (APK)
+                </a>
+
+                <a href="#chap-android" class="btn btn-android">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                        <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                    </svg>
+                    1. Khám Phá Bản Android (TYMAP)
+                </a>
+                <a href="#chap-ios" class="btn btn-ios">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                            d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-4.5a1 1 0 0 1-2 0V7a1 1 0 0 1 2 0z">
+                        </path>
+                    </svg>
+                    2. Khám Phá Bản iOS (Sygic HUD)
+                </a>
+                <a href="#chap-factory" class="btn btn-factory">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                    3. Web Portal Đổi OS & Nạp OTA
+                </a>
+                <button onclick="window.print()" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                    In / Xuất PDF
+                </button>
+            </div>
+
+            <!-- 4 Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-val">OTA_0</div>
+                    <div class="metric-label">Phân Vùng Android (TYMAP)</div>
+                    <div class="metric-desc">Tích hợp FontMaker tiếng Việt, Oscilloscope 30 FPS và luồng bản đồ Bitmap
+                        1BPP.</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-val">OTA_1</div>
+                    <div class="metric-label">Phân Vùng iOS (Sygic BLE)</div>
+                    <div class="metric-desc">Giao thức BLE HUD gốc Sygic, mũi tên Vector 48x48, vòng xuyến có số lối ra
+                        & thước đo ắc quy.</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-val">192.168.4.1</div>
+                    <div class="metric-label">Web Portal Cấu Hình OS</div>
+                    <div class="metric-desc">Tự động phát Wi-Fi khi bật/tắt chìa khóa 3 lần, chuyển OS & nạp OTA qua
+                        trình duyệt.</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-val">16 MẪU</div>
+                    <div class="metric-label">Trimmed-Mean ADC Filter</div>
+                    <div class="metric-desc">Miễn nhiễm hoàn toàn với xung đánh lửa 15.000V của bugi xe máy, đo điện áp
+                        siêu chuẩn.</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== KHỐI 2: STICKY MENU BAR ==================== -->
+    <nav class="sticky-nav-wrapper">
+        <div class="container nav-content">
+            <a href="#chap-android" class="nav-link nav-android active">
+                🤖 1. Phân Hệ Android (TYMAP BLE)
+            </a>
+            <a href="#chap-ios" class="nav-link nav-ios">
+                🍎 2. Phân Hệ iOS (Sygic BLE HUD)
+            </a>
+            <a href="#chap-factory" class="nav-link nav-factory">
+                ⚡ 3. Web Portal Đổi OS & Nạp OTA
+            </a>
+            <a href="#chap-comparison" class="nav-link">
+                📊 4. So Sánh Vượt Trội
+            </a>
+            <a href="#chap-wiring" class="nav-link">
+                🔌 5. Đấu Nối 2 Dây Sau Khóa
+            </a>
+            <a href="#chap-specs" class="nav-link">
+                ⚙️ 6. Thông Số & FAQ
+            </a>
+        </div>
+    </nav>
+
+    <!-- ==================== CHƯƠNG 1: PHÂN HỆ ANDROID (TYMAP BLE) ==================== -->
+    <section id="chap-android">
+        <div class="container">
+            <!-- Android Banner -->
+            <div class="system-banner banner-android">
+                <div>
+                    <h3 style="color: var(--android-color)">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                        </svg>
+                        PHÂN HỆ ANDROID: FIRMWARE TYMAP BLE (Phân vùng ota_0)
+                    </h3>
+                    <p>Mã nguồn: <code>TYMAP/firmware/esp32_c3_oled</code> • Đồng bộ bản đồ Google Maps, Vietmap,
+                        Navitel & Telemetry xe máy</p>
+                </div>
+                <span class="badge-pill badge-android">OTA_0 • 1.43 MB</span>
+            </div>
+
+            <!-- Studio Android Live -->
+            <div class="studio-layout">
+                <!-- Bezel OLED Android -->
+                <div class="oled-bezel">
+                    <div class="canvas-wrapper">
+                        <canvas id="canvasAndroid" width="128" height="64"></canvas>
+                        <div class="canvas-scanlines"></div>
+                    </div>
+                    <div class="oled-caption">ESP32-C3 • ANDROID TYMAP BLE (SH1106 128x64)</div>
+                    <button class="btn-capture" onclick="exportOledImage('canvasAndroid', 'tymap_android_screen')">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        📸 Tải Ảnh Màn Hình Này (PNG Chuẩn Sắc Nét)
+                    </button>
+                </div>
+
+                <!-- Controls Android -->
+                <div class="studio-controls">
+                    <div class="ctrl-block">
+                        <div class="ctrl-title">
+                            <span>CHỌN CHẾ ĐỘ HIỂN THỊ (MODE)</span>
+                        </div>
+                        <div class="btn-grid-3">
+                            <button class="btn-choice active" onclick="setAndroidMode('STATUS')">STATUS (Xe)</button>
+                            <button class="btn-choice" onclick="setAndroidMode('HUD')">HUD Dẫn Đường</button>
+                            <button class="btn-choice" onclick="setAndroidMode('MAP')">MAP (1BPP)</button>
+                        </div>
+                    </div>
+
+                    <!-- Sub-styles -->
+                    <div class="ctrl-block" id="androidSubGroup">
+                        <div class="ctrl-title">
+                            <span>BIẾN THỂ GIAO DIỆN (SUB-STYLE)</span>
+                        </div>
+                        <div class="btn-grid-3" id="androidSubBtns">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Cảnh báo tốc độ Android -->
+                    <div class="ctrl-block">
+                        <div class="ctrl-title" style="color:var(--red-crimson)">
+                            <span>CẢNH BÁO BIỂN BÁO TRÒN OVERLAY</span>
+                        </div>
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <span style="font-size:12px;">Bật Biển Báo:</span>
+                            <input type="checkbox" id="andWarnToggle" checked onchange="toggleAndroidWarn()">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                            <span>Tốc độ xe: <strong id="andSpeedTxt" style="color:var(--cyan-neon)">68
+                                    km/h</strong></span>
+                            <span>Giới hạn: <strong id="andLimitTxt" style="color:var(--amber-racing)">60
+                                    km/h</strong></span>
+                        </div>
+                        <input type="range" class="slider-control" min="20" max="110" value="68"
+                            oninput="onAndroidSpeedChange(this.value)">
+                        <div class="btn-grid-4" style="margin-top:6px;">
+                            <button class="btn-choice" onclick="setAndroidLimit(40)">40</button>
+                            <button class="btn-choice" onclick="setAndroidLimit(50)">50</button>
+                            <button class="btn-choice active" onclick="setAndroidLimit(60)">60</button>
+                            <button class="btn-choice" onclick="setAndroidLimit(80)">80</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gallery Màn hình Android -->
+            <h4 style="font-size: 18px; font-weight: 700; color: #fff; margin: 30px 0 16px;">Bộ Sưu Tập Màn Hình Android
+                (TYMAP BLE)</h4>
+            <div class="gallery-grid" id="galleryAndroid">
+                <!-- Injected via JS -->
+            </div>
+
+            <!-- Hướng Dẫn Thao Tác Chi Tiết Trên Ứng Dụng Android (TYMAP App) -->
+            <div class="app-guide-box">
+                <div style="margin-bottom: 24px;">
+                    <div class="section-tag" style="color:var(--android-color)">ANDROID COMPANION GUIDE</div>
+                    <h3 style="font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 6px;">📱 Cẩm Nang Thao Tác
+                        Chi Tiết Trên Ứng Dụng Android (TYMAP App)</h3>
+                    <p style="font-size: 14px; color: var(--text-secondary);">
+                        Thao tác từng bước chuẩn hóa từ cài đặt APK, mở các quyền hệ thống cốt lõi (Vị trí nền, Đọc
+                        thông báo Google Maps) cho đến ghép đôi Bluetooth LE và lăn bánh.
+                    </p>
+                </div>
+
+                <div class="app-guide-grid">
+                    <!-- Flow Các Bước -->
+                    <div class="app-steps-flow">
+                        <div class="app-step-card card-android">
+                            <div class="app-step-badge badge-step-and">01</div>
+                            <div class="app-step-body">
+                                <h4>Cài Đặt Ứng Dụng & Bật Bluetooth <span class="app-perm-tag perm-active">Bước
+                                        Đầu</span></h4>
+                                <p>Tải file <code>TYMAP_v2.apk</code> về điện thoại và cài đặt. Bật sẵn
+                                    <strong>Bluetooth</strong> và <strong>GPS Vị Trí</strong> trên máy.
+                                </p>
+                                <a href="https://github.com/phamngocty/tymapwebside/releases/latest/download/TYMAP.apk" download="TYMAP.apk" style="display:inline-flex; align-items:center; gap:8px; margin-top:8px; padding:6px 14px; background:rgba(61,220,132,0.15); border:1px solid rgba(61,220,132,0.4); border-radius:8px; color:#fff; text-decoration:none; font-size:12px; font-weight:600; transition:all 0.2s;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    🤖 Tải Trực Tiếp TYMAP.apk (Bản Mới Nhất) ↗
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-android">
+                            <div class="app-step-badge badge-step-and">02</div>
+                            <div class="app-step-body">
+                                <h4>Cấp Quyền Truy Cập Thông Báo (Notification Access) <span
+                                        class="app-perm-tag perm-vital">BẮT BUỘC CỐT LÕI</span></h4>
+                                <p>Vào <em>Cài đặt điện thoại ➜ Ứng dụng ➜ Quyền truy cập đặc biệt ➜ Quyền truy cập
+                                        thông báo</em> ➜ Tìm app <strong>"TYMAP"</strong> và gạt <strong>BẬT</strong>.
+                                    Quyền này cho phép app đọc chuỗi dẫn đường từ thanh thông báo của Google Maps,
+                                    Vietmap, Navitel và cuộc gọi Zalo/SMS.</p>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-android">
+                            <div class="app-step-badge badge-step-and">03</div>
+                            <div class="app-step-body">
+                                <h4>Tắt Tối Ưu Hóa Pin (Cho Phép Chạy Nền) <span class="app-perm-tag perm-vital">QUAN
+                                        TRỌNG</span></h4>
+                                <p>Vào <em>Thông tin ứng dụng TYMAP ➜ Pin</em> ➜ Chọn <strong>"Không hạn chế"
+                                        (Unrestricted)</strong> và bật <strong>"Tự khởi chạy" (Autostart)</strong>. Bước
+                                    này ngăn chặn hệ điều hành Android ngắt kết nối app khi biker tắt màn hình đút điện
+                                    thoại vào túi quần.</p>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-android">
+                            <div class="app-step-badge badge-step-and">04</div>
+                            <div class="app-step-body">
+                                <h4>Quét & Ghép Đôi Thiết Bị BLE <span class="app-perm-tag perm-active">KẾT NỐI</span>
+                                </h4>
+                                <p>Mở app TYMAP ➜ Nhấn <strong>"Quét Bluetooth (Scan)"</strong> ➜ Danh sách hiện ra
+                                    thiết bị <code>TYMAP_C3_OLED</code> ➜ Bấm <strong>"Kết Nối (Connect)"</strong>. Đèn
+                                    BLE trên màn hình xe máy sẽ sáng chấm tròn cố định.</p>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-android">
+                            <div class="app-step-badge badge-step-and">05</div>
+                            <div class="app-step-body">
+                                <h4>Khởi Chạy Bản Đồ & Lăn Bánh <span class="app-perm-tag perm-active">HOÀN TẤT</span>
+                                </h4>
+                                <p>Mở ứng dụng <strong>Google Maps</strong>, chọn điểm đến và bấm <strong>"Bắt đầu"
+                                        (Start Navigation)</strong>. Ngay lập tức mũi tên rẽ, cự ly, tên đường tiếng
+                                    Việt có dấu và biển báo tốc độ sẽ truyền mượt mà lên màn hình OLED xe!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mockup Smartphone Android -->
+                    <div class="phone-mockup-frame">
+                        <div class="phone-app-screen">
+                            <div class="phone-app-header">
+                                <div class="phone-app-title">
+                                    <span style="color:var(--android-color)">⚡ TYMAP Android</span>
+                                </div>
+                                <span class="phone-status-pill"
+                                    style="background:rgba(61,220,132,0.15); color:var(--android-color); border:1px solid rgba(61,220,132,0.35);">
+                                    ● BLE CONNECTED
+                                </span>
+                            </div>
+
+                            <div class="phone-item-box">
+                                <div class="phone-item-header">
+                                    <span>THIẾT BỊ ĐÃ KẾT NỐI</span>
+                                    <span style="color:var(--android-color)">ONLINE</span>
+                                </div>
+                                <div style="font-size:14px; font-weight:700; color:#fff;">TYMAP_C3_OLED</div>
+                                <div style="font-size:11px; color:#94a3b8; margin-top:2px;">Pin ĐT: 95% • Điện áp xe:
+                                    12.6V</div>
+                            </div>
+
+                            <div class="phone-item-box">
+                                <div class="phone-item-header">
+                                    <span>QUYỀN HỆ THỐNG ĐÃ CẤP</span>
+                                </div>
+                                <div style="font-size:11px; color:#10b981; line-height:1.6;">
+                                    ✓ Quyền Vị trí GPS (Luôn cho phép)<br>
+                                    ✓ Quyền Truy cập Thông báo (Notification Access)<br>
+                                    ✓ Tắt Tối ưu Pin (Chạy nền không bị ngắt)
+                                </div>
+                            </div>
+
+                            <div class="phone-nav-banner">
+                                <div style="font-size:24px;">🧭</div>
+                                <div>
+                                    <div style="font-size:11px; font-weight:700; color:var(--cyan-neon)">GOOGLE MAPS
+                                        ĐANG ĐIỀU HƯỚNG</div>
+                                    <div style="font-size:13px; font-weight:700; color:#fff;">Nguyễn Văn Cừ • 150M rẽ
+                                        trái</div>
+                                    <div style="font-size:11px; color:#94a3b8;">Biển giới hạn: 60 km/h • Xe: 68 km/h
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="phone-item-box">
+                                <div class="phone-item-header">
+                                    <span>GIAO DIỆN XE ĐANG CHỌN</span>
+                                </div>
+                                <div style="display:flex; gap:6px; margin-top:4px;">
+                                    <span
+                                        style="background:#1e293b; padding:4px 8px; border-radius:6px; font-size:11px; color:var(--android-color); border:1px solid rgba(61,220,132,0.3)">HUD
+                                        H1 Classic</span>
+                                    <span
+                                        style="background:#1e293b; padding:4px 8px; border-radius:6px; font-size:11px; color:#94a3b8">STATUS
+                                        S5 Sóng</span>
+                                </div>
+                            </div>
+
+                            <button class="phone-action-btn" style="background:var(--android-color); color:#000;">
+                                MỞ GOOGLE MAPS DẪN ĐƯỜNG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Hướng Dẫn Thao Tác Android (User có thể dán link video vào đây) -->
+                <div class="video-guide-section">
+                    <div class="video-header-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                        <div>
+                            <span class="badge-pill badge-android" style="margin-bottom:6px;">VIDEO HƯỚNG DẪN THỰC
+                                CHIẾN</span>
+                            <h4 style="font-size:16px; font-weight:700; color:#fff;">🎬 Video Hướng Dẫn Cài Đặt & Kết
+                                Nối App TYMAP Trên Điện Thoại Android</h4>
+                            <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Xem video thao tác
+                                thực tế từng bước mở quyền hệ thống và bắt đầu hành trình Google Maps.</p>
+                        </div>
+                        <a href="https://github.com/phamngocty/tymapwebside/releases/latest/download/TYMAP.apk" download="TYMAP.apk" class="btn btn-android" style="padding:9px 18px; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            🤖 Tải App TYMAP (Bản Mới Nhất) ↗
+                        </a>
+                    </div>
+
+                    <div class="video-wrapper-16-9">
+                        <!-- ========================================================================= -->
+                        <!-- [CHỖ DÁN LINK VIDEO ANDROID CỦA BẠN]:                                     -->
+                        <!-- 1. Nếu dùng YouTube: Thay mã video vào src="https://www.youtube.com/embed/VIDEO_ID" -->
+                        <!-- 2. Nếu dùng file MP4: Bỏ comment thẻ <video> bên dưới và điền đường dẫn   -->
+                        <!-- ========================================================================= -->
+                        <iframe id="videoPlayerAndroid" src="" title="Video hướng dẫn ứng dụng Android TYMAP"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen style="display:none;">
+                        </iframe>
+
+                        <!-- Khung Placeholder hiển thị khi chưa dán link video -->
+                        <div class="video-placeholder-overlay" id="videoPlaceholderAndroid">
+                            <div class="play-btn-pulse play-and"
+                                onclick="alert('Vui lòng mở file docs/index.html và dán link video vào thẻ iframe có id=videoPlayerAndroid!')">
+                                ▶
+                            </div>
+                            <h4 style="font-size:16px; font-weight:700; margin-bottom:6px; color:#fff;">VIDEO DEMO THAO
+                                TÁC APP ANDROID</h4>
+                            <p style="font-size:12px; color:#94a3b8; max-width:440px;">
+                                Video quay cận cảnh thao tác cấp quyền Vị Trí, Notification Access và kết nối Bluetooth
+                                với đồng hồ xe máy.
+                            </p>
+                            <div class="video-link-hint">
+                                📌 [CHỖ DÁN LINK VIDEO]: Mở file docs/index.html ➜ Tìm dòng
+                                <code>id="videoPlayerAndroid" src="..."</code> để dán link YouTube / MP4
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== CHƯƠNG 2: PHÂN HỆ IOS (SYGIC BLE HUD) ==================== -->
+    <section id="chap-ios">
+        <div class="container">
+            <!-- iOS Banner -->
+            <div class="system-banner banner-ios">
+                <div>
+                    <h3 style="color: var(--ios-color)">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path
+                                d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-4.5a1 1 0 0 1-2 0V7a1 1 0 0 1 2 0z">
+                            </path>
+                        </svg>
+                        PHÂN HỆ IOS: FIRMWARE SYGIC BLE HUD (Phân vùng ota_1)
+                    </h3>
+                    <p>Mã nguồn: <code>firmware_sygic_ble/src/main.cpp</code> • Giao thức Sygic BLE Service gốc cho
+                        iPhone</p>
+                </div>
+                <span class="badge-pill badge-ios">OTA_1 • 1.43 MB</span>
+            </div>
+
+            <!-- Studio iOS Live -->
+            <div class="studio-layout">
+                <!-- Bezel OLED iOS -->
+                <div class="oled-bezel">
+                    <div class="canvas-wrapper">
+                        <canvas id="canvasIos" width="128" height="64"></canvas>
+                        <div class="canvas-scanlines"></div>
+                    </div>
+                    <div class="oled-caption">ESP32-C3 • IOS SYGIC BLE HUD (SH1106 128x64)</div>
+                    <button class="btn-capture" onclick="exportOledImage('canvasIos', 'tymap_sygic_screen')">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        📸 Tải Ảnh Màn Hình Này (PNG Chuẩn Sắc Nét)
+                    </button>
+                </div>
+
+                <!-- Controls iOS -->
+                <div class="studio-controls">
+                    <div class="ctrl-block">
+                        <div class="ctrl-title">
+                            <span>TRẠNG THÁI HIỂN THỊ (SYGIC)</span>
+                        </div>
+                        <div class="btn-grid-3">
+                            <button class="btn-choice active" onclick="setIosMode('TURN')">Mũi Tên Rẽ</button>
+                            <button class="btn-choice" onclick="setIosMode('ROUNDABOUT')">Vòng Xuyến</button>
+                            <button class="btn-choice" onclick="setIosMode('IDLE')">Màn Chờ (Idle)</button>
+                        </div>
+                    </div>
+
+                    <!-- Hướng Rẽ Sygic -->
+                    <div class="ctrl-block" id="iosTurnGroup">
+                        <div class="ctrl-title">
+                            <span>HƯỚNG RẼ (DIRECTION CODE)</span>
+                        </div>
+                        <div class="btn-grid-4">
+                            <button class="btn-choice active" onclick="setIosDir(8, '150 M')">Rẽ Trái</button>
+                            <button class="btn-choice" onclick="setIosDir(10, '80 M')">Rẽ Phải</button>
+                            <button class="btn-choice" onclick="setIosDir(13, '1.2 KM')">Đi Thẳng</button>
+                            <button class="btn-choice" onclick="setIosDir(14, '50 M')">Quay Đầu</button>
+                        </div>
+                    </div>
+
+                    <!-- Vòng xuyến lối ra -->
+                    <div class="ctrl-block" id="iosRoundGroup" style="display:none;">
+                        <div class="ctrl-title">
+                            <span>SỐ LỐI RA THOÁT VÒNG XUYẾN</span>
+                        </div>
+                        <div class="btn-grid-4">
+                            <button class="btn-choice" onclick="setIosExit(1)">Lối 1</button>
+                            <button class="btn-choice active" onclick="setIosExit(2)">Lối 2</button>
+                            <button class="btn-choice" onclick="setIosExit(3)">Lối 3</button>
+                            <button class="btn-choice" onclick="setIosExit(4)">Lối 4</button>
+                        </div>
+                    </div>
+
+                    <!-- Biển báo tốc độ Sygic -->
+                    <div class="ctrl-block">
+                        <div class="ctrl-title" style="color:var(--amber-racing)">
+                            <span>BIỂN BÁO TỐC ĐỘ GIỚI HẠN SYGIC</span>
+                        </div>
+                        <div class="btn-grid-4">
+                            <button class="btn-choice" onclick="setIosLimit(0)">Tắt Biển</button>
+                            <button class="btn-choice" onclick="setIosLimit(50)">50 km/h</button>
+                            <button class="btn-choice active" onclick="setIosLimit(60)">60 km/h</button>
+                            <button class="btn-choice" onclick="setIosLimit(80)">80 km/h</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gallery Màn hình iOS -->
+            <h4 style="font-size: 18px; font-weight: 700; color: #fff; margin: 30px 0 16px;">Bộ Sưu Tập Màn Hình iOS
+                (Sygic BLE HUD)</h4>
+            <div class="gallery-grid" id="galleryIos">
+                <!-- Injected via JS -->
+            </div>
+
+            <!-- Hướng Dẫn Thao Tác Chi Tiết Trên Ứng Dụng Sygic GPS (iPhone/iOS) -->
+            <div class="app-guide-box">
+                <div style="margin-bottom: 24px;">
+                    <div class="section-tag" style="color:var(--ios-color)">IOS SYGIC BLE GUIDE</div>
+                    <h3 style="font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 6px;">📱 Cẩm Nang Mở Khóa
+                        & Thao Tác Ứng Dụng Sygic GPS Trên iPhone</h3>
+                    <p style="font-size: 14px; color: var(--text-secondary);">
+                        Tính năng BLE HUD là giao thức truyền dữ liệu điều hướng độc quyền của hãng Sygic dành cho màn
+                        hình Head-Up Display. Biker chỉ cần mở khóa 1 lần duy nhất theo các bước bí kíp sau:
+                    </p>
+                </div>
+
+                <div class="app-guide-grid">
+                    <!-- Flow Các Bước iOS -->
+                    <div class="app-steps-flow">
+                        <div class="app-step-card card-ios">
+                            <div class="app-step-badge badge-step-ios">01</div>
+                            <div class="app-step-body">
+                                <h4>Tải App Sygic & Bật Bluetooth Trên iPhone <span class="app-perm-tag perm-active">APP
+                                        STORE</span></h4>
+                                <p>Tải ứng dụng <strong>Sygic GPS Navigation & Maps</strong> miễn phí từ Apple App
+                                    Store. Đảm bảo iPhone đã bật Bluetooth trong Trung tâm điều khiển (Control Center).
+                                </p>
+                                <a href="https://apps.apple.com/us/app/sygic-gps-navigation-maps/id585193266" target="_blank" style="display:inline-flex; align-items:center; gap:8px; margin-top:8px; padding:6px 14px; background:rgba(0,153,255,0.15); border:1px solid rgba(0,153,255,0.4); border-radius:8px; color:#fff; text-decoration:none; font-size:12px; font-weight:600; transition:all 0.2s;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.84c.64-.78 1.08-1.87.96-2.96-.93.04-2.06.62-2.73 1.4-.59.68-1.11 1.79-.97 2.85 1.04.08 2.1-.51 2.74-1.29z"/></svg>
+                                    🍎 Tải Sygic GPS Trên App Store ↗
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-ios">
+                            <div class="app-step-badge badge-step-ios">02</div>
+                            <div class="app-step-body">
+                                <h4>Mở Menu Cài Đặt Ứng Dụng <span class="app-perm-tag perm-active">SETTINGS</span></h4>
+                                <p>Mở app Sygic ➜ Chạm vào biểu tượng <strong>Menu 3 gạch</strong> (góc trên bên trái
+                                    màn hình chính) ➜ Chọn mục <strong>Cài đặt (Settings)</strong> có biểu tượng bánh
+                                    răng.</p>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-ios">
+                            <div class="app-step-badge badge-step-ios">03</div>
+                            <div class="app-step-body">
+                                <h4>Vào Mục Thông Tin & Giới Thiệu <span class="app-perm-tag perm-active">INFO /
+                                        ABOUT</span></h4>
+                                <p>Cuộn danh sách xuống dưới cùng ➜ Nhấp vào dòng <strong>Thông tin (Info)</strong> ➜
+                                    Chọn tiếp dòng <strong>Giới thiệu (About)</strong> hiển thị số phiên bản ứng dụng.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-ios">
+                            <div class="app-step-badge badge-step-ios">04</div>
+                            <div class="app-step-body">
+                                <h4>Chạm Nhanh 3 Lần Mở Khóa Menu Ẩn (Triple Tap) <span
+                                        class="app-perm-tag perm-vital">BÍ KÍP CỐT LÕI</span></h4>
+                                <p>Dùng ngón tay <strong>chạm nhanh 3 lần liên tiếp (Triple Tap)</strong> vào bất kỳ
+                                    dòng chữ phiên bản nào trên trang Giới thiệu. Màn hình iPhone sẽ rung nhẹ phản hồi
+                                    và xuất hiện thêm dòng menu ẩn <strong>"About"</strong> ở trên đỉnh trang!</p>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-ios">
+                            <div class="app-step-badge badge-step-ios">05</div>
+                            <div class="app-step-body">
+                                <h4>Kích Hoạt BLE HUD & Bấm "Start" <span class="app-perm-tag perm-vital">KẾT NỐI</span>
+                                </h4>
+                                <p>Bấm vào dòng <strong>"About"</strong> vừa mở khóa ➜ Chọn mục <strong>BLE HUD</strong>
+                                    ➜ Nhấn nút <strong>"Start"</strong>. iPhone sẽ tự động quét Bluetooth và kết nối với
+                                    thiết bị <code>ESP32 HUD</code>.</p>
+                            </div>
+                        </div>
+
+                        <div class="app-step-card card-ios">
+                            <div class="app-step-badge badge-step-ios">06</div>
+                            <div class="app-step-body">
+                                <h4>Nhập Điểm Đến & Khởi Hành <span class="app-perm-tag perm-active">HOÀN TẤT</span>
+                                </h4>
+                                <p>Quay lại màn hình bản đồ Sygic, nhập điểm đến và bấm "Dẫn đường". Màn hình xe máy sẽ
+                                    tự động hiện mũi tên Vector 48x48, cự ly và biển báo tốc độ mà không cần cắm bất kỳ
+                                    sợi dây nào!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mockup Smartphone iPhone iOS -->
+                    <div class="phone-mockup-frame">
+                        <div class="phone-app-screen">
+                            <div class="phone-app-header">
+                                <div class="phone-app-title">
+                                    <span style="color:var(--ios-color)">🍎 Sygic Navigation</span>
+                                </div>
+                                <span class="phone-status-pill"
+                                    style="background:rgba(0,153,255,0.15); color:var(--ios-color); border:1px solid rgba(0,153,255,0.35);">
+                                    ● BLE HUD ACTIVE
+                                </span>
+                            </div>
+
+                            <div class="phone-item-box">
+                                <div class="phone-item-header">
+                                    <span>TRẠNG THÁI GIAO THỨC BLE HUD</span>
+                                    <span style="color:var(--ios-color)">CONNECTED</span>
+                                </div>
+                                <div style="font-size:14px; font-weight:700; color:#fff;">ESP32 HUD (Sygic Protocol)
+                                </div>
+                                <div
+                                    style="font-size:11px; color:#94a3b8; font-family:'JetBrains Mono'; margin-top:2px;">
+                                    UUID: DD3F0AD1-6239-4E1F-81F1...
+                                </div>
+                            </div>
+
+                            <div class="phone-item-box">
+                                <div class="phone-item-header">
+                                    <span>MENU NHÀ PHÁT TRIỂN ẨN (UNLOCKED)</span>
+                                </div>
+                                <div style="font-size:11px; color:#38bdf8; line-height:1.6;">
+                                    ✓ Đã mở khóa Menu bí mật (Triple Tap)<br>
+                                    ✓ Chế độ BLE HUD: <strong>Đang chạy (Running)</strong><br>
+                                    ✓ Tự động kết nối lại khi mở khóa xe
+                                </div>
+                            </div>
+
+                            <div class="phone-nav-banner"
+                                style="background:linear-gradient(135deg, rgba(0,153,255,0.15), rgba(176,38,255,0.15)); border-color:rgba(0,153,255,0.3);">
+                                <div style="font-size:24px;">🏎️</div>
+                                <div>
+                                    <div style="font-size:11px; font-weight:700; color:var(--ios-color)">SYGIC GPS ĐANG
+                                        ĐẨY SANG OLED</div>
+                                    <div style="font-size:13px; font-weight:700; color:#fff;">Mũi tên rẽ: TRÁI • 150 M
+                                    </div>
+                                    <div style="font-size:11px; color:#94a3b8;">Biển báo: [60] km/h • Vòng xuyến: Lối 2
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="phone-item-box">
+                                <div class="phone-item-header">
+                                    <span>CHẾ ĐỘ TIẾT KIỆM PIN IPHONE</span>
+                                </div>
+                                <div style="font-size:11px; color:#94a3b8;">
+                                    Giao thức Bluetooth LE tiêu thụ &lt;1% pin/giờ. Biker có thể tắt màn hình iPhone,
+                                    đút túi áo mà thông tin vẫn đẩy liên tục sang xe máy!
+                                </div>
+                            </div>
+
+                            <button class="phone-action-btn" style="background:var(--ios-color); color:#fff;">
+                                BẮT ĐẦU HÀNH TRÌNH SYGIC
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Hướng Dẫn Thao Tác Sygic iOS (User có thể dán link video vào đây) -->
+                <div class="video-guide-section">
+                    <div class="video-header-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                        <div>
+                            <span class="badge-pill badge-ios" style="margin-bottom:6px;">VIDEO HƯỚNG DẪN THỰC
+                                CHIẾN</span>
+                            <h4 style="font-size:16px; font-weight:700; color:#fff;">🎬 Video Hướng Dẫn Mở Khóa Menu Ẩn
+                                & Kết Nối Sygic BLE HUD Trên iPhone</h4>
+                            <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Xem video hướng dẫn
+                                thao tác chạm 3 lần (Triple Tap) mở khóa BLE HUD và kết nối tự động.</p>
+                        </div>
+                        <a href="https://apps.apple.com/us/app/sygic-gps-navigation-maps/id585193266" target="_blank" class="btn btn-ios" style="padding:9px 18px; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.84c.64-.78 1.08-1.87.96-2.96-.93.04-2.06.62-2.73 1.4-.59.68-1.11 1.79-.97 2.85 1.04.08 2.1-.51 2.74-1.29z"/></svg>
+                            🍎 Tải App Sygic Trên App Store ↗
+                        </a>
+                    </div>
+
+                    <div class="video-wrapper-16-9">
+                        <!-- ========================================================================= -->
+                        <!-- [CHỖ DÁN LINK VIDEO IOS SYGIC CỦA BẠN]:                                   -->
+                        <!-- 1. Nếu dùng YouTube: Thay mã video vào src="https://www.youtube.com/embed/VIDEO_ID" -->
+                        <!-- 2. Nếu dùng file MP4: Bỏ comment thẻ <video> bên dưới và điền đường dẫn   -->
+                        <!-- ========================================================================= -->
+                        <iframe id="videoPlayerIos" src="https://www.youtube.com/embed/A07E5Jn--p4"
+                            title="Video hướng dẫn mở khóa Sygic iOS BLE HUD"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen>
+                        </iframe>
+
+                        <!-- Khung Placeholder ẩn khi đã có video -->
+                        <div class="video-placeholder-overlay" id="videoPlaceholderIos" style="display:none;">
+                            <div class="play-btn-pulse play-ios"
+                                onclick="alert('Vui lòng mở file docs/index.html và dán link video vào thẻ iframe có id=videoPlayerIos!')">
+                                ▶
+                            </div>
+                            <h4 style="font-size:16px; font-weight:700; margin-bottom:6px; color:#fff;">VIDEO DEMO THAO
+                                TÁC SYGIC IPHONE</h4>
+                            <p style="font-size:12px; color:#94a3b8; max-width:440px;">
+                                Video quay chi tiết thao tác mở khóa menu ẩn của Sygic GPS trên iPhone và kích hoạt dịch
+                                vụ BLE HUD.
+                            </p>
+                            <div class="video-link-hint">
+                                📌 [CHỖ DÁN LINK VIDEO]: Mở file docs/index.html ➜ Tìm dòng
+                                <code>id="videoPlayerIos" src="..."</code> để dán link YouTube / MP4
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== CHƯƠNG 3: MÀN HÌNH WEB ĐỔI OS & NẠP OTA (TYMAP-FACTORY) ==================== -->
+    <section id="chap-factory">
+        <div class="container">
+            <!-- Factory Banner -->
+            <div class="system-banner banner-factory">
+                <div>
+                    <h3 style="color: var(--amber-racing)">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                        GIAO DIỆN WEB FACTORY PORTAL (Cấu hình thay đổi FW & Chuyển OS)
+                    </h3>
+                    <p>Mã nguồn: <code>tymap-factory/src/main.cpp</code> • Web Captive Portal phát Wi-Fi
+                        <code>192.168.4.1</code> khi bật/tắt chìa khóa 3 lần
+                    </p>
+                </div>
+                <span class="badge-pill badge-amber">FACTORY • 1.0 MB</span>
+            </div>
+
+            <!-- Portal Interactive Simulator -->
+            <div class="portal-sim-wrapper">
+                <!-- Phone Screen Simulation -->
+                <div class="phone-frame">
+                    <div class="phone-notch"></div>
+                    <div class="portal-content">
+                        <div class="portal-header">
+                            <div class="portal-logo">⚡ TYMAP DUAL-BOOT</div>
+                            <div class="portal-sub">Hệ thống chuyển đổi Hệ điều hành ESP32-C3</div>
+                        </div>
+
+                        <!-- Card 1: Chọn OS -->
+                        <div class="portal-card">
+                            <div class="portal-card-title">⚙️ CHỌN HỆ ĐIỀU HÀNH KHỞI ĐỘNG</div>
+                            <label class="portal-btn-os active" id="simOsAndroid" onclick="selectSimOs('android')">
+                                <div>
+                                    <h4>🤖 Android (TYMAP BLE)</h4>
+                                    <p>Kết nối app Android TYMAP, dẫn đường bản đồ, đồng hồ xe máy (ota_0)</p>
+                                </div>
+                            </label>
+                            <label class="portal-btn-os" id="simOsIos" onclick="selectSimOs('ios')">
+                                <div>
+                                    <h4>🍎 iOS (Sygic BLE HUD)</h4>
+                                    <p>Kết nối trực tiếp app Sygic trên iPhone qua Bluetooth BLE (ota_1)</p>
+                                </div>
+                            </label>
+                            <button class="portal-btn-submit" onclick="submitSimSwitch()">LƯU & KHỞI ĐỘNG LẠI</button>
+                        </div>
+
+                        <!-- Card 2: Nạp OTA -->
+                        <div class="portal-card">
+                            <div class="portal-card-title">📦 NẠP FIRMWARE OTA (.BIN)</div>
+                            <select class="portal-select" id="simOtaPart">
+                                <option value="ota_0">Phân vùng ota_0 (Android TYMAP)</option>
+                                <option value="ota_1">Phân vùng ota_1 (iOS Sygic BLE)</option>
+                                <option value="factory">Phân vùng factory (Web Portal)</option>
+                            </select>
+                            <div class="portal-file-box" onclick="document.getElementById('simOtaInput').click()">
+                                📁 Chọn file firmware .bin (Mô phỏng)
+                            </div>
+                            <input type="file" id="simOtaInput" style="display:none;" onchange="onSimFileSelected()">
+                            <button class="portal-btn-submit" style="background:#f59e0b" onclick="submitSimOta()">TIẾN
+                                HÀNH NẠP FIRMWARE</button>
+                        </div>
+
+                        <!-- Card 3: Hướng Dẫn Sử Dụng -->
+                        <div class="portal-card" style="text-align:center;">
+                            <div class="portal-card-title" style="justify-content:center;">📖 HƯỚNG DẪN SỬ DỤNG</div>
+                            <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Xem sơ đồ đấu nối 2 dây xe
+                                máy, kết nối Android & mở khóa Sygic iOS</p>
+                            <a href="https://tulamdientu.carrd.co/" target="_blank"
+                                style="display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;background:rgba(0,229,255,0.08);border:1px solid var(--cyan-neon);border-radius:12px;color:var(--cyan-neon);text-decoration:none;font-size:12px;font-weight:700;">
+                                👉 XEM HƯỚNG DẪN TẠI TỰ LÀM ĐIỆN TỬ
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Explanation & OLED Screen Response -->
+                <div>
+                    <h3 style="font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 12px;">Màn Hình Phản Hồi
+                        Trực Tiếp Trên OLED Xe Máy</h3>
+                    <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+                        Khi bạn thao tác trên Web Portal điện thoại, màn hình OLED của xe sẽ lập tức phản hồi trạng thái
+                        tương ứng:
+                    </p>
+
+                    <div class="oled-bezel" style="margin-bottom: 20px;">
+                        <div class="canvas-wrapper">
+                            <canvas id="canvasFactoryOled" width="128" height="64"></canvas>
+                            <div class="canvas-scanlines"></div>
+                        </div>
+                        <div class="oled-caption">PHẢN HỒI THỰC TẾ TRÊN MÀN HÌNH OLED XE MÁY</div>
+                    </div>
+
+                    <!-- Step activation -->
+                    <div
+                        style="background: var(--bg-surface-elevated); border: 1px solid var(--border-dim); border-radius: var(--radius-md); padding: 18px;">
+                        <h4 style="font-size: 15px; font-weight: 700; color: var(--amber-racing); margin-bottom: 8px;">2
+                            Cách Vào Web Portal Khi Xe Đã Lắp Kín:</h4>
+                        <ul style="font-size: 13px; color: var(--text-secondary); margin-left: 20px; line-height: 1.7;">
+                            <li><strong>Cách 1 (Không tháo dàn nhựa):</strong> Bật chìa khóa xe ➜ Tắt ➜ Bật ➜ Tắt ➜ Bật
+                                (trong vòng 3 giây). ESP32 phát hiện chuỗi khởi động 3 lần sẽ tự động chuyển boot về
+                                <code>factory</code>.
+                            </li>
+                            <li><strong>Cách 2 (Nút bấm):</strong> Nhấn giữ nút <strong>BOOT (GPIO9)</strong> trong 3
+                                giây khi xe đang chạy.</li>
+                            <li><strong>Kết nối Wi-Fi:</strong> Mở điện thoại, bắt Wi-Fi <strong>`TYMAP Factory
+                                    Portal`</strong> (Mật khẩu: <code>12345678</code>), trình duyệt sẽ tự động bật trang
+                                đổi OS.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== KHỐI 4: BẢNG SO SÁNH BENCHMARK TABLE ==================== -->
+    <section id="chap-comparison">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">COMPETITIVE BENCHMARK</span>
+                <h2 class="section-title">Bảng So Sánh Vượt Trội</h2>
+                <p class="section-subtitle">
+                    Đối chiếu 8 tiêu chí cốt lõi giữa hệ thống TYMAP Dual-Boot ESP32-C3 Pro và các loại đồng hồ rời trôi
+                    nổi trên thị trường.
+                </p>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="benchmark-table">
+                    <thead>
+                        <tr>
+                            <th>Tiêu Chí Kỹ Thuật</th>
+                            <th>Đồng Hồ / HUD Rời Trôi Nổi ❌</th>
+                            <th>TYMAP Dual-Boot ESP32-C3 Pro ✔️</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Tương Thích Smartphone</strong></td>
+                            <td>Chỉ dùng cố định 1 loại (Android hoặc iPhone); đổi máy là phải vứt đồng hồ</td>
+                            <td><strong>Dual-Boot 2-in-1:</strong> Chạy hoàn hảo cả Android (TYMAP App) và iOS (Sygic
+                                BLE HUD)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cảnh Báo Tốc Độ & Camera</strong></td>
+                            <td>Nhảy sang màn hình thông báo chữ, làm mất hoàn toàn bản đồ và mũi tên rẽ</td>
+                            <td><strong>Graphic Overlay P.127:</strong> Vẽ biển báo tròn nhấp nháy góc màn hình, bản đồ
+                                chạy 100%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Đo Điện Áp Ắc Quy Khi Nổ Máy</strong></td>
+                            <td>Đọc ADC thô, nhảy số loạn xạ do xung nhiễu 15.000V từ bugi và mobin sườn xe</td>
+                            <td><strong>Lọc 16 Mẫu Trimmed-Mean:</strong> Cắt tỉa ngoại lai, triệt tiêu 100% xung nhiễu
+                                bugi xe</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Chẩn Đoán Sạc Xả & Mâm Lửa</strong></td>
+                            <td>Chỉ xem được số volt tĩnh vô nghĩa, không biết sạc xe có bị rò điện AC hay không</td>
+                            <td><strong>Oscilloscope 30 FPS:</strong> Dạng sóng thời gian thực, Auto-Timebase 15-50ms
+                                phát hiện hỏng sạc</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Thao Tác Chuyển Đổi OS</strong></td>
+                            <td>Phải tháo dàn áo xe, cắm dây nạp máy tính hoặc gạt switch vật lý</td>
+                            <td><strong>Power-Cycle 3 Lần:</strong> Bật/tắt khóa 3 lần là vào thẳng Web Portal không dây
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Nâng Cấp Firmware (OTA)</strong></td>
+                            <td>Không hỗ trợ hoặc phải mang ra tiệm độ xe chạy lại phần mềm</td>
+                            <td><strong>Web Flasher OTA:</strong> Chọn file .bin và nạp ngay trên trình duyệt điện thoại
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hiển Thị Tiếng Việt Có Dấu</strong></td>
+                            <td>Lỗi font "? ? ?" hoặc cắt cụt đuôi chữ tiếng Việt khi cuộn</td>
+                            <td><strong>FontMaker Chuẩn Tiếng Việt:</strong> Tự động cuộn Marquee mượt mà từng pixel
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tiêu Hao Năng Lượng Bình Xe</strong></td>
+                            <td>Dễ làm cạn bình ắc quy sau 2-3 ngày không chạy xe</td>
+                            <td><strong>Ngắt 100% khi tắt khóa xe</strong>, dòng tĩnh Sleep &lt;15µA không gây hao bình
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== KHỐI 5: HƯỚNG DẪN LẮP ĐẶT & SƠ ĐỒ KỸ THUẬT ==================== -->
+    <section id="chap-wiring">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">WIRING & INSTALLATION</span>
+                <h2 class="section-title">Sơ Đồ Đấu Nối 2 Dây Chuẩn Xe Máy</h2>
+                <p class="section-subtitle">
+                    Bộ sản phẩm thương mại thiết kế tối giản Plug & Play: <strong>Chỉ với 2 dây nguồn Đỏ (+) & Đen (-)
+                        12V</strong>.
+                    Nguồn dương sau khóa được trích trực tiếp từ <strong>công tắc phanh trước (công tắc thắng đĩa /
+                        thắng tay)</strong> ngay trên cùm tay lái — Lắp đặt nhanh 5 phút, không cần mổ ổ khóa hay rã dàn
+                    áo xe!
+                </p>
+            </div>
+
+            <!-- Grid 2 Cột: Đấu Dây Ngoài Thực Tế vs Mạch Tích Hợp Bên Trong -->
+            <div class="wiring-grid">
+                <!-- Cột 1: Sơ đồ 2 dây bộ thương mại thực tế -->
+                <div class="wiring-box"
+                    style="border: 1px solid rgba(255, 107, 139, 0.3); background: linear-gradient(180deg, rgba(255, 107, 139, 0.04) 0%, rgba(15, 23, 42, 0.8) 100%);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h3 style="font-size: 16px; font-weight: 700; color: #fff;">🔌 Quy Chuẩn 2 Dây Bộ Thương Mại
+                            (Plug & Play)</h3>
+                        <span class="badge-pill"
+                            style="background:rgba(255,107,139,0.2); color:#ff6b8b; font-size:10px;">TIÊU CHUẨN XE
+                            MÁY</span>
+                    </div>
+                    <table class="wire-table">
+                        <thead>
+                            <tr style="text-align:left; color:var(--text-muted); font-size:11px;">
+                                <th>Dây Ra Ngoài</th>
+                                <th>Điện Áp</th>
+                                <th>Vị Trí Đấu Nối Chuẩn</th>
+                                <th>Tác Vụ Kỹ Thuật</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="wire-tag wire-red"></span> <strong>Đỏ (+)</strong></td>
+                                <td class="font-mono" style="color:#ff6b8b;">+12V DC</td>
+                                <td><strong>Dây sau khóa tại công tắc phanh trước</strong></td>
+                                <td>Bật khóa xe là thiết bị khởi động + Đo liên tục điện áp bình</td>
+                            </tr>
+                            <tr>
+                                <td><span class="wire-tag wire-black"></span> <strong>Đen (-)</strong></td>
+                                <td class="font-mono" style="color:#94a3b8;">0V (GND)</td>
+                                <td><strong>Mass cùm đầu đèn hoặc bắt ốc sườn xe</strong></td>
+                                <td>Dây Mass chung chống nhiễu hệ thống</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Hướng dẫn nhận biết màu dây theo hãng xe -->
+                    <div
+                        style="margin-top: 16px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 8px; font-size: 12px; border-left: 3px solid #ff6b8b;">
+                        <strong style="color:#fff; font-size:13px;">🏍️ Bảng Tra Màu Dây Sau Khóa Tại Công Tắc Phanh
+                            Trước:</strong>
+                        <ul style="margin: 8px 0 0 16px; padding:0; color:var(--text-secondary); line-height:1.7;">
+                            <li><strong>Xe HONDA</strong> (Wave, Future, Winner, Vision, AirBlade, SH...): Dây
+                                <strong>Đen</strong> (hoặc Đen sọc Nâu) là nguồn dương sau khóa. (Dây Xanh lá là Mass).
+                            </li>
+                            <li><strong>Xe YAMAHA</strong> (Exciter, NVX, Sirius, Grande, Jupiter...): Dây
+                                <strong>Nâu</strong> là nguồn dương sau khóa. (Dây Đen là Mass).
+                            </li>
+                            <li><strong>Mẹo nhận biết 100% chuẩn:</strong> Công tắc phanh trước có 2 chân giắc. Bật khóa
+                                xe (không bóp phanh), dùng bút thử điện hoặc đồng hồ đo: Chân nào <strong>có điện
+                                    12V</strong> thì nối dây Đỏ vào đó! (Chân còn lại chỉ có điện khi bóp thắng dẫn về
+                                đèn hậu).</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Cột 2: Kiến trúc phần cứng tích hợp bên trong -->
+                <div class="wiring-box">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <h3 style="font-size: 16px; font-weight: 700; color: #fff;">⚙️ Mạch Tích Hợp Kín Bên Trong Hộp
+                            (All-In-One)</h3>
+                        <span class="badge-pill badge-android" style="font-size:10px;">AN TOÀN TUYỆT ĐỐI</span>
+                    </div>
+                    <p style="font-size:12px; color:var(--text-secondary); margin-bottom:12px;">
+                        Khách hàng không cần phải hàn trở hay đấu mạch rườm rà. Tất cả các khối sau đã được đúc kín
+                        chống nước chuẩn IP67 bên trong thiết bị:
+                    </p>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+                        <div
+                            style="background:var(--bg-surface-elevated); padding:10px; border-radius:8px; font-size:12px;">
+                            <strong style="color:var(--cyan-neon)">1. Mạch Buck 12V ➜ 5V/3.3V</strong>
+                            <p style="color:var(--text-secondary); font-size:11px; margin-top:2px;">Hạ áp công nghiệp
+                                chịu dòng xả nạp xe máy, chống xung điện cuộn phát.</p>
+                        </div>
+                        <div
+                            style="background:var(--bg-surface-elevated); padding:10px; border-radius:8px; font-size:12px;">
+                            <strong style="color:var(--android-color)">2. Cầu Phân Áp R1/R2 (GPIO3)</strong>
+                            <p style="color:var(--text-secondary); font-size:11px; margin-top:2px;">R1=100kΩ & R2=15kΩ
+                                hạ áp tỷ lệ an toàn vào chân ADC ESP32-C3 đo Volt bình.</p>
+                        </div>
+                        <div
+                            style="background:var(--bg-surface-elevated); padding:10px; border-radius:8px; font-size:12px;">
+                            <strong style="color:#60a5fa)">3. Màn Hình OLED SH1106</strong>
+                            <p style="color:var(--text-secondary); font-size:11px; margin-top:2px;">I2C Bus: SDA ➜
+                                GPIO6, SCL ➜ GPIO7 với xung nhịp 400kHz mượt mà.</p>
+                        </div>
+                        <div
+                            style="background:var(--bg-surface-elevated); padding:10px; border-radius:8px; font-size:12px;">
+                            <strong style="color:#fbbf24)">4. Phím BOOT Phụ (GPIO9)</strong>
+                            <p style="color:var(--text-secondary); font-size:11px; margin-top:2px;">Nút nhấn đa năng
+                                chuyển đổi chế độ Web Portal khẩn cấp hoặc Reset FW.</p>
+                        </div>
+                    </div>
+
+                    <div class="alert-box" style="margin-top:0;">
+                        <span style="font-size: 20px;">🛡️</span>
+                        <div>
+                            <h5 style="font-size: 13px; font-weight: 700; color: #ff6b8b; margin-bottom: 2px;">CẦU CHÌ
+                                BẢO VỆ TỰ PHỤC HỒI</h5>
+                            <p style="font-size: 11px; color: #f1f5f9;">Đường dây Đỏ dương đã tích hợp cầu chì tự ngắt
+                                khi quá áp hoặc chạm chập, đảm bảo an toàn tuyệt đối cho hệ thống điện din của xe.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quy trình 3 bước lắp đặt nhanh tại cùm tay lái -->
+            <div style="margin-top: 30px;">
+                <h3 style="font-size: 17px; font-weight: 700; color: #fff; margin-bottom: 16px; text-align:center;">
+                    🚀 3 Bước Lắp Đặt 5 Phút Tại Cùm Tay Lái (Không Cần Tháo Dàn Áo)
+                </h3>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
+                    <div class="step-item" style="margin-bottom:0; background:var(--bg-surface);">
+                        <div class="step-num" style="background:#ff6b8b; color:#fff;">01</div>
+                        <div>
+                            <h4 style="font-size: 15px; font-weight: 700; color: #fff;">Mở Cùm Phanh Trước</h4>
+                            <p style="font-size: 12px; color: var(--text-secondary); margin-top:4px;">
+                                Tháo nhẹ ốp đầu đèn hoặc lật mặt dưới cùm thắng đĩa tay phải, bạn sẽ thấy giắc 2 chấu
+                                cắm vào công tắc ngắt phanh xe máy.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="step-item" style="margin-bottom:0; background:var(--bg-surface);">
+                        <div class="step-num" style="background:#ff6b8b; color:#fff;">02</div>
+                        <div>
+                            <h4 style="font-size: 15px; font-weight: 700; color: #fff;">Đo & Trích Dây Đỏ (+) Sau Khóa
+                            </h4>
+                            <p style="font-size: 12px; color: var(--text-secondary); margin-top:4px;">
+                                Bật chìa khóa xe (chưa bóp phanh), dùng bút thử điện kiểm tra dây nào có điện 12V thì
+                                trích dây Đỏ vào đó (Honda: dây Đen; Yamaha: dây Nâu).
+                            </p>
+                        </div>
+                    </div>
+                    <div class="step-item" style="margin-bottom:0; background:var(--bg-surface);">
+                        <div class="step-num" style="background:#ff6b8b; color:#fff;">03</div>
+                        <div>
+                            <h4 style="font-size: 15px; font-weight: 700; color: #fff;">Bắt Mass Đen (-) & Khởi Động
+                            </h4>
+                            <p style="font-size: 12px; color: var(--text-secondary); margin-top:4px;">
+                                Siết chặt dây Đen vào ốc sườn kim loại hoặc dây Mass đầu đèn. Bật chìa khóa xe, màn hình
+                                OLED sẽ sáng đèn chào mừng ngay lập tức!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Hướng Dẫn Thao Tác Đấu Nối Dây Thực Tế -->
+            <div class="video-guide-section" style="margin-top:35px; border-color:rgba(255,107,139,0.3);">
+                <div class="video-header-row">
+                    <div>
+                        <span class="badge-pill"
+                            style="background:rgba(255,107,139,0.15); color:#ff6b8b; border:1px solid rgba(255,107,139,0.3); margin-bottom:6px;">VIDEO
+                            HƯỚNG DẪN THỰC CHIẾN</span>
+                        <h4 style="font-size:16px; font-weight:700; color:#fff;">🎬 Video Hướng Dẫn Đấu Nối 2 Dây Nguồn
+                            Sau Khóa Qua Công Tắc Phanh Trước</h4>
+                        <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Xem video thực tế thao
+                            tác đo chân giắc phanh, kẹp trích dây nhanh và cố định thiết bị lên xe máy.</p>
+                    </div>
+                </div>
+
+                <div class="video-wrapper-16-9">
+                    <!-- ========================================================================= -->
+                    <!-- [CHỖ DÁN LINK VIDEO ĐẤU DÂY XE MÁY]:                                       -->
+                    <!-- 1. Nếu dùng YouTube: Thay mã video vào src="https://www.youtube.com/embed/VIDEO_ID" -->
+                    <!-- 2. Nếu dùng file MP4: Điền link file MP4 hoặc video trực tiếp             -->
+                    <!-- ========================================================================= -->
+                    <iframe id="videoPlayerWiring" src="https://www.youtube.com/embed/78IXp5Rs6Qc"
+                        title="Video hướng dẫn đấu nối 2 dây nguồn xe máy"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen>
+                    </iframe>
+
+                    <!-- Khung Placeholder ẩn khi đã có video -->
+                    <div class="video-placeholder-overlay" id="videoPlaceholderWiring" style="display:none;">
+                        <div class="play-btn-pulse play-wiring"
+                            onclick="alert('Vui lòng mở file docs/index.html và dán link video vào thẻ iframe có id=videoPlayerWiring!')">
+                            ▶
+                        </div>
+                        <h4 style="font-size:16px; font-weight:700; margin-bottom:6px; color:#fff;">VIDEO HƯỚNG DẪN ĐẤU
+                            DÂY XE MÁY (CÔNG TẮC PHANH TRƯỚC)</h4>
+                        <p style="font-size:12px; color:#94a3b8; max-width:460px;">
+                            Video quay cận cảnh cách tháo ốp cùm phanh, đo điện áp sau khóa bằng đồng hồ vạn năng và kẹp
+                            giắc 2 dây Đỏ/Đen chuẩn Plug & Play.
+                        </p>
+                        <div class="video-link-hint">
+                            📌 [CHỖ DÁN LINK VIDEO]: Mở file docs/index.html ➜ Tìm dòng
+                            <code>id="videoPlayerWiring" src="..."</code> để dán link YouTube / MP4
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== KHỐI 6: THÔNG SỐ & FAQ ==================== -->
+    <section id="chap-specs">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">SPECIFICATIONS & FAQ</span>
+                <h2 class="section-title">Thông Số Kỹ Thuật & Giải Đáp Thắc Mắc</h2>
+            </div>
+
+            <div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-label">Vi Xử Lý</div>
+                    <div class="spec-val">ESP32-C3 RISC-V 160MHz</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Bộ Nhớ Flash & RAM</div>
+                    <div class="spec-val">4MB Flash • 400KB SRAM</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Màn Hình</div>
+                    <div class="spec-val">OLED 0.96" SH1106 128x64</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Kết Nối Không Dây</div>
+                    <div class="spec-val">Bluetooth 5.0 LE & Wi-Fi AP</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Dải Đo Bình Xe</div>
+                    <div class="spec-val">9.0V - 16.0V DC (±0.05V)</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Lọc Chống Nhiễu</div>
+                    <div class="spec-val">Trimmed-Mean 16 Mẫu / 25ms</div>
+                </div>
+            </div>
+
+            <!-- FAQ -->
+            <div class="faq-card" style="margin-top: 30px;">
+                <details open>
+                    <summary>Làm sao để kết nối với app Sygic trên iPhone?</summary>
+                    <div class="faq-body">
+                        1. Dùng Web Portal chuyển thiết bị sang chế độ <strong>iOS (Sygic BLE)</strong>.<br>
+                        2. Mở ứng dụng <strong>Sygic GPS Navigation & Maps</strong> trên iPhone.<br>
+                        3. Vào <strong>Menu</strong> ➜ <strong>Cài đặt (Settings)</strong> ➜ <strong>Thông tin
+                            (Info)</strong> ➜ <strong>Giới thiệu (About)</strong>.<br>
+                        4. <strong>Chạm nhanh 3 lần</strong> vào bất kỳ dòng chữ nào trên màn hình Giới thiệu để mở menu
+                        ẩn.<br>
+                        5. Bấm vào dòng <strong>"About"</strong> mới xuất hiện ở trên cùng ➜ Chọn <strong>BLE
+                            HUD</strong> ➜ Nhấn <strong>Start</strong>. Mũi tên rẽ sẽ tự động truyền sang màn hình OLED!
+                    </div>
+                </details>
+            </div>
+
+            <div class="faq-card">
+                <details>
+                    <summary>Làm sao để kết nối với điện thoại Android?</summary>
+                    <div class="faq-body">
+                        Chuyển thiết bị sang chế độ <strong>Android (TYMAP BLE)</strong>. Cài đặt app TYMAP trên điện
+                        thoại Android, bật Bluetooth và mở app, thiết bị sẽ tự kết nối. Khi mở Google Maps dẫn đường,
+                        mũi tên và tên đường tiếng Việt sẽ đẩy tự động sang OLED.
+                    </div>
+                </details>
+            </div>
+
+            <!-- CTA -->
+            <div class="cta-box" style="margin-top: 40px;">
+                <h2 style="font-size: 28px; font-weight: 800; color: #fff; margin-bottom: 12px;">Sở Hữu Ngay Bộ TYMAP
+                    Pro Dual-Boot ESP32-C3</h2>
+                <p style="font-size: 15px; color: var(--text-secondary); max-width: 600px; margin: 0 auto 24px;">
+                    Bộ kit nạp sẵn firmware 4MB Flash trọn gói, màn hình OLED chống ẩm, hỗ trợ kỹ thuật trọn đời và cập
+                    nhật firmware qua Web OTA.
+                </p>
+                <div style="display:flex; justify-content:center; gap:16px; flex-wrap:wrap;">
+                    <div
+                        style="background:var(--bg-surface); padding:8px 18px; border-radius:99px; border:1px solid var(--border-dim); font-size:13px; font-family:'JetBrains Mono'">
+                        Hotline: 0987.xxx.xxx</div>
+                    <div
+                        style="background:var(--bg-surface); padding:8px 18px; border-radius:99px; border:1px solid var(--border-dim); font-size:13px; font-family:'JetBrains Mono'">
+                        Zalo Kỹ Thuật: 24/7</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p><strong>TYMAP AUTOMOTIVE ELECTRONICS & HUD SYSTEMS</strong></p>
+            <p>Bản quyền thuộc về Dự Án TYMAP Dual-Boot ESP32-C3 • Nền tảng Firmware Mở Cho Biker Việt</p>
+        </div>
+    </footer>
+
+    <!-- ==================== SCRIPT XỬ LÝ CANVAS & SIMULATOR ==================== -->
+    <script>
+        const C_ON = '#67e8f9';
+        const C_BG = '#03060c';
+
+        function clearCtx(ctx) {
+            ctx.fillStyle = C_BG;
+            ctx.fillRect(0, 0, 128, 64);
+            ctx.fillStyle = C_ON;
+            ctx.strokeStyle = C_ON;
+            ctx.lineWidth = 1;
+        }
+
+        // Biển Báo Tròn P.127
+        function drawSpeedBadge(ctx, cx, cy, radius, speedVal, isBlink) {
+            if (isBlink) {
+                ctx.fillStyle = C_ON;
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = C_BG;
+                ctx.font = 'bold 9px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(speedVal, cx, cy);
+                ctx.fillStyle = C_ON;
+            } else {
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius - 1.5, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.font = 'bold 9px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(speedVal, cx, cy);
+            }
+        }
+
+        // Vector Rẽ Android
+        function drawAndroidTurn(ctx, dir, ox, oy) {
+            ctx.save();
+            ctx.translate(ox, oy);
+            ctx.fillStyle = C_ON;
+            if (dir === 2 || dir === 3) { // Left
+                ctx.fillRect(24, 14, 5, 24);
+                ctx.fillRect(8, 14, 18, 5);
+                ctx.beginPath();
+                ctx.moveTo(2, 16); ctx.lineTo(14, 6); ctx.lineTo(14, 26);
+                ctx.closePath(); ctx.fill();
+            } else if (dir === 5 || dir === 6) { // Right
+                ctx.fillRect(12, 14, 5, 24);
+                ctx.fillRect(14, 14, 18, 5);
+                ctx.beginPath();
+                ctx.moveTo(38, 16); ctx.lineTo(26, 6); ctx.lineTo(26, 26);
+                ctx.closePath(); ctx.fill();
+            } else { // Straight
+                ctx.fillRect(18, 16, 5, 22);
+                ctx.beginPath();
+                ctx.moveTo(20, 4); ctx.lineTo(8, 18); ctx.lineTo(32, 18);
+                ctx.closePath(); ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // Vector Rẽ iOS Sygic
+        function drawSygicTurn(ctx, cx, cy, dir) {
+            ctx.save();
+            ctx.fillStyle = C_ON;
+            ctx.strokeStyle = C_ON;
+            if (dir === 8) { // Left
+                ctx.fillRect(cx - 2, cy + 6, 8, 16);
+                ctx.fillRect(cx - 16, cy - 2, 22, 8);
+                ctx.beginPath();
+                ctx.moveTo(cx - 24, cy + 2); ctx.lineTo(cx - 12, cy - 9); ctx.lineTo(cx - 12, cy + 13);
+                ctx.closePath(); ctx.fill();
+            } else if (dir === 10) { // Right
+                ctx.fillRect(cx - 6, cy + 6, 8, 16);
+                ctx.fillRect(cx - 6, cy - 2, 22, 8);
+                ctx.beginPath();
+                ctx.moveTo(cx + 24, cy + 2); ctx.lineTo(cx + 12, cy - 9); ctx.lineTo(cx + 12, cy + 13);
+                ctx.closePath(); ctx.fill();
+            } else if (dir === 14) { // U-turn
+                ctx.beginPath();
+                ctx.arc(cx, cy - 4, 12, Math.PI, 0, false);
+                ctx.stroke();
+                ctx.fillRect(cx + 6, cy - 4, 6, 22);
+                ctx.fillRect(cx - 12, cy - 4, 6, 14);
+                ctx.beginPath();
+                ctx.moveTo(cx - 9, cy + 18); ctx.lineTo(cx - 18, cy + 8); ctx.lineTo(cx, cy + 8);
+                ctx.closePath(); ctx.fill();
+            } else { // Straight
+                ctx.fillRect(cx - 4, cy - 4, 8, 26);
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - 20); ctx.lineTo(cx - 15, cy - 4); ctx.lineTo(cx + 15, cy - 4);
+                ctx.closePath(); ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // ---------------- 1. LOGIC ANDROID ----------------
+        let andMode = 'STATUS';
+        let andSub = 0;
+        let andWarn = true;
+        let andSpeed = 68;
+        let andLimit = 60;
+        let andBlink = false;
+        let oscOffset = 0;
+
+        function renderAndroidCanvas(ctx, mode, sub, warn, limit, speed, blink) {
+            clearCtx(ctx);
+            if (mode === 'STATUS') {
+                if (sub === 0) { // S1 Clock
+                    ctx.font = '8px "Outfit", sans-serif';
+                    ctx.fillText('31/08', 12, 8);
+                    ctx.textAlign = 'right'; ctx.fillText('31°C', 124, 8);
+                    ctx.fillRect(0, 12, 128, 1);
+                    ctx.font = 'bold 24px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'center'; ctx.fillText('15:09', 64, 38);
+                    ctx.font = '8px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'left'; ctx.fillText('XE: 12.6V', 4, 58);
+                    ctx.textAlign = 'right'; ctx.fillText('DT: 95%', 124, 58);
+                    if (warn) drawSpeedBadge(ctx, 104, 20, 10, limit, blink);
+                } else if (sub === 1) { // S2 Speed
+                    ctx.font = '8px "Outfit", sans-serif';
+                    ctx.fillText('15:09  •  12.6V', 4, 8);
+                    ctx.fillRect(0, 12, 128, 1);
+                    ctx.font = 'bold 26px "JetBrains Mono", monospace';
+                    ctx.fillText(`${speed}`, 14, 42);
+                    ctx.font = 'bold 10px "Outfit", sans-serif'; ctx.fillText('KM/H', 62, 38);
+                    if (warn) drawSpeedBadge(ctx, 104, 22, 10, limit, blink);
+                    ctx.strokeRect(0, 52, 128, 10);
+                    ctx.fillRect(0, 52, Math.min(128, (speed / 110) * 128), 10);
+                } else if (sub === 2) { // S3 Volt
+                    ctx.font = '8px "Outfit", sans-serif'; ctx.fillText('15:09  •  DT: 95%', 4, 8);
+                    ctx.fillRect(0, 12, 128, 1);
+                    ctx.font = 'bold 24px "JetBrains Mono", monospace';
+                    ctx.textAlign = 'center'; ctx.fillText('12.6', 54, 40);
+                    ctx.font = 'bold 11px "Outfit", sans-serif'; ctx.fillText('VOLT', 92, 38);
+                    if (warn) drawSpeedBadge(ctx, 108, 18, 9, limit, blink);
+                    ctx.strokeRect(0, 52, 128, 9); ctx.fillRect(0, 54, 85, 5);
+                } else { // S5 Oscilloscope
+                    ctx.font = '8px "JetBrains Mono", monospace';
+                    ctx.fillText('15:09  31/08', 2, 8);
+                    ctx.textAlign = 'right'; ctx.fillText('31°C', 126, 8);
+                    ctx.fillRect(0, 12, 128, 1);
+                    ctx.textAlign = 'left';
+                    ctx.font = 'bold 11px "JetBrains Mono", monospace'; ctx.fillText('12.6V', 2, 26);
+                    ctx.font = '7px "JetBrains Mono", monospace'; ctx.fillText('L:12.4 H:14.2', 2, 38);
+                    ctx.fillText('25ms/D', 2, 48);
+                    ctx.strokeRect(46, 14, 80, 48);
+                    ctx.beginPath();
+                    for (let i = 0; i < 78; i++) {
+                        const py = 38 + Math.sin((i + oscOffset) * 0.25) * 9;
+                        if (i === 0) ctx.moveTo(47 + i, py); else ctx.lineTo(47 + i, py);
+                    }
+                    ctx.stroke();
+                    if (warn) drawSpeedBadge(ctx, 36, 50, 8, limit, blink);
+                }
+            } else if (mode === 'HUD') {
+                if (sub === 0) { // H1 Classic
+                    drawAndroidTurn(ctx, 2, 0, 0);
+                    ctx.font = 'bold 10px "Outfit", sans-serif';
+                    ctx.textAlign = 'left'; ctx.fillText('Nguyễn Văn Cừ', 50, 14);
+                    ctx.font = '8px "Outfit", sans-serif'; ctx.fillText('Chuẩn bị rẽ trái', 50, 26);
+                    ctx.font = 'bold 14px "JetBrains Mono", monospace'; ctx.fillText('150 M', 4, 58);
+                    if (warn) {
+                        drawSpeedBadge(ctx, 80, 50, 9, limit, blink);
+                        ctx.font = 'bold 12px "JetBrains Mono", monospace'; ctx.textAlign = 'right'; ctx.fillText(`${speed}`, 124, 54);
+                    } else {
+                        ctx.font = 'bold 12px "JetBrains Mono", monospace'; ctx.textAlign = 'right'; ctx.fillText(`${speed} km/h`, 124, 54);
+                    }
+                } else { // H2 Split
+                    if (warn) {
+                        drawSpeedBadge(ctx, 27, 14, 9, limit, blink);
+                        ctx.font = 'bold 18px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText(`${speed}`, 27, 38);
+                    } else {
+                        ctx.font = 'bold 22px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText(`${speed}`, 27, 34);
+                    }
+                    ctx.fillRect(54, 0, 1, 64);
+                    drawAndroidTurn(ctx, 2, 54, 0);
+                    ctx.font = 'bold 12px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.fillText('150 M', 94, 18);
+                    ctx.font = 'bold 9px "Outfit", sans-serif'; ctx.fillText('Nguyễn Văn Cừ', 58, 48);
+                }
+            } else { // MAP Mode 1BPP
+                ctx.font = 'bold 9px "Outfit", sans-serif';
+                ctx.textAlign = 'left'; ctx.fillText('BẢN ĐỒ BITMAP 1BPP', 6, 12);
+                ctx.beginPath();
+                ctx.moveTo(10, 50); ctx.lineTo(40, 45); ctx.lineTo(70, 25); ctx.lineTo(110, 20);
+                ctx.lineWidth = 3; ctx.stroke(); ctx.lineWidth = 1;
+                ctx.fillRect(66, 21, 8, 8); // Waypoint
+                if (warn) drawSpeedBadge(ctx, 106, 44, 9, limit, blink);
+            }
+        }
+
+        function renderAndroidStudio() {
+            const c = document.getElementById('canvasAndroid');
+            if (c) renderAndroidCanvas(c.getContext('2d'), andMode, andSub, andWarn, andLimit, andSpeed, andBlink);
+        }
+
+        function setAndroidMode(mode) {
+            andMode = mode;
+            andSub = 0;
+            document.querySelectorAll('#chap-android .btn-grid-3 .btn-choice').forEach(b => {
+                b.classList.toggle('active', b.getAttribute('onclick').includes(`'${mode}'`));
+            });
+            updateAndroidSubUI();
+            renderAndroidStudio();
+        }
+
+        function updateAndroidSubUI() {
+            const container = document.getElementById('androidSubBtns');
+            const group = document.getElementById('androidSubGroup');
+            container.innerHTML = '';
+            if (andMode === 'STATUS') {
+                group.style.display = 'block';
+                const names = ['S1 Đồng Hồ', 'S2 Tốc Độ', 'S3 Điện Áp', 'S5 Sóng'];
+                names.forEach((n, i) => {
+                    const btn = document.createElement('button');
+                    btn.className = `btn-choice ${i === andSub ? 'active' : ''}`;
+                    btn.innerText = n;
+                    btn.onclick = () => { andSub = i; updateAndroidSubUI(); renderAndroidStudio(); };
+                    container.appendChild(btn);
+                });
+            } else if (andMode === 'HUD') {
+                group.style.display = 'block';
+                const names = ['H1 Classic', 'H2 Split Dash'];
+                names.forEach((n, i) => {
+                    const btn = document.createElement('button');
+                    btn.className = `btn-choice ${i === andSub ? 'active' : ''}`;
+                    btn.innerText = n;
+                    btn.onclick = () => { andSub = i; updateAndroidSubUI(); renderAndroidStudio(); };
+                    container.appendChild(btn);
+                });
+            } else {
+                group.style.display = 'none';
+            }
+        }
+
+        function toggleAndroidWarn() {
+            andWarn = document.getElementById('andWarnToggle').checked;
+            renderAndroidStudio();
+        }
+
+        function onAndroidSpeedChange(v) {
+            andSpeed = parseInt(v);
+            document.getElementById('andSpeedTxt').innerText = `${v} km/h`;
+            renderAndroidStudio();
+        }
+
+        function setAndroidLimit(lim) {
+            andLimit = lim;
+            document.getElementById('andLimitTxt').innerText = `${lim} km/h`;
+            document.querySelectorAll('#chap-android .btn-grid-4 .btn-choice').forEach(b => {
+                b.classList.toggle('active', b.innerText === `${lim}`);
+            });
+            renderAndroidStudio();
+        }
+
+        // ---------------- 2. LOGIC IOS SYGIC ----------------
+        let iosMode = 'TURN';
+        let iosDir = 8;
+        let iosDist = "150 M";
+        let iosExit = 2;
+        let iosLimit = 60;
+
+        function renderIosCanvas(ctx, mode, dir, dist, exitNum, limit) {
+            clearCtx(ctx);
+            if (mode === 'TURN') {
+                drawSygicTurn(ctx, 24, 32, dir);
+                for (let y = 0; y < 64; y += 4) ctx.fillRect(50, y, 1, 2);
+                ctx.font = 'bold 17px "JetBrains Mono", monospace';
+                ctx.textAlign = 'left'; ctx.fillText(dist, 54, 24);
+                if (limit > 0) {
+                    drawSpeedBadge(ctx, 68, 46, 12, limit, false);
+                    ctx.font = '8px "JetBrains Mono", monospace';
+                    ctx.fillText('GIỚI HẠN', 86, 42); ctx.fillText('12.6V OK', 86, 52);
+                } else {
+                    ctx.font = 'bold 12px "JetBrains Mono", monospace'; ctx.fillText('12.6 VOLT', 54, 44);
+                    ctx.font = '8px "JetBrains Mono", monospace'; ctx.fillText('SYGIC BLE [OK]', 54, 56);
+                }
+            } else if (mode === 'ROUNDABOUT') {
+                ctx.beginPath(); ctx.arc(24, 32, 18, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(24, 32, 12, 0, Math.PI * 2); ctx.stroke();
+                ctx.font = 'bold 14px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(`${exitNum}`, 24, 32);
+                for (let y = 0; y < 64; y += 4) ctx.fillRect(50, y, 1, 2);
+                ctx.font = 'bold 17px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.fillText('200 M', 54, 24);
+                if (limit > 0) {
+                    drawSpeedBadge(ctx, 68, 46, 12, limit, false);
+                    ctx.font = '8px "JetBrains Mono", monospace'; ctx.fillText(`LỐI RA ${exitNum}`, 86, 42); ctx.fillText('12.6V OK', 86, 52);
+                }
+            } else { // IDLE Screen
+                ctx.font = '8px "Outfit", sans-serif'; ctx.textAlign = 'left'; ctx.fillText('GIỜ: 15:09', 4, 9);
+                ctx.beginPath(); ctx.arc(84, 6, 2, 0, Math.PI * 2); ctx.fill(); ctx.fillText('IPHONE', 90, 9);
+                ctx.fillRect(0, 12, 128, 1);
+                ctx.font = 'bold 26px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('12.6', 50, 42);
+                ctx.font = 'bold 11px "Outfit", sans-serif'; ctx.fillText('VOLT', 86, 40);
+                ctx.strokeRect(4, 48, 120, 7); ctx.fillRect(6, 50, 65, 3);
+                ctx.font = '6px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.fillText('10.0V', 4, 63);
+                ctx.textAlign = 'center'; ctx.fillText('12.0V(BÌNH)', 64, 63); ctx.textAlign = 'right'; ctx.fillText('14.8V', 124, 63);
+            }
+        }
+
+        function renderIosStudio() {
+            const c = document.getElementById('canvasIos');
+            if (c) renderIosCanvas(c.getContext('2d'), iosMode, iosDir, iosDist, iosExit, iosLimit);
+        }
+
+        function setIosMode(mode) {
+            iosMode = mode;
+            document.querySelectorAll('#chap-ios .ctrl-block:first-child .btn-choice').forEach(b => {
+                b.classList.toggle('active', b.getAttribute('onclick').includes(`'${mode}'`));
+            });
+            document.getElementById('iosTurnGroup').style.display = (mode === 'TURN') ? 'block' : 'none';
+            document.getElementById('iosRoundGroup').style.display = (mode === 'ROUNDABOUT') ? 'block' : 'none';
+            renderIosStudio();
+        }
+
+        function setIosDir(dir, dist) {
+            iosDir = dir;
+            iosDist = dist;
+            document.querySelectorAll('#iosTurnGroup .btn-choice').forEach(b => {
+                b.classList.toggle('active', b.getAttribute('onclick').includes(`${dir},`));
+            });
+            renderIosStudio();
+        }
+
+        function setIosExit(ex) {
+            iosExit = ex;
+            document.querySelectorAll('#iosRoundGroup .btn-choice').forEach(b => {
+                b.classList.toggle('active', b.getAttribute('onclick').includes(`${ex}`));
+            });
+            renderIosStudio();
+        }
+
+        function setIosLimit(lim) {
+            iosLimit = lim;
+            document.querySelectorAll('#chap-ios .ctrl-block:last-child .btn-choice').forEach(b => {
+                b.classList.toggle('active', b.getAttribute('onclick').includes(`${lim}`));
+            });
+            renderIosStudio();
+        }
+
+        // ---------------- 3. LOGIC WEB PORTAL SIMULATOR (TYMAP-FACTORY) ----------------
+        let currentFactoryState = 'IDLE'; // IDLE, REBOOTING, OTA_PROGRESS
+        let targetSelectedOs = 'android';
+        let otaPercent = 0;
+
+        function renderFactoryOled() {
+            const c = document.getElementById('canvasFactoryOled');
+            if (!c) return;
+            const ctx = c.getContext('2d');
+            clearCtx(ctx);
+
+            if (currentFactoryState === 'IDLE') {
+                ctx.font = '8px "JetBrains Mono", monospace';
+                ctx.fillText('=== TYMAP FACTORY ===', 4, 10);
+                ctx.fillText('Wi-Fi: TYMAP Portal', 4, 24);
+                ctx.fillText('Pass:  12345678', 4, 36);
+                ctx.fillText('IP:    192.168.4.1', 4, 48);
+                ctx.fillText('Auto-boot: 45s...', 4, 60);
+            } else if (currentFactoryState === 'REBOOTING') {
+                ctx.font = '8px "JetBrains Mono", monospace';
+                ctx.fillText('=== TYMAP DUAL-BOOT ===', 4, 14);
+                ctx.font = 'bold 9px "Outfit", sans-serif';
+                ctx.fillText(`CHUYEN OS: ${targetSelectedOs === 'android' ? 'OTA_0' : 'OTA_1'}`, 4, 32);
+                ctx.font = '8px "JetBrains Mono", monospace';
+                ctx.fillText('Dang khoi dong lai...', 4, 52);
+            } else if (currentFactoryState === 'OTA_PROGRESS') {
+                ctx.font = 'bold 10px "Outfit", sans-serif';
+                ctx.fillText('DANG NAP OTA (.BIN)...', 10, 16);
+                ctx.font = '9px "JetBrains Mono", monospace';
+                ctx.fillText(`${Math.round(otaPercent * 14.3)} KB (${otaPercent}%)`, 10, 34);
+                ctx.strokeRect(10, 42, 108, 10);
+                ctx.fillRect(12, 44, (otaPercent / 100) * 104, 6);
+            }
+        }
+
+        function selectSimOs(os) {
+            targetSelectedOs = os;
+            document.getElementById('simOsAndroid').classList.toggle('active', os === 'android');
+            document.getElementById('simOsIos').classList.toggle('active', os === 'ios');
+        }
+
+        function submitSimSwitch() {
+            currentFactoryState = 'REBOOTING';
+            renderFactoryOled();
+            alert(`✅ ĐÃ LƯU CẤU HÌNH THÀNH CÔNG!\nPhân vùng khởi động tiếp theo: ${targetSelectedOs === 'android' ? 'ota_0 (Android TYMAP)' : 'ota_1 (iOS Sygic)'}\nMàn hình OLED đang hiển thị trạng thái Reboot.`);
+            setTimeout(() => {
+                currentFactoryState = 'IDLE';
+                renderFactoryOled();
+            }, 3500);
+        }
+
+        function onSimFileSelected() {
+            alert("Đã chọn file firmware: tymap_firmware_v2.bin (1.43 MB)");
+        }
+
+        function submitSimOta() {
+            currentFactoryState = 'OTA_PROGRESS';
+            otaPercent = 0;
+            const target = document.getElementById('simOtaPart').value;
+            const interval = setInterval(() => {
+                otaPercent += 10;
+                renderFactoryOled();
+                if (otaPercent >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        alert(`🎉 NẠP FIRMWARE THÀNH CÔNG VÀO PHÂN VÙNG [${target}]!\nThiết bị sẽ tự động kiểm tra checksum SHA-256 và khởi động lại.`);
+                        currentFactoryState = 'IDLE';
+                        renderFactoryOled();
+                    }, 500);
+                }
+            }, 250);
+        }
+
+        // ---------------- TẢI ẢNH PNG PIXEL-ART SẮC NÉT ----------------
+        function exportOledImage(canvasId, name) {
+            const c = document.getElementById(canvasId);
+            if (!c) return;
+            const up = document.createElement('canvas');
+            up.width = 512; up.height = 256;
+            const upCtx = up.getContext('2d');
+            upCtx.imageSmoothingEnabled = false;
+            upCtx.drawImage(c, 0, 0, 512, 256);
+            const a = document.createElement('a');
+            a.download = `${name}_512x256.png`;
+            a.href = up.toDataURL('image/png');
+            a.click();
+        }
+
+        // ---------------- KHỞI TẠO GALLERIES ----------------
+        const andGallery = [
+            { id: 'g_and_s1', title: 'STATUS S1: Chrono Clock', tag: 'Android Clock', desc: 'Đồng hồ số lớn, ngày tháng, nhiệt độ và điện áp xe.', fn: (ctx) => renderAndroidCanvas(ctx, 'STATUS', 0, true, 60, 68, false) },
+            { id: 'g_and_s2', title: 'STATUS S2: Digital Speed', tag: 'Android GPS', desc: 'Đồng hồ tốc độ lớn kèm thanh đo và biển báo 60.', fn: (ctx) => renderAndroidCanvas(ctx, 'STATUS', 1, true, 60, 68, true) },
+            { id: 'g_and_s3', title: 'STATUS S3: Voltmeter Pro', tag: 'Ắc Quy', desc: 'Vôn kế điện tử chính xác ±0.05V kèm thang sạc.', fn: (ctx) => renderAndroidCanvas(ctx, 'STATUS', 2, true, 60, 68, false) },
+            { id: 'g_and_s5', title: 'STATUS S5: Oscilloscope', tag: '30 FPS Realtime', desc: 'Sóng sạc bình xe máy thời gian thực phát hiện hư sạc.', fn: (ctx) => renderAndroidCanvas(ctx, 'STATUS', 3, true, 60, 68, false) },
+            { id: 'g_and_h1', title: 'HUD H1: Classic Boxed', tag: 'Dẫn Đường H1', desc: 'Mũi tên rẽ lớn, tên đường tiếng Việt và khoảng cách.', fn: (ctx) => renderAndroidCanvas(ctx, 'HUD', 0, true, 60, 68, true) },
+            { id: 'g_and_h2', title: 'HUD H2: Split Dashboard', tag: 'Dẫn Đường H2', desc: 'Cột trái tốc độ & biển báo, cột phải mũi tên rẽ.', fn: (ctx) => renderAndroidCanvas(ctx, 'HUD', 1, true, 60, 68, false) },
+            { id: 'g_and_map', title: 'MAP: Bitmap Stream 1BPP', tag: 'Bản Đồ Live', desc: 'Bản đồ mini nhận trực tiếp qua Bluetooth từ app.', fn: (ctx) => renderAndroidCanvas(ctx, 'MAP', 0, true, 60, 68, false) }
+        ];
+
+        const iosGallery = [
+            { id: 'g_ios_left', title: 'Sygic: Rẽ Trái 150M', tag: 'iOS Sygic BLE', desc: 'Mũi tên Vector rẽ trái đậm nét chuẩn app Sygic.', fn: (ctx) => renderIosCanvas(ctx, 'TURN', 8, '150 M', 2, 60) },
+            { id: 'g_ios_right', title: 'Sygic: Rẽ Phải 80M', tag: 'iOS Sygic BLE', desc: 'Mũi tên Vector rẽ phải rõ nét kèm cự ly số lớn.', fn: (ctx) => renderIosCanvas(ctx, 'TURN', 10, '80 M', 2, 60) },
+            { id: 'g_ios_straight', title: 'Sygic: Đi Thẳng 1.2KM', tag: 'iOS Sygic BLE', desc: 'Mũi tên đi thẳng xa lộ kèm biển báo tốc độ 80.', fn: (ctx) => renderIosCanvas(ctx, 'TURN', 13, '1.2 KM', 2, 80) },
+            { id: 'g_ios_uturn', title: 'Sygic: Quay Đầu U-Turn', tag: 'iOS Sygic BLE', desc: 'Biểu tượng quay đầu vòng cung U-turn chính xác.', fn: (ctx) => renderIosCanvas(ctx, 'TURN', 14, '50 M', 2, 50) },
+            { id: 'g_ios_round', title: 'Sygic: Vòng Xuyến Lối 2', tag: 'Roundabout', desc: 'Vòng tròn đôi với số lối ra thoát vòng xuyến (Lối 2).', fn: (ctx) => renderIosCanvas(ctx, 'ROUNDABOUT', 8, '200 M', 2, 60) },
+            { id: 'g_ios_idle', title: 'Sygic: Màn Chờ (Idle)', tag: 'iOS Standby', desc: 'Đồng hồ, trạng thái iPhone BLE, điện áp số lớn & thước bar.', fn: (ctx) => renderIosCanvas(ctx, 'IDLE', 8, '150 M', 2, 0) }
+        ];
+
+        function populateGallery(gridId, items) {
+            const container = document.getElementById(gridId);
+            if (!container) return;
+            container.innerHTML = '';
+            items.forEach(it => {
+                const card = document.createElement('div');
+                card.className = 'gallery-card';
+                card.innerHTML = `
+                    <div class="gallery-card-top">
+                        <span class="gallery-card-title">${it.title}</span>
+                        <span class="gallery-tag">${it.tag}</span>
+                    </div>
+                    <div class="gallery-canvas-wrap">
+                        <canvas id="${it.id}" width="128" height="64"></canvas>
+                    </div>
+                    <div class="gallery-desc">${it.desc}</div>
+                    <div class="gallery-footer">
+                        <span style="font-size:10px; color:var(--text-muted); font-family:'JetBrains Mono'">SH1106 128x64</span>
+                        <button class="btn-download-thumb" onclick="exportOledImage('${it.id}', '${it.id}')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Tải Ảnh PNG
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+                setTimeout(() => {
+                    const c = document.getElementById(it.id);
+                    if (c) it.fn(c.getContext('2d'));
+                }, 60);
+            });
+        }
+
+        // Loop animation
+        setInterval(() => {
+            andBlink = !andBlink;
+            oscOffset += 2;
+            renderAndroidStudio();
+            renderIosStudio();
+        }, 500);
+
+        function checkVideos() {
+            const vAnd = document.getElementById('videoPlayerAndroid');
+            const pAnd = document.getElementById('videoPlaceholderAndroid');
+            if (vAnd && vAnd.getAttribute('src') && vAnd.getAttribute('src').trim().length > 0) {
+                vAnd.style.display = 'block';
+                if (pAnd) pAnd.style.display = 'none';
+            }
+
+            const vIos = document.getElementById('videoPlayerIos');
+            const pIos = document.getElementById('videoPlaceholderIos');
+            if (vIos && vIos.getAttribute('src') && vIos.getAttribute('src').trim().length > 0) {
+                vIos.style.display = 'block';
+                if (pIos) pIos.style.display = 'none';
+            }
+
+            const vWire = document.getElementById('videoPlayerWiring');
+            const pWire = document.getElementById('videoPlaceholderWiring');
+            if (vWire && vWire.getAttribute('src') && vWire.getAttribute('src').trim().length > 0) {
+                vWire.style.display = 'block';
+                if (pWire) pWire.style.display = 'none';
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            updateAndroidSubUI();
+            renderAndroidStudio();
+            renderIosStudio();
+            renderFactoryOled();
+            populateGallery('galleryAndroid', andGallery);
+            populateGallery('galleryIos', iosGallery);
+            checkVideos();
+        });
+    </script>
+</body>
+
+</html>

@@ -34,17 +34,20 @@ sealed class UpdateCheckResult {
 }
 
 object UpdateManager {
+    const val OFFICIAL_APK_URL = "https://github.com/phamngocty/tymapwebside/releases/latest/download/TYMAP.apk"
+
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     /**
      * Danh sách máy chủ cập nhật theo thứ tự ưu tiên:
-     * 1. Gitea NAS (Public DuckDNS qua Nginx Proxy Manager SSL)
-     * 2. Gitea NAS (Mạng nội bộ LAN)
-     * 3. Fusion Engine NAS (Public DuckDNS)
-     * 4. GitHub Cloud (Dự phòng toàn cầu)
+     * 1. GitHub Cloud / Pages (Ưu tiên cập nhật đám mây GitHub)
+     * 2. Fusion Engine NAS (Public DuckDNS)
+     * 3. Gitea NAS (Public DuckDNS & LAN)
      */
     fun getDefaultUpdateUrls(context: Context): List<String> {
         val customUrl = PrefsHelper.getString(context, "github_update_url", "").trim()
@@ -52,18 +55,22 @@ object UpdateManager {
         if (customUrl.isNotEmpty()) {
             list.add(customUrl)
         }
-        // 1. Máy chủ NAS Fusion Engine (Public DuckDNS có SSL Let's Encrypt hợp lệ, hoạt động 24/7 trên cả WiFi & 4G)
+        // 1. GitHub Cloud / Pages (Ưu tiên cập nhật đám mây GitHub)
+        list.add("https://raw.githubusercontent.com/phamngocty/tymapwebside/main/version.json")
+        list.add("https://phamngocty.github.io/tymapwebside/version.json")
+        list.add("https://raw.githubusercontent.com/phamngocty/Tdriver/main/version.json")
+        // 2. Máy chủ NAS Fusion Engine (Public DuckDNS có SSL Let's Encrypt hợp lệ, hoạt động 24/7 trên cả WiFi & 4G)
         list.add("https://alert.nas152.duckdns.org/version.json")
-        // 2. Gitea NAS (Mạng nội bộ LAN)
+        // 3. Gitea NAS (Mạng nội bộ LAN)
         list.add("http://192.168.1.114:3002/nas152/Tdriver/raw/branch/master/version.json")
         list.add("http://192.168.1.114:3002/nas152/Tdriver/raw/branch/main/version.json")
-        // 3. Gitea NAS (Public DuckDNS)
+        // 4. Gitea NAS (Public DuckDNS)
         list.add("https://git.nas152.duckdns.org/nas152/Tdriver/raw/branch/master/version.json")
         list.add("https://git.nas152.duckdns.org/nas152/Tdriver/raw/branch/main/version.json")
-        // 4. Dự phòng repo TYMAP
+        // 5. Dự phòng repo TYMAP
         list.add("https://git.nas152.duckdns.org/nas152/TYMAP/raw/branch/main/version.json")
         list.add("http://192.168.1.114:3002/nas152/TYMAP/raw/branch/main/version.json")
-        // 5. GitHub Cloud (Dự phòng toàn cầu)
+        // 6. GitHub Cloud (Dự phòng toàn cầu)
         list.add("https://raw.githubusercontent.com/phamn/TYMAP/main/version.json")
         return list
     }
@@ -101,6 +108,11 @@ object UpdateManager {
                     val appVerName = appObj.optString("versionName", "")
                     var appApkUrl = appObj.optString("apkUrl", "")
                     val appChangelog = appObj.optString("changelog", "Bản cập nhật mới cho TYMAP.")
+
+                    // Tự động chuyển link tải từ NAS sang link tải GitHub Releases mới nhất
+                    if (appApkUrl.isEmpty() || appApkUrl.contains("nas152.duckdns.org") || appApkUrl.contains("192.168.1.114") || appApkUrl.contains("app-debug.apk")) {
+                        appApkUrl = OFFICIAL_APK_URL
+                    }
 
                     val fwObj = json.optJSONObject("firmware") ?: JSONObject()
                     var fwVerCode = fwObj.optInt("versionCode", 0)
