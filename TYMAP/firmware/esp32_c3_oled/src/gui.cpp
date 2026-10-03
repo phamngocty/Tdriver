@@ -56,10 +56,19 @@ void pushVoltSample(float v)
         voltMax = v;
 }
 
+// Helper: Kiểm tra xem bitmap 1bpp có rỗng hoàn toàn (toàn byte 0) không
+static bool isBitmapEmpty(const uint8_t *bitmap, int size = 288) {
+    if (!bitmap) return true;
+    for (int i = 0; i < size; i++) {
+        if (bitmap[i] != 0) return false;
+    }
+    return true;
+}
+
 // Vẽ icon rẽ 1bpp monochrome 48x48
 void drawCustomIcon(const uint8_t *bitmap, int xOffset, int yOffset, int scale)
 {
-    if (!bitmap)
+    if (!bitmap || isBitmapEmpty(bitmap, 288))
         return;
     for (int y = 0; y < 48; y++)
     {
@@ -755,7 +764,7 @@ void drawHUD()
     {
         // ---------------- H1: CLASSIC BOXED (ƯU TIÊN TÊN ĐƯỜNG & KHOẢNG CÁCH) ----------------
         // 1. Phía trên bên trái: LUÔN CÓ Icon rẽ chuẩn 48x48 (Bitmap hoặc Vector)
-        if (hasCustomIcon)
+        if (hasCustomIcon && !isBitmapEmpty(customIconBitmap, 288))
         {
             drawCustomIcon(customIconBitmap, 0, 0, 1);
         }
@@ -858,7 +867,7 @@ void drawHUD()
         u8g2.drawVLine(54, 0, 64);
 
         // Cột phải (x=56..127): LUÔN CÓ ICON RẼ + KHOẢNG CÁCH + TÊN ĐƯỜNG
-        if (hasCustomIcon)
+        if (hasCustomIcon && !isBitmapEmpty(customIconBitmap, 288))
         {
             drawCustomIcon(customIconBitmap, 58, 0, 1);
         }
@@ -878,7 +887,7 @@ void drawHUD()
     {
         // ---------------- H3: BIG ARROW FOCUS (Mũi tên lớn + Khoảng cách + Tên đường) ----------------
         // Cột trái: Mũi tên rẽ
-        if (hasCustomIcon)
+        if (hasCustomIcon && !isBitmapEmpty(customIconBitmap, 288))
         {
             drawCustomIcon(customIconBitmap, 2, 2, 1);
         }
@@ -965,7 +974,7 @@ void drawHUD()
         }
 
         // Thân giữa: Icon rẽ + khoảng cách rẽ lớn + tên đường tiếng Việt
-        if (hasCustomIcon)
+        if (hasCustomIcon && !isBitmapEmpty(customIconBitmap, 288))
         {
             drawCustomIcon(customIconBitmap, 2, 10, 1);
         }

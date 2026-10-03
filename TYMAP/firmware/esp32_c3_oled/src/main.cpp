@@ -393,9 +393,15 @@ class NavCallback : public NimBLECharacteristicCallbacks {
           eta = v;
         else if (k == "ete")
           ete = v;
-        else if (k == "dir" || k == "iconIndex")
-          navDirIdx = v.toInt();
-        else if (k == "total" || k == "totalDist")
+        else if (k == "dir" || k == "iconIndex") {
+          int newDir = v.toInt();
+          if (newDir != navDirIdx) {
+            navDirIdx = newDir;
+            // Khi ngã rẽ thay đổi sang hướng mới: tạm thời hạ hasCustomIcon để drawHUD()
+            // lập tức vẽ icon vector tương ứng theo navDirIdx, tránh kẹt ảnh của ngã rẽ trước
+            hasCustomIcon = false;
+          }
+        } else if (k == "total" || k == "totalDist")
           totalDist = v;
       }
     }
@@ -425,7 +431,7 @@ class NavCallback : public NimBLECharacteristicCallbacks {
   }
 };
 
-// Characterstic Callback: Nhận mã băm Icon TBT từ Google Maps
+// Characterstic Callback: Nhận mã băm Icon TBT từ Google Maps hoặc dữ liệu Icon trực tiếp
 class NavIconCallback : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic *pChar) override {
     std::string val = pChar->getValue();
@@ -444,8 +450,10 @@ class NavIconCallback : public NimBLECharacteristicCallbacks {
         hasCustomIcon = true;
         screenNeedsRedraw = true;
       } else {
-        hasCustomIcon =
-            false; // Tạm dùng icon vector trong lúc yêu cầu app gửi bitmap
+        // Chưa có trong cache: tạm hạ hasCustomIcon để hiển thị vector icon tương ứng của navDirIdx,
+        // đồng thời gửi yêu cầu icon_req sang app để nạp bitmap
+        hasCustomIcon = false;
+        screenNeedsRedraw = true;
         if (pDeviceStatusChar) {
           char reqBuf[64];
           snprintf(reqBuf, sizeof(reqBuf), "icon_req=%s", hashStr.c_str());
@@ -453,7 +461,15 @@ class NavIconCallback : public NimBLECharacteristicCallbacks {
           pDeviceStatusChar->notify();
         }
       }
-    } else if (val.size() == 288) {
+    } else if (val.size() == 292) {
+      uint32_t hash;
+      memcpy(&hash, val.data(), 4);
+      const uint8_t *bitmap = (const uint8_t *)(val.data() + 4);
+      memcpy(customIconBitmap, bitmap, 288);
+      addIconToCache(hash, bitmap);
+      hasCustomIcon = true;
+      screenNeedsRedraw = true;
+    } else if (val.size() >= 288) {
       memcpy(customIconBitmap, val.data(), 288);
       hasCustomIcon = true;
       screenNeedsRedraw = true;

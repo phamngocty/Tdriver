@@ -173,9 +173,9 @@
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/clib/u8g2.h \
  .pio/libdeps/esp32-c3-devkitm-1/U8g2/src/clib/u8x8.h \
  .pio/libdeps/esp32-c3-devkitm-1/ESP32Time/ESP32Time.h \
- D:/Documents/Arduino/libraries/FontMaker/FontMaker.h \
- D:/Documents/Arduino/libraries/FontMaker/IOT47_UTF8.h \
- D:/Documents/Arduino/libraries/FontMaker/MyFontMaker.h \
+ C:/Users/phamn/Documents/Arduino/libraries/FontMaker/FontMaker.h \
+ C:/Users/phamn/Documents/Arduino/libraries/FontMaker/IOT47_UTF8.h \
+ C:/Users/phamn/Documents/Arduino/libraries/FontMaker/MyFontMaker.h \
  C:/Users/phamn/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32c3/include/soc/esp32c3/include/soc/rtc_cntl_reg.h \
  .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson.h \
  .pio/libdeps/esp32-c3-devkitm-1/ArduinoJson/src/ArduinoJson.hpp \

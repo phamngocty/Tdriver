@@ -137,6 +137,7 @@ class NavigationService : Service() {
     
     private var lastTurnIconHash: Long = -1L
     private var lastTurnInstruction: String = ""
+    private var lastTurnIconIndex: Int = -1
     private var isNearTurnCompleted: Boolean = false
     private var currentDistanceToNextMeters: Int = -1
 
@@ -218,8 +219,12 @@ class NavigationService : Service() {
         icon1bpp: ByteArray?, 
         bitmap: android.graphics.Bitmap?
     ) {
-        val finalIcon1bpp = icon1bpp 
-            ?: bitmap?.let { IconUtils.convertTo1bpp(it, 48, 48) }
+        val validIcon1bpp = if (icon1bpp != null && !IconUtils.is1bppEmpty(icon1bpp)) icon1bpp else null
+        val finalIcon1bpp = validIcon1bpp 
+            ?: bitmap?.let { bmp ->
+                val b = IconUtils.convertTo1bpp(bmp, 48, 48)
+                if (!IconUtils.is1bppEmpty(b)) b else null
+            }
             ?: IconUtils.getVectorDrawable1bpp(this, com.example.tymap.ui.maneuverIconRes(iconIndex), 48, 48)
         val iconHash = finalIcon1bpp?.let { calculateCRC32(it) } ?: -1L
         
@@ -232,12 +237,18 @@ class NavigationService : Service() {
         val effectiveInstruction = if (instruction.isNotEmpty()) instruction else roadName
         val effectiveRoad = if (roadName.isNotEmpty()) roadName else instruction
 
-        // Tự động nhận diện ngã rẽ mới qua ảnh bitmap mũi tên hoặc instruction rẽ mới
-        if ((iconHash != -1L && iconHash != lastTurnIconHash) || (effectiveInstruction.isNotEmpty() && effectiveInstruction != lastTurnInstruction)) {
+        // Tự động nhận diện ngã rẽ mới qua ảnh bitmap mũi tên, instruction rẽ mới hoặc hướng rẽ mới
+        val isNewTurn = (iconHash != -1L && iconHash != lastTurnIconHash) || 
+                        (effectiveInstruction.isNotEmpty() && effectiveInstruction != lastTurnInstruction) ||
+                        (iconIndex != lastTurnIconIndex)
+        if (isNewTurn) {
             lastTurnIconHash = iconHash
             lastTurnInstruction = effectiveInstruction
+            lastTurnIconIndex = iconIndex
             isNearTurnCompleted = false
-            android.util.Log.d("NavigationService", "New turn arrow bitmap/instruction received ($effectiveInstruction)")
+            // Reset lastSentIconHash để đảm bảo icon của ngã rẽ mới luôn được gửi sang ESP32 ngay cả khi cùng loại icon
+            lastSentIconHash = -1
+            android.util.Log.d("NavigationService", "New turn arrow bitmap/instruction received ($effectiveInstruction, dir=$iconIndex)")
         }
 
         // Parse distance to meters
@@ -253,6 +264,7 @@ class NavigationService : Service() {
             duration = ete,
             title = effectiveInstruction, 
             directions = effectiveRoad,
+            iconIndex = iconIndex,
             icon1bpp = finalIcon1bpp,
             bitmapIcon = bitmap
         ))
@@ -262,18 +274,21 @@ class NavigationService : Service() {
         val bleData = "active=1\nnav=1\ndist=$cleanDist\ntitle=$effectiveInstruction\nroad=$effectiveRoad\ndir=$iconIndex\neta=$eta\nete=$ete"
         bleManager.writeNavigationData(bleData)
         
-        // 2. Gửi Icon Data (luôn gửi icon bitmap/hash khi có ngã rẽ mới)
-        if (finalIcon1bpp != null) {
+        // 2. Gửi Icon Data: Gửi trực tiếp cả bitmap 292-byte và hash khi có ngã rẽ mới
+        if (finalIcon1bpp != null && !IconUtils.is1bppEmpty(finalIcon1bpp)) {
             if (iconHash != lastSentIconHash) {
                 lastSentIconHash = iconHash
                 val hashHex = String.format("%08X", iconHash)
-                NavigationRepository.addLog("BLE: Sending icon hash = $hashHex")
+                NavigationRepository.addLog("BLE: Sending icon hash = $hashHex + direct bitmap (292 bytes)")
+                // Gửi trực tiếp 292 bytes (4-byte hash + 288-byte bitmap) sang ESP32
+                bleManager.writeIconData(iconHash, finalIcon1bpp)
+                // Đồng thời gửi hash sang CHA_NAV_TBT_ICON_UUID
                 bleManager.writeNavIconHash(hashHex)
             } else {
                 NavigationRepository.addLog("BLE: Icon hash matches lastSentIconHash ($iconHash), skip sending hash")
             }
         } else {
-            NavigationRepository.addLog("BLE: No icon1bpp available, clearing lastSentIconHash")
+            NavigationRepository.addLog("BLE: No valid icon1bpp available, clearing lastSentIconHash")
             lastSentIconHash = -1
         }
     }
@@ -471,8 +486,10 @@ class NavigationService : Service() {
             }
             
             val iconIndex = forcedIconIndex ?: (if (isGmaps) guessIconFromTitle(title) else 0)
-            val finalIcon1bpp = bitmap?.let { IconUtils.convertTo1bpp(it, 48, 48) }
-                ?: IconUtils.getVectorDrawable1bpp(this@NavigationService, com.example.tymap.ui.maneuverIconRes(iconIndex), 48, 48)
+            val finalIcon1bpp = bitmap?.let { bmp ->
+                val b = IconUtils.convertTo1bpp(bmp, 48, 48)
+                if (!IconUtils.is1bppEmpty(b)) b else null
+            } ?: IconUtils.getVectorDrawable1bpp(this@NavigationService, com.example.tymap.ui.maneuverIconRes(iconIndex), 48, 48)
             
             NavigationRepository.updateHudPreview(NavigationRepository.HudData(
                 active = true,
@@ -494,12 +511,13 @@ class NavigationService : Service() {
             val bleData = "active=1\nnav=1\ndist=$cleanDist\ntitle=$finalInstruction\nroad=$road\ndir=$iconIndex\neta=$eta\nete=$ete"
             bleManager.writeNavigationData(bleData)
 
-            if (finalIcon1bpp != null) {
+            if (finalIcon1bpp != null && !IconUtils.is1bppEmpty(finalIcon1bpp)) {
                 val iconHash = calculateCRC32(finalIcon1bpp)
                 if (iconHash != lastSentIconHash) {
                     lastSentIconHash = iconHash
                     val hashHex = String.format("%08X", iconHash)
-                    NavigationRepository.addLog("BLE: Sending in-app icon hash = $hashHex")
+                    NavigationRepository.addLog("BLE: Sending in-app icon hash = $hashHex + direct bitmap (292 bytes)")
+                    bleManager.writeIconData(iconHash, finalIcon1bpp)
                     bleManager.writeNavIconHash(hashHex)
                 }
             }
@@ -1790,22 +1808,15 @@ class NavigationService : Service() {
                 NavigationRepository.addLog("BLE: Received icon_req for hash = $hashHex")
                 val currentHud = NavigationRepository.hudPreviewData.value
                 val icon1bpp = currentHud?.icon1bpp
-                if (icon1bpp != null) {
+                if (icon1bpp != null && !IconUtils.is1bppEmpty(icon1bpp)) {
                     val currentHash = calculateCRC32(icon1bpp)
                     val currentHashHex = String.format("%08X", currentHash)
-                    android.util.Log.d("BleManager", "observeIconRequests: Current hash = $currentHashHex, requested = $hashHex")
-                    NavigationRepository.addLog("BLE: Current icon hash = $currentHashHex, requested = $hashHex")
-                    if (currentHashHex == hashHex) {
-                        android.util.Log.d("BleManager", "observeIconRequests: Writing icon bitmap data (288 bytes)")
-                        NavigationRepository.addLog("BLE: Writing icon bitmap data (288 bytes) to CHA_ICON_DATA")
-                        bleManager.writeIconData(currentHash, icon1bpp)
-                    } else {
-                        android.util.Log.w("BleManager", "observeIconRequests: WARNING - Hash mismatch!")
-                        NavigationRepository.addLog("BLE: WARNING - Hash mismatch! current=$currentHashHex, requested=$hashHex")
-                    }
+                    android.util.Log.d("BleManager", "observeIconRequests: Responding with icon bitmap (292 bytes), hash = $currentHashHex")
+                    NavigationRepository.addLog("BLE: Responding with icon bitmap (292 bytes), hash = $currentHashHex")
+                    bleManager.writeIconData(currentHash, icon1bpp)
                 } else {
-                    android.util.Log.e("BleManager", "observeIconRequests: ERROR - current icon1bpp is NULL")
-                    NavigationRepository.addLog("BLE: ERROR - Received icon_req but current icon1bpp is NULL")
+                    android.util.Log.e("BleManager", "observeIconRequests: ERROR - current icon1bpp is NULL or empty")
+                    NavigationRepository.addLog("BLE: ERROR - Received icon_req but current icon1bpp is NULL or empty")
                 }
             }
         }

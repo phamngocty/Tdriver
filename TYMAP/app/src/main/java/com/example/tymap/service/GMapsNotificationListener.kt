@@ -189,10 +189,18 @@ class GMapsNotificationListener : NotificationListenerService() {
         // Nếu thông báo trống rỗng hoàn toàn, bỏ qua
         if (title.isEmpty() && text.isEmpty() && bigText.isEmpty()) return
 
-        // Ưu tiên lấy icon
-        val icon = sbn.notification.getLargeIcon() ?: sbn.notification.smallIcon
-        val rawIconBitmap = icon?.loadDrawable(this)?.let { IconUtils.drawableToBitmap(it) }
-        val icon1bppBytes = rawIconBitmap?.let { IconUtils.convertTo1bpp(it, 48, 48) }
+        // Ưu tiên lấy icon mũi tên chỉ đường thực tế (chỉ dùng getLargeIcon, không lấy smallIcon vì smallIcon là logo app Google Maps)
+        val icon = sbn.notification.getLargeIcon()
+        val rawIconBitmap = try {
+            icon?.loadDrawable(this)?.let { IconUtils.drawableToBitmap(it, 48, 48) }
+        } catch (e: Exception) {
+            Log.w("GMapsListener", "Could not load notification icon: ${e.message}")
+            null
+        }
+        val icon1bppBytes = rawIconBitmap?.let { 
+            val b = IconUtils.convertTo1bpp(it, 48, 48)
+            if (!IconUtils.is1bppEmpty(b)) b else null
+        }
         
         // Thu nhỏ bitmap an toàn tối đa 96x96 để tránh lỗi TransactionTooLargeException gây crash app
         val safeIconBitmap = rawIconBitmap?.let {
@@ -220,7 +228,7 @@ class GMapsNotificationListener : NotificationListenerService() {
         Log.d("GMapsListener", logMsg)
         NavigationRepository.addLog(logMsg)
 
-        val iconIndex = guessIconIndex(parsedData.instruction, text)
+        val iconIndex = guessIconIndex("${parsedData.instruction} $title", text)
 
         val intent = Intent("com.example.tymap.ACTION_GMAPS_HUD").apply {
             putExtra("active", true)

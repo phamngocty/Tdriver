@@ -7,12 +7,10 @@ import android.graphics.drawable.Drawable
 import java.io.ByteArrayOutputStream
 
 object IconUtils {
-    fun drawableToBitmap(drawable: Drawable): Bitmap {
-        val bitmap = Bitmap.createBitmap(
-            drawable.intrinsicWidth.coerceAtLeast(1),
-            drawable.intrinsicHeight.coerceAtLeast(1),
-            Bitmap.Config.ARGB_8888
-        )
+    fun drawableToBitmap(drawable: Drawable, width: Int = 48, height: Int = 48): Bitmap {
+        val w = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else width
+        val h = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else height
+        val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         drawable.setBounds(0, 0, canvas.width, canvas.height)
         drawable.draw(canvas)
@@ -24,6 +22,23 @@ object IconUtils {
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
         return stream.toByteArray()
     }
+
+    /**
+     * Kiểm tra xem mảng byte 1bpp có hợp lệ không (loại bỏ bitmap rỗng hoàn toàn hoặc bị bệt trắng đặc > 85%).
+     */
+    fun is1bppEmpty(buffer: ByteArray?): Boolean {
+        if (buffer == null || buffer.isEmpty()) return true
+        var onBits = 0
+        for (b in buffer) {
+            if (b != 0.toByte()) {
+                onBits += java.lang.Integer.bitCount(b.toInt() and 0xFF)
+            }
+        }
+        val totalBits = buffer.size * 8
+        // Hợp lệ cho icon 48x48: có ít nhất 10 pixel và không quá 85% pixel bị bật (tránh khối trắng đặc)
+        return onBits < 10 || onBits > (totalBits * 0.85f)
+    }
+
     /**
      * Converts a Bitmap to 1bpp (1 bit per pixel) monochrome data.
      * Suitable for ESP32/e-ink displays.
@@ -33,7 +48,11 @@ object IconUtils {
      * @return ByteArray of size (width * height / 8)
      */
     fun convertTo1bpp(bitmap: Bitmap, width: Int = 48, height: Int = 48): ByteArray {
-        val resized = Bitmap.createScaledBitmap(bitmap, width, height, true)
+        val resized = if (bitmap.width == width && bitmap.height == height) {
+            bitmap
+        } else {
+            Bitmap.createScaledBitmap(bitmap, width, height, true)
+        }
         val buffer = ByteArray((width * height) / 8)
         var bitIndex = 0
         
@@ -47,9 +66,10 @@ object IconUtils {
                 val alpha = Color.alpha(pixel)
                 
                 // If transparent, it's off (0). If visible, check luminance.
-                // For nav icons (usually white or bright), luminance > 128 is "on" (1)
+                // For nav icons (usually white or bright), luminance > 100 is "on" (1)
+                // Hỗ trợ cả silhouette đen trên nền trong suốt (alpha > 180, dark pixel)
                 val luminance = (0.299 * r + 0.587 * g + 0.114 * b)
-                val isPixelOn = alpha > 128 && (luminance > 100 || (r > 100 || g > 100 || b > 100))
+                val isPixelOn = (alpha > 80 && luminance > 90) || (alpha > 180 && luminance < 50 && (r == 0 && g == 0 && b == 0))
                 
                 if (isPixelOn) {
                     val byteIdx = bitIndex / 8
@@ -58,6 +78,9 @@ object IconUtils {
                 }
                 bitIndex++
             }
+        }
+        if (resized != bitmap) {
+            resized.recycle()
         }
         return buffer
     }
