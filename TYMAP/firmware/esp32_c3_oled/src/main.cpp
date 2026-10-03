@@ -201,11 +201,14 @@ void sendDeviceStatus() {
 
   int rssi = -55 - (random() % 15);
 
+  const esp_partition_t *runningPart = esp_ota_get_running_partition();
+  const char *slotName = runningPart ? runningPart->label : "ota_0";
+
   snprintf(buffer, sizeof(buffer),
            "mode=%s\nvoltage=%.2f\nrssi=%d\ndisplay=SH1106\ntimeSynced=%"
-           "d\nnotifCount=%d\nver=%s\nfw_code=%d",
+           "d\nnotifCount=%d\nver=%s\nfw_code=%d\nslot=%s",
            modeStr.c_str(), batteryVoltage, rssi, timeSynced ? 1 : 0,
-           notifCount, FW_VERSION_STR, FW_VERSION_CODE);
+           notifCount, FW_VERSION_STR, FW_VERSION_CODE, slotName);
 
   pDeviceStatusChar->setValue((uint8_t *)buffer, strlen(buffer));
   pDeviceStatusChar->notify();
@@ -867,6 +870,25 @@ class RemoteCmdCallback : public NimBLECharacteristicCallbacks {
       // Chuyển kiểu HUD
       hudStyle = (hudStyle + 1) % 4;
       preferences.putUChar("hudStyle", hudStyle);
+    } else if (cmd == 0x40 || val.find("switch_factory") != std::string::npos) {
+      Serial.println("[BLE CMD] Chuyen sang Factory Web Portal!");
+      switchToFactoryPortal("LENH APP: CHUYEN FACTORY");
+    } else if (cmd == 0x41 || val.find("switch_ios") != std::string::npos) {
+      Serial.println("[BLE CMD] Chuyen sang iOS Sygic!");
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_6x10_tf);
+      u8g2.drawStr(0, 20, "=== TYMAP DUAL-BOOT ===");
+      u8g2.drawStr(0, 36, "CHUYEN SANG IOS SYGIC...");
+      u8g2.drawStr(0, 52, "Dang khoi dong lai...");
+      u8g2.sendBuffer();
+      delay(500);
+      const esp_partition_t *iosPart = esp_partition_find_first(
+          ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, "app_ios");
+      if (iosPart) {
+        esp_ota_set_boot_partition(iosPart);
+      }
+      delay(200);
+      esp_restart();
     }
 
     screenNeedsRedraw = true;
@@ -933,6 +955,10 @@ class OledImageCallback : public NimBLECharacteristicCallbacks {
   }
 };
 
+// State for BLE OTA
+static bool otaIsTargetIos = false;
+static const esp_partition_t *otaIosPart = nullptr;
+
 // Characterstic Callback: BLE OTA Firmware Update
 class OtaCallback : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic *pChar) override {
@@ -941,52 +967,92 @@ class OtaCallback : public NimBLECharacteristicCallbacks {
       return;
 
     if (!isOtaMode && val.length() >= 4) {
-      // Lệnh Khởi động nạp OTA (4 byte Kích thước file LE)
+      // Lệnh Khởi động nạp OTA: 4 byte kích thước (LE) + (tùy chọn) 1 byte target (0x00=Android, 0x01=iOS)
       memcpy(&otaExpectedSize, val.data(), 4);
-      if (otaExpectedSize > 0 && Update.begin(otaExpectedSize, U_FLASH)) {
-        isOtaMode = true;
-        otaWritten = 0;
-        screenNeedsRedraw = true;
-        Serial.printf("BLE OTA (C3): Started! Total size = %d bytes\n",
-                      otaExpectedSize);
+      uint8_t targetType = (val.length() >= 5) ? (uint8_t)val[4] : 0x00;
+
+      if (targetType == 0x01) {
+        // Nạp riêng cho phân vùng iOS Sygic (app_ios)
+        otaIosPart = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, "app_ios");
+        if (otaIosPart && otaExpectedSize > 0 && otaExpectedSize <= otaIosPart->size) {
+          size_t eraseSize = (otaExpectedSize + 4095) & ~4095;
+          esp_partition_erase_range(otaIosPart, 0, eraseSize);
+          otaIsTargetIos = true;
+          isOtaMode = true;
+          otaWritten = 0;
+          screenNeedsRedraw = true;
+          Serial.printf("BLE OTA (C3): Started iOS Sygic OTA! Total size = %d bytes into app_ios\n",
+                        otaExpectedSize);
+        } else {
+          Serial.println("BLE OTA ERROR (C3): Khong tim thay partition app_ios hoac size qua lon!");
+        }
       } else {
-        Serial.printf(
-            "BLE OTA ERROR (C3): Update.begin failed for size = %d bytes\n",
-            otaExpectedSize);
+        // Nạp Android chuẩn A/B (hoán đổi an toàn giữa ota_0 và ota_1)
+        otaIsTargetIos = false;
+        if (otaExpectedSize > 0 && Update.begin(otaExpectedSize, U_FLASH)) {
+          isOtaMode = true;
+          otaWritten = 0;
+          screenNeedsRedraw = true;
+          Serial.printf("BLE OTA (C3): Started Android A/B OTA! Total size = %d bytes\n",
+                        otaExpectedSize);
+        } else {
+          Serial.printf(
+              "BLE OTA ERROR (C3): Update.begin failed for size = %d bytes\n",
+              otaExpectedSize);
+        }
       }
     } else if (isOtaMode) {
       if (val.length() == 1 && (uint8_t)val[0] == 0x31) {
-        // Lệnh 0x31: Hoàn tất nạp OTA & Reboot
-        if (Update.end(true)) {
-          Serial.println(
-              "BLE OTA (C3): Firmware update success! Rebooting ESP32-C3...");
+        // Lệnh 0x31: Hoàn tất nạp OTA
+        if (otaIsTargetIos) {
+          Serial.println("BLE OTA (C3): Firmware iOS Sygic update success! (No reboot needed)");
           if (pDeviceStatusChar) {
-            const char *ack = "ota=success\nreboot=1";
+            const char *ack = "ota=success\ntarget=ios\nreboot=0";
             pDeviceStatusChar->setValue((uint8_t *)ack, strlen(ack));
             pDeviceStatusChar->notify();
           }
           otaWritten = otaExpectedSize;
           screenNeedsRedraw = true;
-          delay(1200);
-          ESP.restart();
-        } else {
-          Serial.printf("BLE OTA ERROR (C3): Update.end failed! err=%d "
-                        "written=%d exp=%d\n",
-                        Update.getError(), otaWritten, otaExpectedSize);
-          if (pDeviceStatusChar) {
-            char errBuf[64];
-            snprintf(errBuf, sizeof(errBuf),
-                     "ota=failed\nerr=%d\nwritten=%d\nexp=%d",
-                     Update.getError(), otaWritten, otaExpectedSize);
-            pDeviceStatusChar->setValue((uint8_t *)errBuf, strlen(errBuf));
-            pDeviceStatusChar->notify();
-          }
           isOtaMode = false;
-          screenNeedsRedraw = true;
+        } else {
+          // Android: Update.end & reboot
+          if (Update.end(true)) {
+            Serial.println(
+                "BLE OTA (C3): Android firmware update success! Rebooting ESP32-C3...");
+            if (pDeviceStatusChar) {
+              const char *ack = "ota=success\ntarget=android\nreboot=1";
+              pDeviceStatusChar->setValue((uint8_t *)ack, strlen(ack));
+              pDeviceStatusChar->notify();
+            }
+            otaWritten = otaExpectedSize;
+            screenNeedsRedraw = true;
+            delay(1200);
+            ESP.restart();
+          } else {
+            Serial.printf("BLE OTA ERROR (C3): Update.end failed! err=%d "
+                          "written=%d exp=%d\n",
+                          Update.getError(), otaWritten, otaExpectedSize);
+            if (pDeviceStatusChar) {
+              char errBuf[64];
+              snprintf(errBuf, sizeof(errBuf),
+                       "ota=failed\nerr=%d\nwritten=%d\nexp=%d",
+                       Update.getError(), otaWritten, otaExpectedSize);
+              pDeviceStatusChar->setValue((uint8_t *)errBuf, strlen(errBuf));
+              pDeviceStatusChar->notify();
+            }
+            isOtaMode = false;
+            screenNeedsRedraw = true;
+          }
         }
       } else {
         // Gói tin binary chunk
-        size_t bytesWritten = Update.write((uint8_t *)val.data(), val.length());
+        size_t bytesWritten = 0;
+        if (otaIsTargetIos && otaIosPart) {
+          esp_err_t err = esp_partition_write(otaIosPart, otaWritten, val.data(), val.length());
+          bytesWritten = (err == ESP_OK) ? val.length() : 0;
+        } else {
+          bytesWritten = Update.write((uint8_t *)val.data(), val.length());
+        }
         otaWritten += bytesWritten;
         screenNeedsRedraw = true;
         if (otaExpectedSize > 0 && otaWritten % 20000 < val.length()) {
@@ -1036,6 +1102,15 @@ void setup() {
 
   // Kiem tra bo dem Power-cycle 3 lan de tu dong vao Factory Portal
   checkPowerCycleToFactory();
+
+  // Ghi nhận slot Android đang chạy (ota_0 hoặc ota_1) vào NVS để Factory Portal luôn boot đúng slot mới nhất
+  const esp_partition_t *runningPart = esp_ota_get_running_partition();
+  if (runningPart && (strcmp(runningPart->label, "ota_0") == 0 || strcmp(runningPart->label, "ota_1") == 0)) {
+    Preferences pCfg;
+    pCfg.begin("tymap_cfg", false);
+    pCfg.putString("android_slot", runningPart->label);
+    pCfg.end();
+  }
 
   // Cai dat nut BOOT (GPIO9): Nhan giu 3s de vao Factory Web Portal
   pinMode(BOOT_BTN, INPUT_PULLUP);

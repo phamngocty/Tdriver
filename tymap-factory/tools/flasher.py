@@ -29,9 +29,9 @@ BIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "binarie
 OFFSETS = {
     "bootloader": "0x0",
     "partitions": "0x8000",
-    "factory":    "0x10000",
-    "android":    "0x110000", # ota_0
-    "ios":        "0x280000", # ota_1
+    "factory":    "0x10000",  # factory (896 KB)
+    "android":    "0xF0000",  # ota_0 (768 KB)
+    "ios":        "0x270000", # app_ios (768 KB)
 }
 
 FILES = {
@@ -211,8 +211,8 @@ def interactive_menu():
         print("="*60)
         print("  [1] Nap TRON GOI Dual-Boot (Bootloader + Partitions + Factory + Android + iOS)")
         print("  [2] Nap rieng Web Portal Factory (Offset 0x10000)")
-        print("  [3] Nap rieng Android TYMAP BLE  (Offset 0x110000)")
-        print("  [4] Nap rieng iOS Sygic BLE      (Offset 0x280000)")
+        print("  [3] Nap rieng Android TYMAP BLE  (Offset 0xF0000 - ota_0)")
+        print("  [4] Nap rieng iOS Sygic BLE      (Offset 0x270000 - app_ios)")
         print("  [5] Chi XOA TOAN BO FLASH (Erase Flash) - Khong nap firmware")
         print("  [C] Chon lai cong COM khac")
         print("  [0] Thoat")

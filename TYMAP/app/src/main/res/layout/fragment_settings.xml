@@ -2568,6 +2568,105 @@
                         android:text="Tải &amp; Nâng cấp Firmware ESP32 HUD (BLE OTA)"
                         android:visibility="gone"
                         android:layout_marginTop="4dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnApplyIosFwUpdate"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Tải &amp; Nạp Firmware iOS Sygic HUD (BLE OTA)"
+                        android:visibility="gone"
+                        android:layout_marginTop="4dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card Dual-Boot: ĐIỀU KHIỂN HỆ ĐIỀU HÀNH & PHÂN VÙNG DUAL-BOOT -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardDualBoot"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="8dp"
+                app:strokeWidth="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_card"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <!-- Header -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="10dp">
+
+                        <ImageView
+                            android:layout_width="10dp"
+                            android:layout_height="10dp"
+                            android:src="@drawable/ic_status_dot"
+                            app:tint="#00E5FF" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:text="TYMAP DUAL-BOOT · QUẢN LÝ HỆ ĐIỀU HÀNH"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="#F1F5F9" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="DUAL OS"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#00E5FF" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvCurrentSlot"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Trạng thái: Đang kết nối Android • Slot A (ota_0)"
+                        android:textSize="12sp"
+                        android:textColor="@color/colorTextMuted"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- Buttons to switch OS -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:weightSum="2">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSwitchToIos"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="🍎 Sang iOS (Sygic)"
+                            android:textSize="12sp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSwitchToFactory"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="4dp"
+                            android:text="🌐 Vào Web Portal"
+                            android:textSize="12sp" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

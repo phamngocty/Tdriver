@@ -25,7 +25,11 @@ data class UpdateInfo(
     val firmwareVersionCode: Int,
     val firmwareVersionName: String,
     val firmwareBinUrl: String,
-    val firmwareChangelog: String
+    val firmwareChangelog: String,
+    val hasIosFirmwareUpdate: Boolean = false,
+    val iosFirmwareVersionName: String = "",
+    val iosFirmwareBinUrl: String = "",
+    val iosFirmwareChangelog: String = ""
 )
 
 sealed class UpdateCheckResult {
@@ -158,6 +162,16 @@ object UpdateManager {
                         fwBinUrl = "$baseUrl/${fwBinUrl.removePrefix("./")}"
                     }
 
+                    // Hỗ trợ Firmware iOS Sygic BLE
+                    val fwIosObj = json.optJSONObject("firmware_ios")
+                    var iosBinUrl = fwIosObj?.optString("binUrl", "") ?: ""
+                    val iosVerName = fwIosObj?.optString("versionName", "") ?: ""
+                    val iosChangelog = fwIosObj?.optString("changelog", "") ?: ""
+                    if (iosBinUrl.startsWith("./") || (!iosBinUrl.startsWith("http://") && !iosBinUrl.startsWith("https://") && iosBinUrl.isNotEmpty())) {
+                        iosBinUrl = "$baseUrl/${iosBinUrl.removePrefix("./")}"
+                    }
+                    val hasIosFirmwareUpdate = iosBinUrl.isNotEmpty()
+
                     val currentAppVerName = try {
                         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
                     } catch (e: Exception) { "1.0.0" }
@@ -188,11 +202,15 @@ object UpdateManager {
                         firmwareVersionCode = fwVerCode,
                         firmwareVersionName = fwVerName,
                         firmwareBinUrl = fwBinUrl,
-                        firmwareChangelog = "[$displayLabel] $fwChangelog"
+                        firmwareChangelog = "[$displayLabel] $fwChangelog",
+                        hasIosFirmwareUpdate = hasIosFirmwareUpdate,
+                        iosFirmwareVersionName = iosVerName,
+                        iosFirmwareBinUrl = iosBinUrl,
+                        iosFirmwareChangelog = iosChangelog
                     )
 
                     // Nếu tìm thấy cập nhật (App hoặc FW có link tải), trả về kết quả ngay
-                    if (hasAppUpdate || hasFirmwareUpdate) {
+                    if (hasAppUpdate || hasFirmwareUpdate || hasIosFirmwareUpdate) {
                         NavigationRepository.addLog("UpdateManager: Tìm thấy bản cập nhật mới ($displayLabel) từ: $updateUrl")
                         return@withContext UpdateCheckResult.Success(info)
                     }

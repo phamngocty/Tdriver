@@ -243,6 +243,11 @@ class MyBleManager(context: Context) : BleManager(context) {
                 com.example.tymap.utils.PrefsHelper.putString(context, "connected_device_display", disp)
             }
         }
+        statusMap["slot"]?.let { slot ->
+            if (slot.isNotEmpty()) {
+                com.example.tymap.utils.PrefsHelper.putString(context, "esp32_running_slot", slot)
+            }
+        }
 
         // Tự động kích hoạt đồng bộ thời gian nếu thiết bị báo chưa đồng bộ
         if (statusMap["timeSynced"] == "0") {
@@ -501,14 +506,16 @@ class MyBleManager(context: Context) : BleManager(context) {
         NavigationRepository.updateDeviceStatus(currentStatus)
     }
 
-    suspend fun writeEsp32FirmwareOta(binData: ByteArray, onProgress: (Int) -> Unit): Boolean {
+    suspend fun writeEsp32FirmwareOta(binData: ByteArray, target: Int = 0, onProgress: (Int) -> Unit): Boolean {
         val char = otaChar ?: return false
         val totalSize = binData.size
-        NavigationRepository.addLog("BLE OTA: Khởi động nạp Firmware ESP32 ($totalSize bytes)")
+        val targetName = if (target == 1) "iOS (Sygic)" else "Android"
+        NavigationRepository.addLog("BLE OTA: Khởi động nạp Firmware ESP32 [$targetName] ($totalSize bytes)")
         
-        // 1. Send OTA Start Command (4 bytes total size LE) to CHA_OTA
-        val startHeader = ByteArray(4)
-        ByteBuffer.wrap(startHeader).order(ByteOrder.LITTLE_ENDIAN).putInt(totalSize)
+        // 1. Send OTA Start Command: 4 bytes total size LE + 1 byte target (0=Android, 1=iOS)
+        val startHeader = ByteArray(5)
+        ByteBuffer.wrap(startHeader, 0, 4).order(ByteOrder.LITTLE_ENDIAN).putInt(totalSize)
+        startHeader[4] = target.toByte()
         writeCharacteristic(char, startHeader, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE)
             .split()
             .suspend()
@@ -540,6 +547,26 @@ class MyBleManager(context: Context) : BleManager(context) {
         NavigationRepository.addLog("BLE OTA: Đã gửi lệnh kết thúc (0x31). Đợi ESP32 hoàn tất ghi và Reboot...")
         kotlinx.coroutines.delay(1000)
         return true
+    }
+
+    /**
+     * Gửi lệnh BLE yêu cầu ESP32 chuyển sang phân hệ iOS (Sygic BLE).
+     */
+    fun requestSwitchToIos() {
+        val char = remoteCmdChar ?: return
+        val payload = byteArrayOf(0x41.toByte())
+        writeCharacteristic(char, payload, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).enqueue()
+        NavigationRepository.addLog("BLE Tx: Yêu cầu ESP32 chuyển sang chế độ iOS (Sygic)")
+    }
+
+    /**
+     * Gửi lệnh BLE yêu cầu ESP32 chuyển sang chế độ Web Portal cấu hình.
+     */
+    fun requestSwitchToFactory() {
+        val char = remoteCmdChar ?: return
+        val payload = byteArrayOf(0x40.toByte())
+        writeCharacteristic(char, payload, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE).enqueue()
+        NavigationRepository.addLog("BLE Tx: Yêu cầu ESP32 khởi động vào Web Portal Cấu Hình")
     }
 
     /**

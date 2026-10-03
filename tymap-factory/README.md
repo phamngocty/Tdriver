@@ -15,28 +15,29 @@ tymap-factory/
 │   ├── bootloader.bin     # Bootloader ESP32-C3 (Offset 0x0)
 │   ├── partitions.bin     # Bảng phân vùng nhị phân (Offset 0x8000)
 │   ├── factory.bin        # Web Portal cấu hình (Offset 0x10000 - Phân vùng factory)
-│   ├── android.bin        # Firmware Android TYMAP BLE (Offset 0x110000 - Phân vùng ota_0)
-│   └── ios.bin            # Firmware iOS Sygic BLE (Offset 0x280000 - Phân vùng ota_1)
+│   ├── android.bin        # Firmware Android TYMAP BLE (Offset 0xF0000 - Phân vùng ota_0)
+│   └── ios.bin            # Firmware iOS Sygic BLE (Offset 0x270000 - Phân vùng app_ios)
 └── tools/                 # Bộ công cụ nạp tự động (Interactive menu, auto COM, Erase Flash)
     ├── flasher.py         # Script Python điều khiển esptool thông minh
     ├── flash_menu.bat     # [KHUYÊN DÙNG] Menu chọn cổng COM & tùy chọn Erase Flash
     ├── flash_all.bat      # Nạp trọn gói cả 2 hệ điều hành chỉ với 1 click
     ├── flash_android.bat  # Nạp nhanh firmware Android vào ota_0
-    ├── flash_ios.bat      # Nạp nhanh firmware Sygic vào ota_1
+    ├── flash_ios.bat      # Nạp nhanh firmware Sygic vào app_ios
     └── flash_factory.bat  # Nạp nhanh Web Portal vào factory
 ```
 
 ---
 
-## 2. Bảng Phân Vùng Flash 4MB
+## 2. Bảng Phân Vùng Flash 4MB (Chuẩn Công Nghiệp Dual-Boot + Safe A/B OTA)
 
 | Phân vùng | Phân loại | Offset | Kích thước | Chức năng |
 |---|---|---|---|---|
 | `nvs` | data / nvs | `0x9000` | 20 KB (`0x5000`) | Lưu cấu hình hệ thống & bộ đếm Power-cycle |
 | `otadata` | data / ota | `0xE000` | 8 KB (`0x2000`) | Quản lý phân vùng boot hiện tại |
-| `factory` | app / factory | `0x10000` | 1 MB (`0x100000`) | Web Captive Portal cấu hình chuyển OS |
-| `ota_0` | app / ota_0 | `0x110000` | ~1.43 MB (`0x170000`) | Firmware Android (TYMAP BLE) |
-| `ota_1` | app / ota_1 | `0x280000` | ~1.43 MB (`0x170000`) | Firmware iOS (Sygic BLE HUD) |
+| `factory` | app / factory | `0x10000` | 896 KB (`0xE0000`) | Web Captive Portal cấu hình chuyển OS |
+| `ota_0` | app / ota_0 | `0xF0000` | 768 KB (`0xC0000`) | Android Slot A (TYMAP BLE) |
+| `ota_1` | app / ota_1 | `0x1B0000` | 768 KB (`0xC0000`) | Android Slot B (Hoán đổi BLE OTA an toàn) |
+| `app_ios` | app / test | `0x270000` | 768 KB (`0xC0000`) | Firmware iOS (Sygic BLE HUD) độc lập |
 
 ---
 

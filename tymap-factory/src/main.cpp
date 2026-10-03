@@ -196,8 +196,9 @@ static void handleRoot() {
         "<div class='card-title'>📦 NẠP FIRMWARE OTA (.BIN)</div>"
         "<form action='/upload' method='POST' enctype='multipart/form-data'>"
         "<select name='partition' class='select'>"
-        "<option value='ota_0'>Phân vùng ota_0 (Android TYMAP)</option>"
-        "<option value='ota_1'>Phân vùng ota_1 (iOS Sygic BLE)</option>"
+        "<option value='ota_0'>Phân vùng ota_0 (Android Slot A)</option>"
+        "<option value='ota_1'>Phân vùng ota_1 (Android Slot B - OTA)</option>"
+        "<option value='app_ios'>Phân vùng app_ios (iOS Sygic BLE)</option>"
         "<option value='factory'>Phân vùng factory (Web Portal)</option>"
         "</select>"
         "<input type='file' name='update' accept='.bin' class='file-input' "
@@ -224,7 +225,17 @@ static void handleSwitch() {
   p.putString(KEY_OS, os);
   p.end();
 
-  const char *label = (os == "android") ? "ota_0" : "ota_1";
+  const char *label = "ota_0";
+  if (os == "ios") {
+    label = "app_ios";
+  } else {
+    // Android: chọn slot active gần nhất (ota_0 hoặc ota_1)
+    Preferences pSlot;
+    pSlot.begin(NVS_NS, true);
+    String activeSlot = pSlot.getString("android_slot", "ota_0");
+    pSlot.end();
+    label = (activeSlot == "ota_1") ? "ota_1" : "ota_0";
+  }
   bool ok = setBootPartitionByLabel(label);
 
   String msg = "<div class='card' style='text-align:center;padding:30px 20px'>"

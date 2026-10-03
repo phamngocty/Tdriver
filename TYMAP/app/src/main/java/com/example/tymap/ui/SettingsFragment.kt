@@ -338,6 +338,12 @@ class SettingsFragment : Fragment() {
                     binding.tvVoltage.text = "Ắc quy: ${status["voltage"] ?: "--"}V"
                 }
                 binding.tvEspMode.text = "Mode: ${status["mode"] ?: "--"}"
+                status["slot"]?.let { slot ->
+                    if (slot.isNotEmpty()) {
+                        val slotLabel = if (slot == "ota_1") "Android Slot B (ota_1 - Sau OTA)" else "Android Slot A (ota_0)"
+                        binding.tvCurrentSlot.text = "Hệ điều hành: Android • Slot đang chạy: $slotLabel"
+                    }
+                }
             }
         }
     }
@@ -1474,7 +1480,44 @@ class SettingsFragment : Fragment() {
                 }
             } catch (e: Exception) { 6 }
             val fwVerName = PrefsHelper.getString(ctx, "esp32_fw_version_name", "1.0.6")
-            binding.tvVersion.text = "Phiên bản App: v$appVerName (Build $appVerCode) • Firmware ESP32: v$fwVerName\n(Nhấp 5 lần để mở Tab Render)"
+            val runningSlot = PrefsHelper.getString(ctx, "esp32_running_slot", "ota_0")
+            binding.tvVersion.text = "Phiên bản App: v$appVerName (Build $appVerCode) • Firmware ESP32: v$fwVerName [$runningSlot]\n(Nhấp 5 lần để mở Tab Render)"
+            val slotLabel = if (runningSlot == "ota_1") "Android Slot B (ota_1 - Sau OTA)" else "Android Slot A (ota_0)"
+            binding.tvCurrentSlot.text = "Hệ điều hành: Android • Slot đang chạy: $slotLabel"
+        }
+
+        binding.btnSwitchToIos.setOnClickListener {
+            val bleManager = NavigationService.bleManager
+            if (bleManager == null || NavigationRepository.bleConnectionState.value != NavigationRepository.BleConnectionState.Ready) {
+                Toast.makeText(requireContext(), "Chưa kết nối Bluetooth BLE với ESP32!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Chuyển sang iOS (Sygic)?")
+                .setMessage("Đồng hồ ESP32 sẽ khởi động lại và phát Bluetooth giao thức Sygic BLE HUD để iPhone kết nối.")
+                .setPositiveButton("Chuyển ngay") { _, _ ->
+                    bleManager.requestSwitchToIos()
+                    Toast.makeText(requireContext(), "Đã gửi lệnh! ESP32 đang chuyển sang iOS Sygic...", Toast.LENGTH_LONG).show()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+
+        binding.btnSwitchToFactory.setOnClickListener {
+            val bleManager = NavigationService.bleManager
+            if (bleManager == null || NavigationRepository.bleConnectionState.value != NavigationRepository.BleConnectionState.Ready) {
+                Toast.makeText(requireContext(), "Chưa kết nối Bluetooth BLE với ESP32!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Vào Web Portal Cấu Hình?")
+                .setMessage("Đồng hồ ESP32 sẽ phát Wi-Fi 'TYMAP Factory Portal' (IP: 192.168.4.1, Mật khẩu: 12345678) để chuyển đổi OS hoặc nạp OTA.")
+                .setPositiveButton("Khởi động Portal") { _, _ ->
+                    bleManager.requestSwitchToFactory()
+                    Toast.makeText(requireContext(), "Đã gửi lệnh! ESP32 đang khởi động Web Portal...", Toast.LENGTH_LONG).show()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
         }
 
         binding.btnCheckUpdate.setOnClickListener {
@@ -1509,7 +1552,14 @@ class SettingsFragment : Fragment() {
                             binding.btnApplyFwUpdate.visibility = View.GONE
                         }
 
-                        if (!info.hasAppUpdate && !info.hasFirmwareUpdate) {
+                        if (info.hasIosFirmwareUpdate) {
+                            sb.append("🍎 Có Firmware iOS Sygic: v${info.iosFirmwareVersionName}\n${info.iosFirmwareChangelog}\n\n")
+                            binding.btnApplyIosFwUpdate.visibility = View.VISIBLE
+                        } else {
+                            binding.btnApplyIosFwUpdate.visibility = View.GONE
+                        }
+
+                        if (!info.hasAppUpdate && !info.hasFirmwareUpdate && !info.hasIosFirmwareUpdate) {
                             sb.append("✅ Ứng dụng & Firmware ESP32 đang ở phiên bản mới nhất!")
                         }
 
@@ -1519,6 +1569,7 @@ class SettingsFragment : Fragment() {
                         binding.tvUpdateStatus.text = "❌ ${result.message}"
                         binding.btnApplyAppUpdate.visibility = View.GONE
                         binding.btnApplyFwUpdate.visibility = View.GONE
+                        binding.btnApplyIosFwUpdate.visibility = View.GONE
                     }
                 }
             }
@@ -1564,6 +1615,25 @@ class SettingsFragment : Fragment() {
                 .setMessage("Chuẩn bị nạp Firmware v${info.firmwareVersionName} (Code: ${info.firmwareVersionCode}) không dây qua Bluetooth BLE vào đồng hồ ESP32.\n\n⚠️ Lưu ý:\n• Giữ điện thoại gần đồng hồ xe máy.\n• Không tắt khóa xe trong khi đang truyền dữ liệu.")
                 .setPositiveButton("Bắt đầu nạp") { _, _ ->
                     startFirmwareOtaFlash(ctx, info, bleManager)
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+
+        binding.btnApplyIosFwUpdate.setOnClickListener {
+            val ctx = context ?: return@setOnClickListener
+            val info = currentUpdateInfo ?: return@setOnClickListener
+            val bleManager = NavigationService.bleManager
+            if (bleManager == null || NavigationRepository.bleConnectionState.value != NavigationRepository.BleConnectionState.Ready) {
+                Toast.makeText(ctx, "Vui lòng kết nối Bluetooth BLE tới ESP32 trước khi nạp OTA!", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(ctx)
+                .setTitle("Cập nhật Firmware iOS Sygic BLE")
+                .setMessage("Chuẩn bị nạp Firmware iOS Sygic v${info.iosFirmwareVersionName} không dây qua Bluetooth BLE vào phân vùng riêng (app_ios) trên ESP32.\n\n⚠️ Lưu ý:\n• Quá trình này không ảnh hưởng đến firmware Android hiện tại.\n• Sau khi nạp xong, bạn có thể nhấn nút 'Chuyển sang iOS' bất cứ lúc nào.")
+                .setPositiveButton("Bắt đầu nạp") { _, _ ->
+                    startIosFirmwareOtaFlash(ctx, info, bleManager)
                 }
                 .setNegativeButton("Hủy", null)
                 .show()
@@ -1625,6 +1695,52 @@ class SettingsFragment : Fragment() {
                 Toast.makeText(ctx, "Đã nạp Firmware ESP32 thành công!", Toast.LENGTH_LONG).show()
             } else {
                 binding.tvUpdateStatus.text = "❌ Thất bại khi truyền Firmware BLE sang ESP32! Vui lòng thử lại gần xe hơn."
+            }
+        }
+    }
+
+    private fun startIosFirmwareOtaFlash(ctx: Context, info: UpdateInfo, bleManager: com.example.tymap.ble.MyBleManager) {
+        binding.btnApplyIosFwUpdate.isEnabled = false
+        binding.progressUpdate.visibility = View.VISIBLE
+        binding.progressUpdate.progress = 0
+        binding.tvUpdateStatus.text = "Đang tải firmware iOS v${info.iosFirmwareVersionName} từ máy chủ..."
+
+        lifecycleScope.launch {
+            val binData = UpdateManager.downloadFirmwareBin(info.iosFirmwareBinUrl)
+            if (binData == null || binData.isEmpty()) {
+                if (_binding != null) {
+                    binding.progressUpdate.visibility = View.GONE
+                    binding.btnApplyIosFwUpdate.isEnabled = true
+                    binding.tvUpdateStatus.text = "❌ Lỗi tải file firmware iOS từ máy chủ!"
+                }
+                return@launch
+            }
+
+            val totalKb = binData.size / 1024
+            if (_binding != null) {
+                binding.tvUpdateStatus.text = "Bắt đầu truyền Firmware iOS qua Bluetooth BLE ($totalKb KB)..."
+            }
+
+            // Ghi trực tiếp vào phân vùng app_ios (target = 1)
+            val ok = bleManager.writeEsp32FirmwareOta(binData, target = 1) { progress ->
+                if (_binding != null) {
+                    binding.progressUpdate.progress = progress
+                    val currentKb = (binData.size * progress) / (100 * 1024)
+                    binding.tvUpdateStatus.text = "Đang nạp Firmware iOS sang ESP32 (app_ios): $progress% ($currentKb / $totalKb KB)"
+                }
+            }
+
+            if (_binding == null) return@launch
+            binding.progressUpdate.visibility = View.GONE
+            binding.btnApplyIosFwUpdate.isEnabled = true
+
+            if (ok) {
+                PrefsHelper.putString(ctx, "esp32_ios_fw_version_name", info.iosFirmwareVersionName)
+                binding.tvUpdateStatus.text = "✅ Đã nạp thành công Firmware iOS v${info.iosFirmwareVersionName} vào phân vùng app_ios!\nBạn có thể nhấn nút 'Chuyển sang iOS' bất cứ lúc nào."
+                binding.btnApplyIosFwUpdate.visibility = View.GONE
+                Toast.makeText(ctx, "Đã nạp Firmware iOS vào ESP32 thành công!", Toast.LENGTH_LONG).show()
+            } else {
+                binding.tvUpdateStatus.text = "❌ Thất bại khi truyền Firmware iOS BLE sang ESP32! Vui lòng thử lại gần xe hơn."
             }
         }
     }
