@@ -576,7 +576,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                         0.0 to 0.0
                     }
                     val sign = instr.optInt("sign", 0)
-                    val streetName = instr.optString("street_name", "").trim()
+                    val streetName = cleanStreetName(instr.optString("street_name", "").trim())
                     val rawText = instr.optString("text", "")
                     val exit = instr.optInt("exit_number", 0)
                     val (ghType, ghMod) = when (sign) {
@@ -600,7 +600,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                         instruction = cleanInstr,
                         distance = instr.optDouble("distance", 0.0),
                         duration = instr.optDouble("time", 0.0) / 1000.0,
-                        maneuverIcon = mapManeuverToIcon("GraphHopper", sign),
+                        maneuverIcon = mapManeuverToIcon("GraphHopper", sign, exit),
                         roadName = streetName.ifEmpty { cleanInstr },
                         location = stepLocation
                     ))
@@ -719,14 +719,14 @@ class RoutingEngine(private val client: OkHttpClient) {
                     val type = maneuver.optString("type", "turn")
                     val modifier = maneuver.optString("modifier", "")
                     val exit = maneuver.optInt("exit", 0)
-                    val roadName = step.optString("name", "").trim()
+                    val roadName = extractRoadName(step, "name", "ref")
                     val cleanInstr = formatVietnameseInstruction(type, modifier, exit, roadName)
                     
                     steps.add(com.example.tymap.repository.StepInfo(
                         instruction = cleanInstr,
                         distance = step.getDouble("distance"),
                         duration = step.getDouble("duration"),
-                        maneuverIcon = mapManeuverToIcon("OSRM", maneuver),
+                        maneuverIcon = mapManeuverToIcon("OSRM", maneuver, exit),
                         roadName = roadName.ifEmpty { cleanInstr },
                         location = maneuver.getJSONArray("location").let { it.getDouble(1) to it.getDouble(0) }
                     ))
@@ -759,7 +759,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                     val step = stepsJson.getJSONObject(j)
                     val wayPoints = step.getJSONArray("way_points")
                     val type = step.optInt("type", 0)
-                    val roadName = step.optString("name", "").trim()
+                    val roadName = extractRoadName(step, "name")
                     val rawInstr = step.optString("instruction", "")
                     val (orsType, orsMod) = when (type) {
                         0 -> "turn" to "left"
@@ -769,7 +769,8 @@ class RoutingEngine(private val client: OkHttpClient) {
                         4 -> "slight" to "left"
                         5 -> "slight" to "right"
                         6 -> "straight" to ""
-                        7, 8 -> "roundabout" to ""
+                        7 -> "roundabout" to ""
+                        8 -> "roundabout_exit" to ""
                         9 -> "uturn" to ""
                         10 -> "arrive" to ""
                         11 -> "depart" to ""
@@ -824,7 +825,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                     val instr = instructions.getJSONObject(j)
                     val interval = instr.optJSONArray("interval")
                     val sign = instr.optInt("sign", 0)
-                    val streetName = instr.optString("street_name", "").trim()
+                    val streetName = cleanStreetName(instr.optString("street_name", "").trim())
                     val rawText = instr.optString("text", "")
                     val exit = instr.optInt("exit_number", 0)
                     val (ghType, ghMod) = when (sign) {
@@ -853,7 +854,7 @@ class RoutingEngine(private val client: OkHttpClient) {
                         instruction = cleanInstr,
                         distance = instr.optDouble("distance", 0.0),
                         duration = instr.optDouble("time", 0.0) / 1000.0,
-                        maneuverIcon = mapManeuverToIcon("GraphHopper", sign),
+                        maneuverIcon = mapManeuverToIcon("GraphHopper", sign, exit),
                         roadName = streetName.ifEmpty { cleanInstr },
                         location = stepLocation
                     ))
@@ -863,6 +864,55 @@ class RoutingEngine(private val client: OkHttpClient) {
             result.add(RouteInfo(points, distance, realisticDuration, realisticSteps, i == 0, "GraphHopper"))
         }
         result
+    }
+
+    fun cleanStreetName(name: String): String {
+        var s = name.trim()
+        if (s.isEmpty()) return ""
+        if (s.startsWith("[") && s.endsWith("]")) {
+            try {
+                val arr = JSONArray(s)
+                val list = mutableListOf<String>()
+                for (k in 0 until arr.length()) {
+                    val item = arr.optString(k, "").trim()
+                    if (item.isNotEmpty()) list.add(item)
+                }
+                if (list.isNotEmpty()) return list.joinToString(" / ")
+            } catch (e: Exception) {
+                s = s.removeSurrounding("[", "]").replace("\"", "").trim()
+            }
+        }
+        return s.replace("\"", "").trim()
+    }
+
+    private fun extractRoadName(obj: JSONObject, primaryKey: String = "street_names", fallbackKey: String = "name"): String {
+        if (obj.has(primaryKey)) {
+            val arr = obj.optJSONArray(primaryKey)
+            if (arr != null && arr.length() > 0) {
+                val list = mutableListOf<String>()
+                for (k in 0 until arr.length()) {
+                    val item = arr.optString(k, "").trim()
+                    if (item.isNotEmpty()) list.add(item)
+                }
+                if (list.isNotEmpty()) return list.joinToString(" / ")
+            }
+            val str = obj.optString(primaryKey, "").trim()
+            if (str.isNotEmpty()) return cleanStreetName(str)
+        }
+        if (fallbackKey.isNotEmpty() && obj.has(fallbackKey)) {
+            val arr = obj.optJSONArray(fallbackKey)
+            if (arr != null && arr.length() > 0) {
+                val list = mutableListOf<String>()
+                for (k in 0 until arr.length()) {
+                    val item = arr.optString(k, "").trim()
+                    if (item.isNotEmpty()) list.add(item)
+                }
+                if (list.isNotEmpty()) return list.joinToString(" / ")
+            }
+            val str = obj.optString(fallbackKey, "").trim()
+            if (str.isNotEmpty()) return cleanStreetName(str)
+        }
+        return ""
     }
 
     private suspend fun parseValhallaResponse(body: String): List<RouteInfo> = withContext(Dispatchers.Default) {
@@ -884,10 +934,28 @@ class RoutingEngine(private val client: OkHttpClient) {
                 for (j in 0 until maneuvers.length()) {
                     val m = maneuvers.getJSONObject(j)
                     val rawInstr = m.optString("instruction", "")
-                    val streetName = m.optString("street_names", "").trim()
+                    val streetName = extractRoadName(m, "street_names", "begin_street_names")
                     val valhallaType = m.optInt("type", 0)
-                    val (vType, vMod) = when (valhallaType) {
+
+                    var exit = if (valhallaType == 26) {
+                        var e = m.optInt("roundabout_exit_count", 0)
+                        if (e <= 0 && rawInstr.isNotEmpty()) {
+                            val match = Regex("""(?:lối ra(?:\s+thứ)?|exit)\s*(\d+)""", RegexOption.IGNORE_CASE).find(rawInstr)
+                                ?: Regex("""(\d+)(?:st|nd|rd|th)?\s+exit""", RegexOption.IGNORE_CASE).find(rawInstr)
+                            if (match != null) {
+                                e = match.groupValues[1].toIntOrNull() ?: 0
+                            }
+                        }
+                        e
+                    } else 0
+
+                    var refinedType = valhallaType
+                    var (vType, vMod) = when (valhallaType) {
+                        1 -> "depart" to ""
+                        2 -> "depart" to "right"
+                        3 -> "depart" to "left"
                         4, 5, 6 -> "arrive" to ""
+                        7, 8 -> "continue" to ""
                         9 -> "turn" to "slight right"
                         10 -> "turn" to "right"
                         11 -> "turn" to "sharp right"
@@ -895,17 +963,48 @@ class RoutingEngine(private val client: OkHttpClient) {
                         14 -> "turn" to "sharp left"
                         15 -> "turn" to "left"
                         16 -> "turn" to "slight left"
+                        17 -> "ramp" to "straight"
+                        18, 20 -> "ramp" to "right"
+                        19, 21 -> "ramp" to "left"
+                        22 -> "continue" to "straight"
                         23 -> "keep" to "right"
                         24 -> "keep" to "left"
-                        26, 27 -> "roundabout" to ""
+                        25 -> "merge" to ""
+                        26 -> "roundabout" to "enter"
+                        27 -> "roundabout_exit" to ""
                         else -> "continue" to ""
                     }
-                    val cleanInstr = formatVietnameseInstruction(vType, vMod, 0, streetName, rawInstr)
+
+                    // Tinh chỉnh góc bẻ lái thực tế từ bearing_before và bearing_after
+                    val bearingBefore = m.optDouble("bearing_before", -999.0)
+                    val bearingAfter = m.optDouble("bearing_after", -999.0)
+                    if (bearingBefore >= 0 && bearingAfter >= 0 && valhallaType !in listOf(1, 2, 3, 4, 5, 6, 12, 13, 26, 27)) {
+                        val angleDiff = (bearingAfter - bearingBefore + 540.0) % 360.0 - 180.0
+                        when {
+                            Math.abs(angleDiff) <= 15.0 && valhallaType in listOf(8, 9, 16, 22) -> {
+                                vType = "continue"
+                                vMod = "straight"
+                                refinedType = 8
+                            }
+                            angleDiff in 15.0..45.0 && valhallaType == 10 -> {
+                                vType = "turn"
+                                vMod = "slight right"
+                                refinedType = 9
+                            }
+                            angleDiff in -45.0..-15.0 && valhallaType == 15 -> {
+                                vType = "turn"
+                                vMod = "slight left"
+                                refinedType = 16
+                            }
+                        }
+                    }
+
+                    val cleanInstr = formatVietnameseInstruction(vType, vMod, exit, streetName, rawInstr)
                     steps.add(com.example.tymap.repository.StepInfo(
                         instruction = cleanInstr,
                         distance = m.optDouble("length", 0.0) * 1000.0,
                         duration = m.optDouble("time", 0.0),
-                        maneuverIcon = mapManeuverToIcon("Valhalla", valhallaType),
+                        maneuverIcon = mapManeuverToIcon("Valhalla", refinedType, exit),
                         roadName = streetName.ifEmpty { cleanInstr },
                         location = points.getOrElse(m.optInt("begin_shape_index", 0)) { 0.0 to 0.0 }
                     ))
@@ -932,7 +1031,7 @@ class RoutingEngine(private val client: OkHttpClient) {
      *  14: Arrive
      *  15, 16: Merge
      */
-    private fun mapManeuverToIcon(engine: String, maneuver: Any): Int {
+    private fun mapManeuverToIcon(engine: String, maneuver: Any, exit: Int = 0): Int {
         return try {
             when (engine) {
                 "OSRM", "Mapbox" -> {
@@ -966,8 +1065,8 @@ class RoutingEngine(private val client: OkHttpClient) {
                         }
                         "fork" -> if (modifier.contains("left")) 4 else 1
                         "roundabout", "rotary", "roundabout turn" -> {
-                            val exit = m.optInt("exit", 0)
-                            when (exit) {
+                            val exitNum = if (exit > 0) exit else m.optInt("exit", 0)
+                            when (exitNum) {
                                 1 -> 11
                                 2 -> 12
                                 3 -> 13
@@ -994,7 +1093,12 @@ class RoutingEngine(private val client: OkHttpClient) {
                         -3 -> 6  // Sharp left
                         4, 5 -> 7 // U-turn
                         6 -> 14  // Arrive
-                        7 -> 12  // Roundabout
+                        7 -> when (exit) {
+                            1 -> 11
+                            2 -> 12
+                            3 -> 13
+                            else -> 12
+                        }
                         8 -> 4   // Keep left
                         9 -> 1   // Keep right
                         else -> 0
@@ -1010,7 +1114,8 @@ class RoutingEngine(private val client: OkHttpClient) {
                         4 -> 4   // Slight left
                         5 -> 1   // Slight right
                         6 -> 0   // Straight / Continue
-                        7, 8 -> 12 // Enter / Exit roundabout
+                        7 -> 12  // Enter roundabout
+                        8 -> 0   // Exit roundabout (Straight)
                         9 -> 7   // U-turn
                         10 -> 14 // Goal / Arrive
                         11 -> 0  // Depart
@@ -1020,9 +1125,15 @@ class RoutingEngine(private val client: OkHttpClient) {
                     }
                 }
                 "Valhalla" -> {
-                    val type = maneuver as Int
+                    val (type, exitNum) = when (maneuver) {
+                        is JSONObject -> maneuver.optInt("type", 0) to (if (exit > 0) exit else maneuver.optInt("roundabout_exit_count", 0))
+                        is Int -> maneuver to exit
+                        else -> 0 to exit
+                    }
                     when (type) {
-                        1, 2, 3 -> 0 // Start
+                        1 -> 0      // Start / Depart
+                        2 -> 2      // Start right
+                        3 -> 5      // Start left
                         4, 5, 6 -> 14 // Destination (Arrive)
                         7, 8 -> 0   // Becomes, Continue
                         9 -> 1      // Slight right
@@ -1039,7 +1150,13 @@ class RoutingEngine(private val client: OkHttpClient) {
                         23 -> 1     // Stay right
                         24 -> 4     // Stay left
                         25 -> 15    // Merge
-                        26, 27 -> 12 // Roundabout enter / exit
+                        26 -> when (exitNum) {
+                            1 -> 11
+                            2 -> 12
+                            3 -> 13
+                            else -> 12
+                        }
+                        27 -> 0     // Roundabout exit -> Đi thẳng tiếp ra khỏi vòng xuyến
                         else -> 0
                     }
                 }
@@ -1051,6 +1168,7 @@ class RoutingEngine(private val client: OkHttpClient) {
     /**
      * Chuẩn hóa câu chữ chỉ dẫn các bước rẽ và vòng xuyến chuẩn tiếng Việt tự nhiên:
      * - Vòng xuyến (Roundabout): "Tại vòng xuyến, đi theo lối ra thứ X vào [tên đường]" hoặc "Đi vào vòng xuyến..."
+     * - Ra khỏi vòng xuyến: "Ra khỏi vòng xuyến vào [tên đường]"
      * - Rẽ trái, rẽ phải, chếch, ngoặt, quay đầu xe, đi thẳng, nhập làn, tách làn...
      */
     fun formatVietnameseInstruction(
@@ -1060,11 +1178,20 @@ class RoutingEngine(private val client: OkHttpClient) {
         roadName: String = "",
         fallbackText: String = ""
     ): String {
-        val cleanRoad = roadName.trim()
+        val cleanRoad = cleanStreetName(roadName)
         val mod = modifier.lowercase().trim()
         val t = type.lowercase().trim()
 
-        // 1. Xử lý Vòng xuyến / Bùng binh (Roundabout / Rotary)
+        // 1. Xử lý Ra khỏi vòng xuyến (Roundabout Exit)
+        if (t == "roundabout_exit" || mod == "exit" ||
+            fallbackText.contains("ra khỏi vòng xuyến", ignoreCase = true) ||
+            fallbackText.contains("rời bùng binh", ignoreCase = true) ||
+            fallbackText.contains("exit roundabout", ignoreCase = true)
+        ) {
+            return if (cleanRoad.isNotEmpty()) "Ra khỏi vòng xuyến vào $cleanRoad" else "Ra khỏi vòng xuyến"
+        }
+
+        // 2. Xử lý Vòng xuyến / Bùng binh (Roundabout / Rotary)
         if (t.contains("roundabout") || t.contains("rotary") || mod.contains("roundabout") ||
             fallbackText.contains("roundabout", ignoreCase = true) ||
             fallbackText.contains("vòng xuyến", ignoreCase = true) ||
@@ -1073,6 +1200,7 @@ class RoutingEngine(private val client: OkHttpClient) {
             var exitNum = exit
             if (exitNum <= 0 && fallbackText.isNotEmpty()) {
                 val match = Regex("""(?:lối ra(?:\s+thứ)?|exit)\s*(\d+)""", RegexOption.IGNORE_CASE).find(fallbackText)
+                    ?: Regex("""(\d+)(?:st|nd|rd|th)?\s+exit""", RegexOption.IGNORE_CASE).find(fallbackText)
                 if (match != null) {
                     exitNum = match.groupValues[1].toIntOrNull() ?: 0
                 }
@@ -1086,7 +1214,7 @@ class RoutingEngine(private val client: OkHttpClient) {
             }
         }
 
-        // 2. Xử lý các bước rẽ theo Modifier
+        // 3. Xử lý các bước rẽ theo Modifier
         when (mod) {
             "slight right" -> return if (cleanRoad.isNotEmpty()) "Chếch sang phải vào $cleanRoad" else "Chếch sang phải"
             "right" -> return if (cleanRoad.isNotEmpty()) "Rẽ phải vào $cleanRoad" else "Rẽ phải"
@@ -1095,10 +1223,10 @@ class RoutingEngine(private val client: OkHttpClient) {
             "left" -> return if (cleanRoad.isNotEmpty()) "Rẽ trái vào $cleanRoad" else "Rẽ trái"
             "sharp left" -> return if (cleanRoad.isNotEmpty()) "Rẽ ngoặt sang trái vào $cleanRoad" else "Rẽ ngoặt sang trái"
             "uturn" -> return if (cleanRoad.isNotEmpty()) "Quay đầu xe vào $cleanRoad" else "Quay đầu xe"
-            "straight" -> return if (cleanRoad.isNotEmpty()) "Đi thẳng tiếp vào $cleanRoad" else "Đi thẳng tiếp"
+            "straight" -> return if (cleanRoad.isNotEmpty()) "Tiếp tục đi thẳng vào $cleanRoad" else "Tiếp tục đi thẳng"
         }
 
-        // 3. Xử lý theo Type
+        // 4. Xử lý theo Type
         when (t) {
             "turn" -> {
                 return when {
@@ -1149,7 +1277,12 @@ class RoutingEngine(private val client: OkHttpClient) {
                 }
             }
             "depart" -> {
-                return if (cleanRoad.isNotEmpty()) "Khởi hành về hướng $cleanRoad" else "Bắt đầu khởi hành"
+                return when {
+                    mod.contains("left") -> if (cleanRoad.isNotEmpty()) "Khởi hành, rẽ trái vào $cleanRoad" else "Khởi hành, rẽ trái"
+                    mod.contains("right") -> if (cleanRoad.isNotEmpty()) "Khởi hành, rẽ phải vào $cleanRoad" else "Khởi hành, rẽ phải"
+                    cleanRoad.isNotEmpty() -> "Khởi hành về hướng $cleanRoad"
+                    else -> "Bắt đầu khởi hành"
+                }
             }
             "arrive", "destination" -> {
                 return if (cleanRoad.isNotEmpty()) "Bạn đã đến nơi: $cleanRoad" else "Bạn đã đến nơi"
@@ -1158,15 +1291,16 @@ class RoutingEngine(private val client: OkHttpClient) {
                 return when {
                     mod.contains("left") -> if (cleanRoad.isNotEmpty()) "Đi tiếp, rẽ trái vào $cleanRoad" else "Đi tiếp, rẽ trái"
                     mod.contains("right") -> if (cleanRoad.isNotEmpty()) "Đi tiếp, rẽ phải vào $cleanRoad" else "Đi tiếp, rẽ phải"
+                    mod.contains("straight") -> if (cleanRoad.isNotEmpty()) "Tiếp tục đi thẳng vào $cleanRoad" else "Tiếp tục đi thẳng"
                     cleanRoad.isNotEmpty() -> "Đi tiếp trên $cleanRoad"
                     else -> "Đi thẳng tiếp"
                 }
             }
         }
 
-        // 4. Fallback làm sạch câu chữ dịch máy / tiếng Anh nếu có
+        // 5. Fallback làm sạch câu chữ dịch máy / tiếng Anh nếu có
         if (fallbackText.isNotBlank()) {
-            val f = fallbackText.trim()
+            val f = cleanStreetName(fallbackText.trim())
             val lowerF = f.lowercase()
             return when {
                 lowerF.contains("arrive") || lowerF.contains("reached") -> if (cleanRoad.isNotEmpty()) "Bạn đã đến nơi: $cleanRoad" else "Bạn đã đến nơi"

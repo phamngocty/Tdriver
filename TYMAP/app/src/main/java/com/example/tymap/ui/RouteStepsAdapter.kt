@@ -54,7 +54,7 @@ class RouteStepsAdapter : RecyclerView.Adapter<RouteStepsAdapter.ViewHolder>() {
                 binding.tvStepDetail.text = "🏁 Dự báo khi đến (${w.timeLabel}): ${w.icon} ${w.tempC}°C • ${w.status}"
                 binding.tvStepDetail.setTextColor(if (w.isRainAlert) Color.parseColor("#F87171") else Color.parseColor("#38BDF8"))
                 binding.tvStepDetail.visibility = View.VISIBLE
-            } else if (step.roadName.isNotEmpty() && step.roadName != step.instruction) {
+            } else if (step.roadName.isNotEmpty() && !step.instruction.contains(step.roadName, ignoreCase = true)) {
                 binding.tvStepDetail.text = step.roadName
                 binding.tvStepDetail.setTextColor(Color.parseColor("#388E3C"))
                 binding.tvStepDetail.visibility = View.VISIBLE

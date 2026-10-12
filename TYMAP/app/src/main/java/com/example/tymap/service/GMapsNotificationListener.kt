@@ -280,10 +280,11 @@ class GMapsNotificationListener : NotificationListenerService() {
         val combined = (title + " " + text).lowercase()
         return when {
             combined.contains("đến") || combined.contains("arrive") || combined.contains("đã tới") || combined.contains("đích") -> 14
-            combined.contains("quay đầu") || combined.contains("u-turn") || combined.contains("uturn") -> if (combined.contains("phải")) 8 else 7
+            combined.contains("ra khỏi vòng xuyến") || combined.contains("rời bùng binh") || combined.contains("exit roundabout") -> 0
+            combined.contains("quay đầu") || combined.contains("u-turn") || combined.contains("uturn") || combined.contains("quay xe") || combined.contains("quay lại") -> if (combined.contains("phải")) 8 else 7
             combined.contains("vòng xuyến") || combined.contains("bùng binh") || combined.contains("roundabout") || combined.contains("rotary") -> 12
             combined.contains("gắt") || combined.contains("sharp") || combined.contains("ngoặt") -> if (combined.contains("trái") || combined.contains("left")) 6 else 3
-            combined.contains("chếch") || combined.contains("slight") || combined.contains("nhẹ") -> if (combined.contains("trái") || combined.contains("left")) 4 else 1
+            combined.contains("chếch") || combined.contains("slight") || combined.contains("nhẹ") || combined.contains("lối ra") -> if (combined.contains("trái") || combined.contains("left")) 4 else 1
             combined.contains("trái") || combined.contains("left") -> 5
             combined.contains("phải") || combined.contains("right") -> 2
             combined.contains("sát") || combined.contains("keep") -> if (combined.contains("trái") || combined.contains("left")) 4 else 1
