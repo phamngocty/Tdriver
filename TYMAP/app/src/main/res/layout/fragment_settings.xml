@@ -2138,6 +2138,119 @@
                                 android:layout_width="140dp"
                                 android:layout_height="wrap_content" />
                         </LinearLayout>
+
+                        <com.google.android.material.divider.MaterialDivider
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginVertical="12dp"/>
+
+                        <!-- PHẦN 4: GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH (GOOGLE MAPS)"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/colorAccentCyan"
+                            android:layout_marginBottom="8dp"/>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_glass_card"
+                            android:orientation="vertical"
+                            android:padding="12dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+
+                                <FrameLayout
+                                    android:layout_width="38dp"
+                                    android:layout_height="38dp"
+                                    android:background="@drawable/bg_icon_tint"
+                                    android:padding="8dp">
+                                    <ImageView
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:src="@drawable/ic_navigation_arrow"
+                                        app:tint="@color/colorAccentCyan" />
+                                </FrameLayout>
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="12dp"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="🧭 Chống tắt bản đồ khi khóa màn hình"
+                                        android:textSize="13sp"
+                                        android:textStyle="bold"
+                                        android:textColor="#F1F5F9" />
+
+                                    <TextView
+                                        android:id="@+id/tvKeepAliveStatus"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Đang chọn: Cấp độ 2 - Âm thanh im lặng liên tục [Khuyên dùng]\n⚡ Tự động leo thang: BẬT"
+                                        android:textSize="11sp"
+                                        android:textColor="#94A3B8"
+                                        android:layout_marginTop="2dp" />
+                                </LinearLayout>
+                            </LinearLayout>
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnKeepAliveSettings"
+                                style="@style/Widget.Material3.Button.TonalButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="🧭 Cấp độ giữ sống bản đồ (Chống tắt khi khóa màn hình)"
+                                android:textAllCaps="false"
+                                android:textColor="@color/colorAccentCyan"
+                                android:layout_marginTop="10dp"
+                                android:layout_marginBottom="6dp" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:paddingVertical="4dp">
+
+                                <LinearLayout
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:orientation="vertical">
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="⚡ Tự động leo thang thông minh"
+                                        android:textSize="12sp"
+                                        android:textStyle="bold"
+                                        android:textColor="#00F0FF" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="Tự nâng cấp khi mất tín hiệu Google Maps > 20s"
+                                        android:textSize="10sp"
+                                        android:textColor="#94A3B8" />
+                                </LinearLayout>
+
+                                <com.google.android.material.switchmaterial.SwitchMaterial
+                                    android:id="@+id/switchAutoEscalateKeepAlive"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+                            </LinearLayout>
+                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -2501,31 +2614,6 @@
                         <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp" android:text="Đơn vị khoảng cách" android:textSize="13sp" android:textColor="#F1F5F9" />
                         <Spinner android:id="@+id/spinnerUnits" android:layout_width="140dp" android:layout_height="wrap_content" />
                     </LinearLayout>
-
-                    <com.google.android.material.divider.MaterialDivider
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginVertical="10dp"/>
-
-                    <!-- Section: GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/colorAccentCyan"
-                        android:layout_marginBottom="6dp"/>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnKeepAliveSettings"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="🧭 Cấp độ giữ sống bản đồ (Chống tắt khi khóa màn hình)"
-                        android:textAllCaps="false"
-                        android:textColor="@color/colorAccentCyan"
-                        android:layout_marginBottom="8dp" />
 
                     <com.google.android.material.divider.MaterialDivider
                         android:layout_width="match_parent"

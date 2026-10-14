@@ -397,11 +397,19 @@ class RoutingEngine(private val client: OkHttpClient) {
         
         // 1. Kiểm tra NAS Circuit Breaker trước khi thử kết nối
         if (NasConnectionManager.isNasPotentiallyAvailable(context)) {
-            val ghBaseUrl = NasConnectionManager.getGraphHopperBaseUrl(context)
-            val nasResult = fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries, ghBaseUrl)
-            if (!nasResult.isNullOrEmpty()) {
-                return nasResult
+            val candidateUrls = NasConnectionManager.getGraphHopperCandidateUrls(context)
+            for (candidateUrl in candidateUrls) {
+                try {
+                    val nasResult = fetchNasGraphHopperRoute(startLat, startLng, destLat, destLng, profile, avoidTolls, avoidFerries, candidateUrl)
+                    if (!nasResult.isNullOrEmpty()) {
+                        NasConnectionManager.markNasSuccess()
+                        return nasResult
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("RoutingEngine", "Candidate NAS URL $candidateUrl failed: ${e.message}")
+                }
             }
+            NasConnectionManager.markNasFailed("Toàn bộ endpoint NAS GraphHopper đều không phản hồi")
         }
         
         // 2. Fallback sang GraphHopper Cloud nếu có API key
@@ -527,8 +535,7 @@ class RoutingEngine(private val client: OkHttpClient) {
             } catch (e: Exception) {
                 android.util.Log.w("RoutingEngine", "NAS GraphHopper attempt failed: ${e.message}")
                 if (NasConnectionManager.isConnectionFailure(e)) {
-                    NasConnectionManager.markNasFailed("NAS unreachable on $url: ${e.message}")
-                    // Fast-fail: Đứt kết nối NAS thì dừng ngay, KHÔNG loop tiếp các URL còn lại để tránh delay!
+                    // Fast-fail: Đứt kết nối trên URL này thì dừng ngay để thử URL candidate tiếp theo
                     break
                 }
             }

@@ -159,6 +159,7 @@ class SettingsFragment : Fragment() {
         setupPermissionsDashboard()
         setupApiHealthDashboard()
         setupOtaUpdateUI()
+        setupKeepAliveUI()
         setupUI()
         setupFilterChips()
         observeDeviceType()
@@ -863,7 +864,7 @@ class SettingsFragment : Fragment() {
         }
 
         val themes = arrayOf("Hệ thống", "Sáng", "Tối")
-        val currentTheme = PrefsHelper.getInt(context, "app_theme", 0)
+        val currentTheme = PrefsHelper.getInt(context, "app_theme", 2)
         setupSpinner(binding.spinnerTheme, themes, currentTheme) {
             PrefsHelper.putInt(context, "app_theme", it)
             applyTheme(it)
@@ -1312,14 +1313,12 @@ class SettingsFragment : Fragment() {
     private fun setupSpinner(spinner: android.widget.Spinner, items: Array<String>, selection: Int, onSelected: (Int) -> Unit) {
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, items)
         spinner.adapter = adapter
-        var isInitial = true
+        var lastSelected = selection
         spinner.setSelection(selection, false)
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p0: AdapterView<*>?, p1: View?, position: Int, p3: Long) {
-                if (isInitial) {
-                    isInitial = false
-                    return
-                }
+                if (position == lastSelected) return
+                lastSelected = position
                 onSelected(position)
             }
             override fun onNothingSelected(p0: AdapterView<*>?) {}
@@ -1541,10 +1540,6 @@ class SettingsFragment : Fragment() {
                 }
                 .setNegativeButton("Hủy", null)
                 .show()
-        }
-
-        binding.btnKeepAliveSettings.setOnClickListener {
-            showKeepAliveSettingsDialog()
         }
 
         binding.btnCheckUpdate.setOnClickListener {
@@ -1772,6 +1767,34 @@ class SettingsFragment : Fragment() {
         }
     }
 
+    // ----------------------------------------------------
+    // KEEP-ALIVE (GOOGLE MAPS CHỐNG TẮT NỀN KHI KHÓA MÀN HÌNH)
+    // ----------------------------------------------------
+    private fun setupKeepAliveUI() {
+        val ctx = context ?: return
+        val engine = com.example.tymap.service.TymapKeepAliveEngine.getInstance(ctx)
+        updateKeepAliveStatusSummary(engine)
+
+        binding.switchAutoEscalateKeepAlive.isChecked = engine.isAutoEscalateEnabled
+        binding.switchAutoEscalateKeepAlive.setOnCheckedChangeListener { _, isChecked ->
+            engine.setAutoEscalate(isChecked)
+            updateKeepAliveStatusSummary(engine)
+            val msg = if (isChecked) "⚡ Đã bật Tự động leo thang cấp độ thông minh" else "Đã tắt Tự động leo thang"
+            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnKeepAliveSettings.setOnClickListener {
+            showKeepAliveSettingsDialog()
+        }
+    }
+
+    private fun updateKeepAliveStatusSummary(engine: com.example.tymap.service.TymapKeepAliveEngine) {
+        if (_binding == null) return
+        val tier = engine.currentTier
+        val autoEsc = if (engine.isAutoEscalateEnabled) "BẬT (Khuyên dùng)" else "TẮT"
+        binding.tvKeepAliveStatus.text = "Đang chọn: ${tier.title}\n⚡ Tự động leo thang: $autoEsc"
+    }
+
     /**
      * 🧭 Hộp thoại cấu hình các cấp độ Giữ Sống Bản Đồ (Google Maps) khi tắt màn hình
      */
@@ -1783,7 +1806,7 @@ class SettingsFragment : Fragment() {
         var autoEscalate = keepAlive.isAutoEscalateEnabled
 
         val dialogView = android.widget.ScrollView(ctx).apply {
-            setPadding(40, 30, 40, 30)
+            setPadding(32, 24, 32, 24)
         }
 
         val container = android.widget.LinearLayout(ctx).apply {
@@ -1794,43 +1817,59 @@ class SettingsFragment : Fragment() {
             text = "Chọn phương thức ngăn chặn Android đưa Google Maps vào trạng thái ngủ đông khi bạn tắt màn hình / đút điện thoại vào túi hoặc cốp xe:"
             textSize = 12.5f
             setTextColor(android.graphics.Color.parseColor("#94A3B8"))
-            setPadding(0, 0, 0, 20)
+            setPadding(0, 0, 0, 16)
         }
         container.addView(tvIntro)
 
-        val radioGroup = android.widget.RadioGroup(ctx)
+        val radioGroup = android.widget.RadioGroup(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+        }
+
         tiers.forEachIndexed { index, tier ->
             val rb = android.widget.RadioButton(ctx).apply {
                 id = index + 7000
-                val titleColor = if (tier == com.example.tymap.service.KeepAliveTier.TIER_2_SILENT_CONTINUOUS) " (Khuyên dùng)" else ""
-                text = "${tier.title}$titleColor\n• ${tier.description}\n${tier.note}\n"
+                text = "🔘 ${tier.title}\n• Mô tả: ${tier.description}\n• ${tier.note}\n"
                 textSize = 12f
                 setTextColor(android.graphics.Color.WHITE)
-                isChecked = (tier == selectedTier)
-                setPadding(14, 10, 14, 16)
-                setOnClickListener { selectedTier = tier }
+                setPadding(12, 10, 12, 14)
             }
             radioGroup.addView(rb)
+        }
+
+        val initialIndex = tiers.indexOf(selectedTier).let { if (it >= 0) it else 1 }
+        radioGroup.check(initialIndex + 7000)
+
+        radioGroup.setOnCheckedChangeListener { _, checkedId ->
+            val idx = checkedId - 7000
+            if (idx in tiers.indices) {
+                selectedTier = tiers[idx]
+            }
         }
         container.addView(radioGroup)
 
         val cbAutoEsc = android.widget.CheckBox(ctx).apply {
-            text = "⚡ Tự động leo thang cấp độ thông minh:\nNếu phát hiện Google Maps bị mất tín hiệu > 20 giây khi tắt màn hình, app sẽ tự động nâng lên cấp độ cao hơn để duy trì dẫn đường."
+            text = "⚡ TÍNH NĂNG TỰ ĐỘNG LEO THANG THÔNG MINH (AUTO-ESCALATE)\n" +
+                   "Tự động leo thang cấp độ thông minh (Khuyên dùng)\n" +
+                   "💡 Cách hoạt động: Khi người dùng chọn Cấp độ 1 hoặc 2, nếu đang đi đường mà phát hiện Google Maps bị đứng / mất tín hiệu quá 20 giây khi màn hình tắt, ứng dụng sẽ tự động nâng lên Cấp độ cao hơn để 'cứu' dẫn đường ngay lập tức mà không cần người dùng phải dừng xe mở máy!"
             textSize = 11.5f
             setTextColor(android.graphics.Color.parseColor("#00F0FF"))
             isChecked = autoEscalate
             setOnCheckedChangeListener { _, isChecked -> autoEscalate = isChecked }
-            setPadding(10, 16, 10, 16)
+            setPadding(8, 16, 8, 16)
         }
         container.addView(cbAutoEsc)
         dialogView.addView(container)
 
         com.google.android.material.dialog.MaterialAlertDialogBuilder(ctx)
-            .setTitle("🧭 Cấp Độ Giữ Sống Google Maps")
+            .setTitle("🧭 Cấp Độ Giữ Sống Bản Đồ")
             .setView(dialogView)
             .setPositiveButton("Lưu Cài Đặt") { _, _ ->
                 keepAlive.setTier(selectedTier)
                 keepAlive.setAutoEscalate(autoEscalate)
+                updateKeepAliveStatusSummary(keepAlive)
+                if (_binding != null) {
+                    binding.switchAutoEscalateKeepAlive.isChecked = autoEscalate
+                }
                 Toast.makeText(ctx, "🟢 Đã áp dụng: ${selectedTier.title}", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Đóng", null)

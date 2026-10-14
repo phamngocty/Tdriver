@@ -24,28 +24,28 @@ enum class KeepAliveTier(
 ) {
     TIER_1_NATIVE(
         1,
-        "Cấp độ 1: Chuẩn GPS Native",
+        "Cấp độ 1: Chuẩn GPS Native [Tiết kiệm pin]",
         "Tiết kiệm pin",
         "Sử dụng dịch vụ Foreground Service kết hợp yêu cầu tọa độ GPS nền và WakeLock phần cứng.",
         "💡 Lưu ý cho người dùng: Tiết kiệm pin tối đa, phù hợp hoàn hảo với các dòng máy chạy thuần Android gốc như Google Pixel, Motorola, Sony hoặc Samsung One UI."
     ),
     TIER_2_SILENT_CONTINUOUS(
         2,
-        "Cấp độ 2: Âm thanh im lặng liên tục",
+        "Cấp độ 2: Âm thanh im lặng liên tục [Khuyên dùng]",
         "Khuyên dùng",
         "Phát luồng âm thanh PCM 0dB (im lặng tuyệt đối) lặp liên tục với nhãn dẫn đường rảnh tay (USAGE_ASSISTANCE_NAVIGATION_GUIDANCE), tuyệt đối không tranh chấp Audio Focus.",
         "💡 Lưu ý cho người dùng: Đánh lừa Android giữ Google Maps chạy liên tục khi tắt màn hình mà HOÀN TOÀN KHÔNG làm ngắt nhạc Spotify/Zing MP3, không ảnh hưởng đến chuông cuộc gọi hay tiếng thông báo Zalo/SMS."
     ),
     TIER_3_AUDIO_PULSE(
         3,
-        "Cấp độ 3: Xung âm thanh định kỳ (15s)",
+        "Cấp độ 3: Xung âm thanh định kỳ (15s) [Cân bằng pin]",
         "Cân bằng pin",
         "Thay vì phát liên tục, mỗi 15 giây hệ thống phát một xung micro-audio im lặng 200ms để 'gõ thức' hệ thống âm thanh và cảm biến trước khi máy chìm vào giấc ngủ Doze Mode.",
         "💡 Lưu ý cho người dùng: Vừa duy trì được thông báo dẫn đường khi tắt màn hình, vừa tiết kiệm pin hơn Cấp độ 2."
     ),
     TIER_4_VIRTUAL_HEADSET(
         4,
-        "Cấp độ 4: Giả lập Tai nghe / Car-Kit Bluetooth",
+        "Cấp độ 4: Giả lập Tai nghe / Car-Kit Bluetooth [Cực mạnh - Bất tử]",
         "Cực mạnh - Bất tử",
         "Đăng ký MediaSession chuyên nghiệp và phát luồng âm thanh dẫn đường rảnh tay (hệ điều hành nhận diện như máy đang kết nối với bộ đàm/tai nghe Bluetooth của mũ bảo hiểm xe máy).",
         "💡 Lưu ý cho người dùng: Cấp độ mạnh nhất, đặc trị các dòng máy có cơ chế diệt app ngầm hung hãn nhất hiện nay như Xiaomi (HyperOS / MIUI), Oppo (ColorOS), Vivo, Realme."

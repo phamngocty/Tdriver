@@ -22,24 +22,43 @@ class GpsManager(private val context: Context) {
     private var handler: Handler? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var lastLocation: Location? = null
+    private var lastGpsLocationTime: Long = 0L
 
     var onSpeedUpdated: ((Int) -> Unit)? = null
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
+            val now = System.currentTimeMillis()
+            val isGps = location.provider == LocationManager.GPS_PROVIDER || location.provider == LocationManager.FUSED_PROVIDER
+            
+            if (!isGps) {
+                // Nếu là Network Provider nhưng GPS đã có tín hiệu trong vòng 10 giây qua: bỏ qua
+                if (lastGpsLocationTime > 0 && (now - lastGpsLocationTime < 10000L)) {
+                    return
+                }
+                // Nếu độ chính xác mạng quá kém (> 60m): bỏ qua để tránh giật nhảy vị trí bản đồ
+                if (location.hasAccuracy() && location.accuracy > 60f) {
+                    return
+                }
+            } else {
+                lastGpsLocationTime = now
+            }
+
             val freshLocation = Location(location)
             
-            // Tính toán tốc độ chuẩn xác: nếu location.hasSpeed() bị false hoặc bằng 0 khi xe đang di chuyển,
-            // tự động tính qua delta khoảng cách / delta thời gian
-            var speedKmh = if (freshLocation.hasSpeed() && freshLocation.speed > 0f) {
+            // Tính toán tốc độ chuẩn xác:
+            var speedKmh = if (freshLocation.hasSpeed() && freshLocation.speed >= 0f) {
                 (freshLocation.speed * 3.6f).toInt()
             } else {
-                val prev = lastLocation
-                if (prev != null && freshLocation.time > prev.time) {
-                    val dist = freshLocation.distanceTo(prev)
-                    val dtSec = (freshLocation.time - prev.time) / 1000f
-                    if (dtSec in 0.2f..10.0f) {
-                        ((dist / dtSec) * 3.6f).toInt()
+                // Chỉ tính delta speed nếu là GPS/Fused có độ chính xác cao (< 25m)
+                if (isGps && freshLocation.hasAccuracy() && freshLocation.accuracy < 25f) {
+                    val prev = lastLocation
+                    if (prev != null && freshLocation.time > prev.time) {
+                        val dist = freshLocation.distanceTo(prev)
+                        val dtSec = (freshLocation.time - prev.time) / 1000f
+                        if (dtSec in 0.3f..5.0f && (dist / dtSec) < 65f) { // < 234 km/h
+                            ((dist / dtSec) * 3.6f).toInt()
+                        } else 0
                     } else 0
                 } else 0
             }

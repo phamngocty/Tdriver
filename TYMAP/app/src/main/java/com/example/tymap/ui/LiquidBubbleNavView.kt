@@ -65,6 +65,7 @@ class LiquidBubbleNavView @JvmOverloads constructor(
 
     fun setSelectedTab(position: Int, animate: Boolean = true) {
         if (position < 0 || position >= tabs.size) return
+        val wasSame = selectedIndex == position
         selectedIndex = position
 
         tabs.forEachIndexed { index, _ ->
@@ -84,6 +85,10 @@ class LiquidBubbleNavView @JvmOverloads constructor(
                 bubble.background = null
                 icon.setColorFilter(ContextCompat.getColor(context, R.color.colorTextMuted))
                 label.setTextColor(ContextCompat.getColor(context, R.color.colorTextMuted))
+            }
+
+            if (wasSame && isSelected) {
+                return@forEachIndexed
             }
 
             if (animate) {

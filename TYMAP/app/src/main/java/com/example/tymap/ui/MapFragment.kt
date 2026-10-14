@@ -140,37 +140,18 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     // Map Sources
-    private val mapCnDark = object : XYTileSource("CartoDB Dark Matter", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/dark_all/", "https://b.basemaps.cartocdn.com/dark_all/", "https://c.basemaps.cartocdn.com/dark_all/"),
-        "© OpenStreetMap contributors, © CARTO") {
+    private val googleMaps = object : XYTileSource("Google Maps (MT)", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=m"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
-            val base = super.getTileURLString(pMapTileIndex)
-            val key = try { PrefsHelper.getSecureString(requireContext(), "api_key_carto", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z"
         }
     }
 
-    private val mapCnPositron = object : XYTileSource("CartoDB Positron", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/light_all/", "https://b.basemaps.cartocdn.com/light_all/", "https://c.basemaps.cartocdn.com/light_all/"),
-        "© OpenStreetMap contributors, © CARTO") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val base = super.getTileURLString(pMapTileIndex)
-            val key = try { PrefsHelper.getSecureString(requireContext(), "api_key_carto", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
-        }
-    }
-
-    private val mapCnVoyager = object : XYTileSource("CartoDB Voyager", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/", "https://b.basemaps.cartocdn.com/rastertiles/voyager/", "https://c.basemaps.cartocdn.com/rastertiles/voyager/"),
-        "© OpenStreetMap contributors, © CARTO") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val base = super.getTileURLString(pMapTileIndex)
-            val key = try { PrefsHelper.getSecureString(requireContext(), "api_key_carto", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
-        }
-    }
-
-    private val googleMapsDark = object : XYTileSource("Google Maps Dark", 1, 20, 256, "",
+    private val googleMapsDark = object : XYTileSource("Google Maps Dark (MT)", 1, 20, 256, "",
         arrayOf("https://mt1.google.com/vt/lyrs=m"),
         "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
@@ -183,7 +164,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
     }
 
-    private val googleMaps = object : XYTileSource("Google Maps", 1, 20, 256, "",
+    private val googleMapsInvert = object : XYTileSource("Google Maps Đảo Màu (MT Invert)", 1, 20, 256, "",
         arrayOf("https://mt1.google.com/vt/lyrs=m"),
         "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
@@ -191,82 +172,6 @@ class MapFragment : Fragment(), IOrientationConsumer {
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
             return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z"
-        }
-    }
-
-    private val googleMapsSatellite = object : XYTileSource("Google Satellite", 1, 20, 256, "",
-        arrayOf("https://mt1.google.com/vt/lyrs=s"),
-        "© Google") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
-            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
-            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://mt1.google.com/vt/lyrs=s&x=$x&y=$y&z=$z"
-        }
-    }
-
-    private val googleMapsHybrid = object : XYTileSource("Google Hybrid", 1, 20, 256, "",
-        arrayOf("https://mt1.google.com/vt/lyrs=y"),
-        "© Google") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
-            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
-            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://mt1.google.com/vt/lyrs=y&x=$x&y=$y&z=$z"
-        }
-    }
-
-    private val osmStandard = XYTileSource("OpenStreetMap", 1, 19, 256, ".png",
-        arrayOf("https://tile.openstreetmap.org/"),
-        "© OpenStreetMap contributors")
-
-    private val transportMap = object : XYTileSource("OSM Transport Map", 1, 18, 256, ".png",
-        arrayOf("https://tile.memomaps.de/tilegen/"),
-        "© OpenStreetMap, © memomaps.de") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
-            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
-            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            val tfKey = try { PrefsHelper.getSecureString(requireContext(), "api_key_thunderforest", "") } catch (e: Exception) { "" }
-            return if (tfKey.isNotBlank()) {
-                "https://tile.thunderforest.com/transport/$z/$x/$y.png?apikey=$tfKey"
-            } else {
-                "https://tile.memomaps.de/tilegen/$z/$x/$y.png"
-            }
-        }
-    }
-
-    private val osmVectorRoads = object : XYTileSource(
-        "Vector OpenStreetMap (OLED) ⭐",
-        1, 16, 256, ".mvt",
-        arrayOf("https://vector.openstreetmap.org/shortbread_v1/"),
-        "© OpenStreetMap contributors"
-    ) {
-        override fun getDrawable(aTileInputStream: java.io.InputStream?): android.graphics.drawable.Drawable? {
-            if (aTileInputStream == null) return null
-            return try {
-                val bitmap = com.example.tymap.util.OsmVectorTileDecoder.decodeMvtToBitmap(aTileInputStream, 256)
-                org.osmdroid.tileprovider.ReusableBitmapDrawable(bitmap)
-            } catch (e: Exception) {
-                null
-            }
-        }
-    }
-
-    private val cartoDarkNoLabels = object : XYTileSource(
-        "CartoDB Dark No Labels",
-        1, 20, 256, ".png",
-        arrayOf(
-            "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
-            "https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
-            "https://c.basemaps.cartocdn.com/rastertiles/dark_nolabels/"
-        ),
-        "© OpenStreetMap, © CARTO"
-    ) {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val base = super.getTileURLString(pMapTileIndex)
-            val key = try { PrefsHelper.getSecureString(requireContext(), "api_key_carto", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
         }
     }
 
@@ -283,21 +188,17 @@ class MapFragment : Fragment(), IOrientationConsumer {
         }
     }
 
+    private val osmStandard = XYTileSource("OpenStreetMap Chuẩn", 1, 19, 256, ".png",
+        arrayOf("https://tile.openstreetmap.org/"),
+        "© OpenStreetMap contributors")
+
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
-        list.add(mapCnDark)           // 0: CartoDB Dark Matter
-        list.add(mapCnPositron)       // 1: CartoDB Positron
-        list.add(mapCnVoyager)        // 2: CartoDB Voyager
-        list.add(googleMaps)          // 3: Google Maps (MT)
-        list.add(googleMapsDark)      // 4: Google Maps Dark (MT)
-        list.add(googleMaps)          // 5: Google Maps Đảo Màu (MT Invert)
-        list.add(googleMapsSatellite) // 6: Google Maps Satellite (MT)
-        list.add(googleMapsHybrid)    // 7: Google Maps Hybrid (MT)
-        list.add(osmStandard)         // 8: OpenStreetMap Chuẩn
-        list.add(transportMap)        // 9: OSM Transport Map
-        list.add(osmVectorRoads)      // 10: Vector OpenStreetMap (OLED) ⭐
-        list.add(cartoDarkNoLabels)   // 11: CartoDB Dark No Labels
-        list.add(stamenTonerLines)    // 12: Stamen Toner Lines (OSM)
+        list.add(googleMaps)          // 0: Google Maps (MT)
+        list.add(googleMapsDark)      // 1: Google Maps Dark (MT)
+        list.add(googleMapsInvert)    // 2: Google Maps Đảo Màu (MT Invert)
+        list.add(stamenTonerLines)    // 3: Stamen Toner Lines (OSM)
+        list.add(osmStandard)         // 4: OpenStreetMap Chuẩn
 
         val customUrl = PrefsHelper.getString(requireContext(), "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {
@@ -388,7 +289,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             overlays.clear()
             setTileSource(sources[index])
             
-            if (index == 5) {
+            if (index == 2) {
                 val colorMatrix = android.graphics.ColorMatrix(floatArrayOf(
                     -1.0f, 0.0f, 0.0f, 0.0f, 255f,
                     0.0f, -1.0f, 0.0f, 0.0f, 255f,
@@ -1460,7 +1361,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
                     PrefsHelper.putInt(requireContext(), "tile_source", which)
                     binding.mapView.setTileSource(sources[which])
                     
-                    if (which == 5) {
+                    if (which == 2) {
                         val colorMatrix = android.graphics.ColorMatrix(floatArrayOf(
                             -1.0f, 0.0f, 0.0f, 0.0f, 255f,
                             0.0f, -1.0f, 0.0f, 0.0f, 255f,
@@ -1679,6 +1580,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         mapRotationAnimator = android.animation.ValueAnimator.ofFloat(start, end).apply {
             duration = 200
             addUpdateListener { animator ->
+                if (_binding == null) return@addUpdateListener
                 binding.mapView.mapOrientation = animator.animatedValue as Float
             }
             start()
@@ -2370,6 +2272,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
         markerRotationAnimator = android.animation.ValueAnimator.ofFloat(startRotation, finalTargetRotation).apply {
             duration = 300
             addUpdateListener { animator ->
+                if (_binding == null) return@addUpdateListener
                 val value = animator.animatedValue as Float
                 marker.rotation = value
                 binding.mapView.invalidate()
@@ -2385,10 +2288,12 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val startPoint = marker.position
         if (startPoint == null || isFirstLocation) {
             marker.position = targetPoint
-            if (isFollowing) {
-                binding.mapView.controller.setCenter(targetPoint)
+            if (_binding != null) {
+                if (isFollowing) {
+                    binding.mapView.controller.setCenter(targetPoint)
+                }
+                binding.mapView.postInvalidateDelayed(50)
             }
-            binding.mapView.postInvalidateDelayed(50)
             return
         }
 
@@ -2400,10 +2305,12 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val distance = startPoint.distanceToAsDouble(targetPoint)
         if (distance > 500.0) { // Set instantly if distance is too large (avoid panning long distance)
             marker.position = targetPoint
-            if (isFollowing) {
-                binding.mapView.controller.setCenter(targetPoint)
+            if (_binding != null) {
+                if (isFollowing) {
+                    binding.mapView.controller.setCenter(targetPoint)
+                }
+                binding.mapView.postInvalidateDelayed(50)
             }
-            binding.mapView.postInvalidateDelayed(50)
             return
         }
 
@@ -2412,6 +2319,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
             duration = durationMs + 200L
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener { animator ->
+                if (_binding == null) return@addUpdateListener
                 val fraction = animator.animatedValue as Float
                 val lat = startLat + fraction * (targetLat - startLat)
                 val lon = startLon + fraction * (targetLon - startLon)
@@ -2768,7 +2676,20 @@ class MapFragment : Fragment(), IOrientationConsumer {
             activity?.window?.decorView?.keepScreenOn = true
         }
         val index = PrefsHelper.getInt(requireContext(), "tile_source", 0)
-        binding.mapView.setTileSource(getTileSources()[if (index < getTileSources().size) index else 0])
+        val sources = getTileSources()
+        val safeIdx = if (index < sources.size) index else 0
+        binding.mapView.setTileSource(sources[safeIdx])
+        if (safeIdx == 2) {
+            val colorMatrix = android.graphics.ColorMatrix(floatArrayOf(
+                -1.0f, 0.0f, 0.0f, 0.0f, 255f,
+                0.0f, -1.0f, 0.0f, 0.0f, 255f,
+                0.0f, 0.0f, -1.0f, 0.0f, 255f,
+                0.0f, 0.0f, 0.0f, 1.0f, 0.0f
+            ))
+            binding.mapView.overlayManager.tilesOverlay.setColorFilter(android.graphics.ColorMatrixColorFilter(colorMatrix))
+        } else {
+            binding.mapView.overlayManager.tilesOverlay.setColorFilter(null)
+        }
         binding.mapView.onResume()
         compassOverlay?.enableCompass()
         orientationProvider?.startOrientationProvider(this)
@@ -2941,5 +2862,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
         dialog.show()
     }
 
-    override fun onDestroyView() { super.onDestroyView(); _binding = null }
+    override fun onDestroyView() {
+        mapRotationAnimator?.cancel()
+        mapRotationAnimator = null
+        markerPositionAnimator?.cancel()
+        markerPositionAnimator = null
+        markerRotationAnimator?.cancel()
+        markerRotationAnimator = null
+        super.onDestroyView()
+        _binding = null
+    }
 }

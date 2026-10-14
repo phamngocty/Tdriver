@@ -33,12 +33,12 @@ object NasConnectionManager {
     const val DEFAULT_PUBLIC_DOMAIN = "nas152.duckdns.org"
     const val DEFAULT_LAN_IP = "192.168.1.114"
 
-    // Circuit Breaker cooldown (25 seconds)
-    private const val FAILURE_COOLDOWN_MS = 25000L
+    // Circuit Breaker cooldown (10 seconds)
+    private const val FAILURE_COOLDOWN_MS = 10000L
 
-    // Fast timeouts for local NAS & low-latency DuckDNS
-    private const val NAS_CONNECT_TIMEOUT_MS = 1200L
-    private const val NAS_READ_TIMEOUT_MS = 2500L
+    // Responsive timeouts for NAS (Allows route calculation while failing fast on disconnect)
+    private const val NAS_CONNECT_TIMEOUT_MS = 2500L
+    private const val NAS_READ_TIMEOUT_MS = 6000L
 
     // Responsive timeouts for public cloud APIs
     private const val PUBLIC_CONNECT_TIMEOUT_MS = 3500L
@@ -51,8 +51,39 @@ object NasConnectionManager {
     private val isNasReachable = AtomicBoolean(true)
     private val lastFailureTime = AtomicLong(0L)
 
+    @Volatile
+    private var appContext: Context? = null
+
+    fun init(context: Context) {
+        if (appContext == null) {
+            appContext = context.applicationContext
+        }
+    }
+
+    private val smartNasDns = object : okhttp3.Dns {
+        override fun lookup(hostname: String): List<java.net.InetAddress> {
+            val isDuckDns = hostname.endsWith("duckdns.org") || hostname.contains("nas152")
+            val systemIps = try { okhttp3.Dns.SYSTEM.lookup(hostname) } catch (e: Exception) { emptyList() }
+            val ctx = appContext
+            if (isDuckDns && ctx != null && isWifiConnected(ctx)) {
+                try {
+                    val configured = PrefsHelper.getString(ctx, "nas_ip", "").ifEmpty {
+                        PrefsHelper.getString(ctx, "nas_server_ip", "")
+                    }.trim()
+                    val targetLan = if (configured.isNotEmpty() && isPrivateLanIp(configured)) configured else DEFAULT_LAN_IP
+                    val lanAddress = java.net.InetAddress.getByName(targetLan)
+                    return listOf(lanAddress) + systemIps.filter { it != lanAddress }
+                } catch (e: Exception) {
+                    // Fallback to system DNS
+                }
+            }
+            return if (systemIps.isNotEmpty()) systemIps else okhttp3.Dns.SYSTEM.lookup(hostname)
+        }
+    }
+
     val nasHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .dns(smartNasDns)
             .connectTimeout(NAS_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(NAS_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .retryOnConnectionFailure(false)
@@ -61,6 +92,7 @@ object NasConnectionManager {
 
     val publicHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .dns(smartNasDns)
             .connectTimeout(PUBLIC_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(PUBLIC_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .retryOnConnectionFailure(true)
@@ -69,10 +101,25 @@ object NasConnectionManager {
 
     val fastSearchHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .dns(smartNasDns)
             .connectTimeout(SEARCH_CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(SEARCH_READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .retryOnConnectionFailure(true)
             .build()
+    }
+
+    /**
+     * Checks if active network is Wi-Fi
+     */
+    fun isWifiConnected(context: Context): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val network = cm?.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /**
@@ -106,18 +153,31 @@ object NasConnectionManager {
     }
 
     /**
-     * Get configured NAS IP address or Public Domain (fallback: nas152.duckdns.org)
+     * Get configured NAS IP address or Public Domain.
+     * Smart fallback:
+     * - If user explicitly set "nas_ip", respect it.
+     * - If not set:
+     *   - Wi-Fi: Default to LAN IP (192.168.1.114) so local network users connect instantly without NAT loopback failure.
+     *   - Cellular: Default to Public Domain (nas152.duckdns.org).
      */
     fun getNasIp(context: Context): String {
-        return PrefsHelper.getString(context, "nas_ip", "").ifEmpty {
-            PrefsHelper.getString(context, "nas_server_ip", DEFAULT_PUBLIC_DOMAIN)
-        }.ifEmpty { DEFAULT_PUBLIC_DOMAIN }
+        init(context)
+        val userConfigured = PrefsHelper.getString(context, "nas_ip", "").ifEmpty {
+            PrefsHelper.getString(context, "nas_server_ip", "")
+        }.trim()
+
+        if (userConfigured.isNotEmpty()) {
+            return userConfigured
+        }
+
+        return DEFAULT_PUBLIC_DOMAIN
     }
 
     /**
      * Base URL for GraphHopper (Port 8989 or https://route.domain)
      */
     fun getGraphHopperBaseUrl(context: Context): String {
+        init(context)
         val host = getNasIp(context).trim()
         return if (isPrivateLanIp(host)) {
             "http://$host:8989"
@@ -130,6 +190,21 @@ object NasConnectionManager {
                 "https://route.$host"
             }
         }
+    }
+
+    /**
+     * Returns candidate Base URLs for GraphHopper fallback
+     */
+    fun getGraphHopperCandidateUrls(context: Context): List<String> {
+        init(context)
+        val primary = getGraphHopperBaseUrl(context)
+        val list = mutableListOf(primary)
+        // Dự phòng kết nối trực tiếp cổng 8989 nếu Nginx Proxy Manager gặp sự cố
+        val backup = "http://$DEFAULT_LAN_IP:8989"
+        if (!list.contains(backup)) {
+            list.add(backup)
+        }
+        return list
     }
 
     /**

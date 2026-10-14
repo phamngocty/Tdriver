@@ -45,8 +45,18 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Luôn ép buộc chế độ đêm ở mức hệ điều hành để đảm bảo tính nhất quán
-        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        // Đồng bộ chế độ hiển thị đêm/ngày theo cài đặt (Mặc định: 2 - Chế độ Tối)
+        val savedTheme = PrefsHelper.getInt(this, "app_theme", 2)
+        val targetNightMode = when (savedTheme) {
+            1 -> AppCompatDelegate.MODE_NIGHT_NO
+            2 -> AppCompatDelegate.MODE_NIGHT_YES
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        if (AppCompatDelegate.getDefaultNightMode() != targetNightMode) {
+            AppCompatDelegate.setDefaultNightMode(targetNightMode)
+        }
+
+        com.example.tymap.utils.NasConnectionManager.init(this)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -195,7 +205,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun selectTab(position: Int) {
-        binding.viewPager.currentItem = position
+        binding.viewPager.setCurrentItem(position, false)
     }
 
     private fun setupViewPager() {
@@ -213,7 +223,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupBottomNavigation() {
         binding.bottomNavigation.setOnItemSelectedListener { position ->
-            binding.viewPager.currentItem = position
+            binding.viewPager.setCurrentItem(position, false)
         }
 
         val density = resources.displayMetrics.density
