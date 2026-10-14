@@ -141,6 +141,30 @@ class NavigationService : Service() {
     private var isNearTurnCompleted: Boolean = false
     private var currentDistanceToNextMeters: Int = -1
 
+    // Polyline Map-matching & Smooth Heading 12h
+    private var smoothSnappedLat: Double = 0.0
+    private var smoothSnappedLon: Double = 0.0
+    private var smoothHeading: Float = 0f
+    private var lastSnappedSegmentIndex: Int = 0
+    private var currentTrackedStepIndex: Int = 0
+
+    private fun acquireWakeLock() {
+        try {
+            if (wakeLock == null) {
+                val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                wakeLock = powerManager.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "TYMAP:GpsWakeLock").apply {
+                    setReferenceCounted(false)
+                }
+            }
+            if (wakeLock?.isHeld == false) {
+                wakeLock?.acquire(24 * 60 * 60 * 1000L) // Giữ CPU chạy ngầm liên tục khi tắt màn hình
+                android.util.Log.d("NavigationService", "Acquired WakeLock successfully for background GPS & BLE")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NavigationService", "Failed to acquire WakeLock: ${e.message}")
+        }
+    }
+
     // Intelligent Chaser Engine (ICE)
     private val chaserEngine = ChaserEngine(offRouteThresholdMeters = 15f, cooldownMs = 2000L)
 
@@ -366,6 +390,8 @@ class NavigationService : Service() {
         super.onCreate()
         android.util.Log.d("NavigationService", "onCreate: Initializing BLE manager")
         instance = this
+        acquireWakeLock()
+        TymapKeepAliveEngine.getInstance(this).start()
         NavigationRepository.setServiceRunning(true)
         bleManager = MyBleManager(this)
         gpsManager = GpsManager(this).apply {
@@ -396,6 +422,10 @@ class NavigationService : Service() {
                     )
                     if (!newRoutes.isNullOrEmpty()) {
                         withContext(Dispatchers.Main) {
+                            currentTrackedStepIndex = 0
+                            smoothSnappedLat = 0.0
+                            smoothSnappedLon = 0.0
+                            lastSnappedSegmentIndex = 0
                             NavigationRepository.updateRoutes(newRoutes)
                             NavigationRepository.addLog("ICE: Đã tự động đồng bộ lại lộ trình OSRM trong <= 2s")
                         }
@@ -795,6 +825,105 @@ class NavigationService : Service() {
         } ?: Double.MAX_VALUE
     }
 
+    data class SnappedResult(
+        val lat: Double,
+        val lon: Double,
+        val bearing: Float,
+        val isSnapped: Boolean
+    )
+
+    private fun snapToPolyline(
+        rawLat: Double,
+        rawLon: Double,
+        polyline: List<Pair<Double, Double>>,
+        maxSnapDistMeters: Double = 35.0
+    ): SnappedResult {
+        if (polyline.size < 2) {
+            return SnappedResult(rawLat, rawLon, 0f, false)
+        }
+
+        val cosLat = Math.cos(Math.toRadians(rawLat))
+        val mPerDegLat = 111319.5
+        val mPerDegLon = 111319.5 * cosLat
+
+        var minDistanceSq = Double.MAX_VALUE
+        var bestIndex = 0
+        var bestClampedT = 0.0
+        var bestProjLat = rawLat
+        var bestProjLon = rawLon
+
+        for (i in 0 until polyline.size - 1) {
+            val p1 = polyline[i]
+            val p2 = polyline[i + 1]
+
+            val x1 = (p1.second - rawLon) * mPerDegLon
+            val y1 = (p1.first - rawLat) * mPerDegLat
+            val x2 = (p2.second - rawLon) * mPerDegLon
+            val y2 = (p2.first - rawLat) * mPerDegLat
+
+            val dx = x2 - x1
+            val dy = y2 - y1
+            val lenSq = dx * dx + dy * dy
+
+            if (lenSq < 1e-4) continue
+
+            val t = (-x1 * dx + -y1 * dy) / lenSq
+            val clampedT = t.coerceIn(0.0, 1.0)
+
+            val nearX = x1 + clampedT * dx
+            val nearY = y1 + clampedT * dy
+            val distSq = nearX * nearX + nearY * nearY
+
+            if (distSq < minDistanceSq) {
+                minDistanceSq = distSq
+                bestIndex = i
+                bestClampedT = clampedT
+                bestProjLat = p1.first + clampedT * (p2.first - p1.first)
+                bestProjLon = p1.second + clampedT * (p2.second - p1.second)
+            }
+        }
+
+        val minDistance = Math.sqrt(minDistanceSq)
+        if (minDistance > maxSnapDistMeters) {
+            return SnappedResult(rawLat, rawLon, 0f, false)
+        }
+
+        lastSnappedSegmentIndex = bestIndex
+
+        val p1 = polyline[bestIndex]
+        val p2 = polyline[bestIndex + 1]
+        val segmentBearing = computeBearingDegrees(p1.first, p1.second, p2.first, p2.second)
+
+        val finalBearing = if (bestClampedT > 0.75 && bestIndex + 2 < polyline.size) {
+            val p3 = polyline[bestIndex + 2]
+            val nextBearing = computeBearingDegrees(p2.first, p2.second, p3.first, p3.second)
+            val weightNext = ((bestClampedT - 0.75) / 0.25).toFloat().coerceIn(0f, 1f)
+            interpolateAngleDegrees(segmentBearing, nextBearing, weightNext)
+        } else {
+            segmentBearing
+        }
+
+        return SnappedResult(bestProjLat, bestProjLon, finalBearing, true)
+    }
+
+    private fun computeBearingDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
+        val phi1 = Math.toRadians(lat1)
+        val phi2 = Math.toRadians(lat2)
+        val deltaLambda = Math.toRadians(lon2 - lon1)
+
+        val y = Math.sin(deltaLambda) * Math.cos(phi2)
+        val x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda)
+        val theta = Math.atan2(y, x)
+        return ((Math.toDegrees(theta) + 360.0) % 360.0).toFloat()
+    }
+
+    private fun interpolateAngleDegrees(fromAngle: Float, toAngle: Float, alpha: Float): Float {
+        var diff = (toAngle - fromAngle) % 360f
+        if (diff > 180f) diff -= 360f
+        if (diff < -180f) diff += 360f
+        return (fromAngle + diff * alpha + 360f) % 360f
+    }
+
     private fun updateHudFromSteps(location: android.location.Location, steps: List<com.example.tymap.repository.StepInfo>) {
         if (steps.isEmpty()) return
         val source = PrefsHelper.getInt(this, "hud_source", 0)
@@ -802,10 +931,13 @@ class NavigationService : Service() {
         // khong ghi de du lieu HUD bang OSM steps
         if (isGmapsActive && (source == 0 || source == 1)) return
         
-        // 1. Tìm bước closestIndex có điểm bắt đầu gần xe nhất
-        var closestIndex = 0
+        // 1. Tìm bước closestIndex quanh currentTrackedStepIndex (đảm bảo tính đơn điệu tiến tới, không bị lùi ngã rẽ)
+        val searchStart = (currentTrackedStepIndex - 1).coerceAtLeast(0)
+        val searchEnd = (currentTrackedStepIndex + 2).coerceAtMost(steps.size - 1)
+        var closestIndex = currentTrackedStepIndex
         var minDistance = Double.MAX_VALUE
-        for (i in steps.indices) {
+
+        for (i in searchStart..searchEnd) {
             val results = FloatArray(1)
             android.location.Location.distanceBetween(location.latitude, location.longitude, steps[i].location.first, steps[i].location.second, results)
             val d = results[0].toDouble()
@@ -815,19 +947,17 @@ class NavigationService : Service() {
             }
         }
 
-        // 2. Xác định chặng mục tiêu tiếp theo (targetIndex = closestIndex + 1)
-        var targetIndex = closestIndex + 1
-        if (targetIndex >= steps.size) {
-            targetIndex = steps.size - 1
-        } else {
-            // Kiểm tra xem xe đã đến rất gần điểm kết thúc của chặng hiện tại (điểm bắt đầu của targetIndex) chưa
-            val results = FloatArray(1)
-            android.location.Location.distanceBetween(location.latitude, location.longitude, steps[targetIndex].location.first, steps[targetIndex].location.second, results)
-            val distToTarget = results[0]
-            if (distToTarget <= 15 && targetIndex < steps.size - 1) {
-                // Nếu cách ngã rẽ tiếp theo <= 15m, chuyển sang ngã rẽ sau đó nữa để chuẩn bị hiển thị chỉ dẫn mới
-                targetIndex++
-            }
+        if (closestIndex > currentTrackedStepIndex) {
+            currentTrackedStepIndex = closestIndex
+        }
+
+        // 2. Xác định chặng mục tiêu tiếp theo
+        var targetIndex = (currentTrackedStepIndex + 1).coerceAtMost(steps.size - 1)
+        val results = FloatArray(1)
+        android.location.Location.distanceBetween(location.latitude, location.longitude, steps[targetIndex].location.first, steps[targetIndex].location.second, results)
+        val distToTarget = results[0]
+        if (distToTarget <= 15 && targetIndex < steps.size - 1) {
+            targetIndex++
         }
 
         val nextStep = steps[targetIndex]
@@ -1212,37 +1342,18 @@ class NavigationService : Service() {
     }
 
     // Map Sources
-    private val mapCnDark = object : XYTileSource("CartoDB Dark Matter", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/dark_all/", "https://b.basemaps.cartocdn.com/dark_all/", "https://c.basemaps.cartocdn.com/dark_all/"),
-        "© OpenStreetMap contributors, © CARTO") {
+    private val googleMaps = object : XYTileSource("Google Maps (MT)", 1, 20, 256, "",
+        arrayOf("https://mt1.google.com/vt/lyrs=m"),
+        "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
-            val base = super.getTileURLString(pMapTileIndex)
-            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_carto", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z"
         }
     }
 
-    private val mapCnPositron = object : XYTileSource("CartoDB Positron", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/light_all/", "https://b.basemaps.cartocdn.com/light_all/", "https://c.basemaps.cartocdn.com/light_all/"),
-        "© OpenStreetMap contributors, © CARTO") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val base = super.getTileURLString(pMapTileIndex)
-            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_carto", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
-        }
-    }
-
-    private val mapCnVoyager = object : XYTileSource("CartoDB Voyager", 1, 20, 256, ".png",
-        arrayOf("https://a.basemaps.cartocdn.com/rastertiles/voyager/", "https://b.basemaps.cartocdn.com/rastertiles/voyager/", "https://c.basemaps.cartocdn.com/rastertiles/voyager/"),
-        "© OpenStreetMap contributors, © CARTO") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val base = super.getTileURLString(pMapTileIndex)
-            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_carto", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
-        }
-    }
-
-    private val googleMapsDark = object : XYTileSource("Google Maps Dark", 1, 20, 256, "",
+    private val googleMapsDark = object : XYTileSource("Google Maps Dark (MT)", 1, 20, 256, "",
         arrayOf("https://mt1.google.com/vt/lyrs=m"),
         "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
@@ -1255,7 +1366,7 @@ class NavigationService : Service() {
         }
     }
 
-    private val googleMaps = object : XYTileSource("Google Maps", 1, 20, 256, "",
+    private val googleMapsInvert = object : XYTileSource("Google Maps Đảo Màu (MT Invert)", 1, 20, 256, "",
         arrayOf("https://mt1.google.com/vt/lyrs=m"),
         "© Google") {
         override fun getTileURLString(pMapTileIndex: Long): String {
@@ -1263,82 +1374,6 @@ class NavigationService : Service() {
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
             return "https://mt1.google.com/vt/lyrs=m&x=$x&y=$y&z=$z"
-        }
-    }
-
-    private val googleMapsSatellite = object : XYTileSource("Google Satellite", 1, 20, 256, "",
-        arrayOf("https://mt1.google.com/vt/lyrs=s"),
-        "© Google") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
-            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
-            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://mt1.google.com/vt/lyrs=s&x=$x&y=$y&z=$z"
-        }
-    }
-
-    private val googleMapsHybrid = object : XYTileSource("Google Hybrid", 1, 20, 256, "",
-        arrayOf("https://mt1.google.com/vt/lyrs=y"),
-        "© Google") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
-            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
-            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            return "https://mt1.google.com/vt/lyrs=y&x=$x&y=$y&z=$z"
-        }
-    }
-
-    private val osmStandard = XYTileSource("OpenStreetMap", 1, 19, 256, ".png",
-        arrayOf("https://tile.openstreetmap.org/"),
-        "© OpenStreetMap contributors")
-
-    private val transportMap = object : XYTileSource("OSM Transport Map", 1, 18, 256, ".png",
-        arrayOf("https://tile.memomaps.de/tilegen/"),
-        "© OpenStreetMap, © memomaps.de") {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
-            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
-            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            val tfKey = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_thunderforest", "") } catch (e: Exception) { "" }
-            return if (tfKey.isNotBlank()) {
-                "https://tile.thunderforest.com/transport/$z/$x/$y.png?apikey=$tfKey"
-            } else {
-                "https://tile.memomaps.de/tilegen/$z/$x/$y.png"
-            }
-        }
-    }
-
-    private val osmVectorRoads = object : XYTileSource(
-        "Vector OpenStreetMap (OLED) ⭐",
-        1, 16, 256, ".mvt",
-        arrayOf("https://vector.openstreetmap.org/shortbread_v1/"),
-        "© OpenStreetMap contributors"
-    ) {
-        override fun getDrawable(aTileInputStream: java.io.InputStream?): android.graphics.drawable.Drawable? {
-            if (aTileInputStream == null) return null
-            return try {
-                val bitmap = com.example.tymap.util.OsmVectorTileDecoder.decodeMvtToBitmap(aTileInputStream, 256)
-                org.osmdroid.tileprovider.ReusableBitmapDrawable(bitmap)
-            } catch (e: Exception) {
-                null
-            }
-        }
-    }
-
-    private val cartoDarkNoLabels = object : XYTileSource(
-        "CartoDB Dark No Labels",
-        1, 20, 256, ".png",
-        arrayOf(
-            "https://a.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
-            "https://b.basemaps.cartocdn.com/rastertiles/dark_nolabels/",
-            "https://c.basemaps.cartocdn.com/rastertiles/dark_nolabels/"
-        ),
-        "© OpenStreetMap, © CARTO"
-    ) {
-        override fun getTileURLString(pMapTileIndex: Long): String {
-            val base = super.getTileURLString(pMapTileIndex)
-            val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_carto", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
         }
     }
 
@@ -1355,21 +1390,17 @@ class NavigationService : Service() {
         }
     }
 
+    private val osmStandard = XYTileSource("OpenStreetMap Chuẩn", 1, 19, 256, ".png",
+        arrayOf("https://tile.openstreetmap.org/"),
+        "© OpenStreetMap contributors")
+
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
-        list.add(mapCnDark)           // 0: CartoDB Dark Matter
-        list.add(mapCnPositron)       // 1: CartoDB Positron
-        list.add(mapCnVoyager)        // 2: CartoDB Voyager
-        list.add(googleMaps)          // 3: Google Maps (MT)
-        list.add(googleMapsDark)      // 4: Google Maps Dark (MT)
-        list.add(googleMaps)          // 5: Google Maps Đảo Màu (MT Invert)
-        list.add(googleMapsSatellite) // 6: Google Maps Satellite (MT)
-        list.add(googleMapsHybrid)    // 7: Google Maps Hybrid (MT)
-        list.add(osmStandard)         // 8: OpenStreetMap Chuẩn
-        list.add(transportMap)        // 9: OSM Transport Map
-        list.add(osmVectorRoads)      // 10: Vector OpenStreetMap (OLED) ⭐
-        list.add(cartoDarkNoLabels)   // 11: CartoDB Dark No Labels
-        list.add(stamenTonerLines)    // 12: Stamen Toner Lines (OSM)
+        list.add(googleMaps)          // 0: Google Maps (MT)
+        list.add(googleMapsDark)      // 1: Google Maps Dark (MT)
+        list.add(googleMapsInvert)    // 2: Google Maps Đảo Màu (MT Invert)
+        list.add(stamenTonerLines)    // 3: Stamen Toner Lines (OSM)
+        list.add(osmStandard)         // 4: OpenStreetMap Chuẩn
 
         val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
         if (customUrl.isNotEmpty() && customUrl.contains("{z}")) {
@@ -1421,21 +1452,13 @@ class NavigationService : Service() {
 
                 val tileSourceIndex = PrefsHelper.getInt(this@NavigationService, "tile_source", 0)
                 val tileSources = getTileSources()
-                val selectedTileSource = if (isOledDevice && tileSourceIndex == 0) stamenTonerLines else (tileSources.getOrNull(tileSourceIndex) ?: TileSourceFactory.MAPNIK)
+                val selectedTileSource = tileSources.getOrNull(tileSourceIndex) ?: TileSourceFactory.MAPNIK
                 if (headlessMapView?.tileProvider?.tileSource != selectedTileSource) {
                     headlessMapView?.setTileSource(selectedTileSource)
                 }
                 
-                if (isOledDevice || selectedTileSource == stamenTonerLines) {
-                    // Stamen Toner Lines Đảo Màu: Nền trắng -> Đen (0), Nét đường viền đen -> Trắng 1-pixel (255)
-                    val colorMatrix = android.graphics.ColorMatrix(floatArrayOf(
-                        -1.0f, 0.0f, 0.0f, 0.0f, 255f,
-                        0.0f, -1.0f, 0.0f, 0.0f, 255f,
-                        0.0f, 0.0f, -1.0f, 0.0f, 255f,
-                        0.0f, 0.0f, 0.0f, 1.0f, 0.0f
-                    ))
-                    headlessMapView?.overlayManager?.tilesOverlay?.setColorFilter(android.graphics.ColorMatrixColorFilter(colorMatrix))
-                } else if (tileSourceIndex == 5) {
+                if (selectedTileSource == stamenTonerLines || tileSourceIndex == 2) {
+                    // Stamen Toner Lines hoặc Google Maps Đảo Màu: Invert màu để nét trắng nổi trên nền đen OLED
                     val colorMatrix = android.graphics.ColorMatrix(floatArrayOf(
                         -1.0f, 0.0f, 0.0f, 0.0f, 255f,
                         0.0f, -1.0f, 0.0f, 0.0f, 255f,
@@ -1484,19 +1507,50 @@ class NavigationService : Service() {
 
                 // 2. Update map center and orientation based on current location
                 val isTrackUp = NavigationRepository.isTrackUpMode.value
-                location?.let {
-                    headlessMapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(it.latitude, it.longitude))
-                    
-                    val speed = it.speed
-                    val isMoving = speed > 1.5f && it.hasBearing()
-                    val heading = if (isMoving) {
-                        it.bearing
+                val selectedPolyline = routes.find { it.isSelected }?.polyline ?: routes.firstOrNull()?.polyline ?: emptyList()
+                
+                location?.let { loc ->
+                    val isNavActive = NavigationRepository.navigationState.value && selectedPolyline.size >= 2
+                    val snapResult = if (isNavActive) {
+                        snapToPolyline(loc.latitude, loc.longitude, selectedPolyline)
                     } else {
-                        NavigationRepository.compassHeading.value
+                        SnappedResult(loc.latitude, loc.longitude, 0f, false)
                     }
 
+                    val finalLat: Double
+                    val finalLon: Double
+                    val targetHeading: Float
+
+                    if (snapResult.isSnapped) {
+                        // Bám Polyline tuyệt đối với bộ lọc EMA chống giật vị trí
+                        if (smoothSnappedLat == 0.0 || Math.abs(smoothSnappedLat - snapResult.lat) > 0.005) {
+                            smoothSnappedLat = snapResult.lat
+                            smoothSnappedLon = snapResult.lon
+                        } else {
+                            smoothSnappedLat += 0.5 * (snapResult.lat - smoothSnappedLat)
+                            smoothSnappedLon += 0.5 * (snapResult.lon - smoothSnappedLon)
+                        }
+                        finalLat = smoothSnappedLat
+                        finalLon = smoothSnappedLon
+                        targetHeading = snapResult.bearing
+                    } else {
+                        smoothSnappedLat = 0.0
+                        smoothSnappedLon = 0.0
+                        finalLat = loc.latitude
+                        finalLon = loc.longitude
+                        val speed = loc.speed
+                        targetHeading = if (speed > 1.2f && loc.hasBearing()) {
+                            loc.bearing
+                        } else {
+                            smoothHeading // Giữ nguyên hướng trước đó, không xoay lung tung khi dừng xe!
+                        }
+                    }
+
+                    headlessMapView?.controller?.setCenter(org.osmdroid.util.GeoPoint(finalLat, finalLon))
+                    
                     if (isTrackUp) {
-                        headlessMapView?.mapOrientation = -heading
+                        smoothHeading = interpolateAngleDegrees(smoothHeading, targetHeading, 0.35f)
+                        headlessMapView?.mapOrientation = -smoothHeading
                     } else {
                         headlessMapView?.mapOrientation = 0f
                     }
@@ -1519,19 +1573,14 @@ class NavigationService : Service() {
                     } else {
                         marker.icon = if (isOledDevice) createOledUserIcon(this@NavigationService) else createUserIcon(this@NavigationService)
                     }
-                    marker.position = org.osmdroid.util.GeoPoint(loc.latitude, loc.longitude)
+                    val markerLat = if (smoothSnappedLat != 0.0) smoothSnappedLat else loc.latitude
+                    val markerLon = if (smoothSnappedLon != 0.0) smoothSnappedLon else loc.longitude
+                    marker.position = org.osmdroid.util.GeoPoint(markerLat, markerLon)
                     
                     if (isTrackUp) {
-                        marker.rotation = 0f // Hướng lên trên (12h) vì bản đồ đã xoay
+                        marker.rotation = 0f // Hướng lên trên (12h) vì bản đồ đã xoay theo hướng tuyến polyline
                     } else {
-                        val speed = loc.speed
-                        val isMoving = speed > 1.5f && loc.hasBearing()
-                        val heading = if (isMoving) {
-                            loc.bearing
-                        } else {
-                            NavigationRepository.compassHeading.value
-                        }
-                        marker.rotation = heading
+                        marker.rotation = smoothHeading
                     }
 
                     if (headlessMapView?.overlays?.contains(marker) == false) {
@@ -1565,16 +1614,28 @@ class NavigationService : Service() {
 
             // Apply crop configuration for Map Tab
             val prefs = getSharedPreferences("tymap_settings", Context.MODE_PRIVATE)
-            val normX = prefs.getFloat("map_tab_crop_x_norm", 0f)
-            val normY = prefs.getFloat("map_tab_crop_y_norm", 0f)
-            val normSize = prefs.getFloat("map_tab_crop_size_norm", 0.4f).coerceAtLeast(0.01f)
+            val normX = prefs.getFloat("map_tab_crop_x_norm", -1f)
+            val normY = prefs.getFloat("map_tab_crop_y_norm", -1f)
+            val normSize = prefs.getFloat("map_tab_crop_size_norm", 0.45f).coerceAtLeast(0.01f)
 
-            val absX = (normX * renderWidth).toInt()
-            val absY = (normY * renderHeight).toInt()
             val absSize = (normSize * renderWidth).toInt().coerceAtLeast(1)
 
-            val safeX = absX.coerceIn(0, (renderWidth - absSize).coerceAtLeast(0))
-            val safeY = absY.coerceIn(0, (renderHeight - absSize).coerceAtLeast(0))
+            val safeX: Int
+            val safeY: Int
+
+            if (normX >= 0f && normY >= 0f) {
+                val absX = (normX * renderWidth).toInt()
+                val absY = (normY * renderHeight).toInt()
+                safeX = absX.coerceIn(0, (renderWidth - absSize).coerceAtLeast(0))
+                safeY = absY.coerceIn(0, (renderHeight - absSize).coerceAtLeast(0))
+            } else {
+                // Tự động căn tâm chuẩn xác vào vị trí xe
+                val defaultCenterX = renderWidth / 2
+                val defaultCenterY = renderHeight / 2
+                val targetYOffset = if (NavigationRepository.isTrackUpMode.value) (absSize * 0.55f).toInt() else (absSize / 2)
+                safeX = (defaultCenterX - absSize / 2).coerceIn(0, (renderWidth - absSize).coerceAtLeast(0))
+                safeY = (defaultCenterY - targetYOffset).coerceIn(0, (renderHeight - absSize).coerceAtLeast(0))
+            }
             
             val cropped = Bitmap.createBitmap(bitmap, safeX, safeY, absSize, absSize)
             
@@ -2108,6 +2169,7 @@ class NavigationService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        TymapKeepAliveEngine.getInstance(this).stop()
         unregisterReceiver(gmapsHudReceiver)
         unregisterReceiver(batteryReceiver)
         NavigationRepository.updateHudPreview(null)

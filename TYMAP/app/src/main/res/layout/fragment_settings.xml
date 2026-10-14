@@ -2507,6 +2507,31 @@
                         android:layout_height="wrap_content"
                         android:layout_marginVertical="10dp"/>
 
+                    <!-- Section: GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorAccentCyan"
+                        android:layout_marginBottom="6dp"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnKeepAliveSettings"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="🧭 Cấp độ giữ sống bản đồ (Chống tắt khi khóa màn hình)"
+                        android:textAllCaps="false"
+                        android:textColor="@color/colorAccentCyan"
+                        android:layout_marginBottom="8dp" />
+
+                    <com.google.android.material.divider.MaterialDivider
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginVertical="10dp"/>
+
                     <!-- Section: Cập nhật phần mềm -->
                     <TextView
                         android:layout_width="wrap_content"

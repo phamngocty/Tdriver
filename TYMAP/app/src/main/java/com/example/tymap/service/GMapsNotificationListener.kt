@@ -228,6 +228,9 @@ class GMapsNotificationListener : NotificationListenerService() {
         Log.d("GMapsListener", logMsg)
         NavigationRepository.addLog(logMsg)
 
+        // Báo thức cho Keep-Alive Engine biết Google Maps đang sống
+        TymapKeepAliveEngine.getInstance(this).feedGoogleMapsData()
+
         val iconIndex = guessIconIndex("${parsedData.instruction} $title", text)
 
         val intent = Intent("com.example.tymap.ACTION_GMAPS_HUD").apply {

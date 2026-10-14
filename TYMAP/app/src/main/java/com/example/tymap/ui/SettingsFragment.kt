@@ -178,6 +178,7 @@ class SettingsFragment : Fragment() {
         }
         binding.rvDevices.adapter = deviceAdapter
         binding.rvDevices.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvDevices.isNestedScrollingEnabled = false
 
         setupHistorySpinner()
 
@@ -482,10 +483,13 @@ class SettingsFragment : Fragment() {
         val weatherApiKey = PrefsHelper.getSecureString(context, "api_key_weatherapi", "")
         val stadiaKey = PrefsHelper.getSecureString(context, "api_key_stadia", "")
         val cartoKey = PrefsHelper.getSecureString(context, "api_key_carto", "")
+        val nasHost = PrefsHelper.getString(context, "nas_ip", "").ifEmpty {
+            PrefsHelper.getString(context, "nas_server_ip", "")
+        }
 
         apiServicesList.clear()
         apiServicesList.addAll(listOf(
-            ApiService("nas_routing", "GraphHopper NAS (Primary)", "Máy chủ định tuyến xe máy & ô tô tốc độ cao (8989 / DuckDNS).", NasConnectionManager.getGraphHopperBaseUrl(context), false, status = ServiceStatus.FREE),
+            ApiService("nas_routing", "GraphHopper NAS (Primary)", "Máy chủ định tuyến tốc độ cao (Tự động LAN: 192.168.1.114, 4G: nas152.duckdns.org). Nhập IP LAN hoặc Domain tùy chỉnh nếu muốn.", "http://${NasConnectionManager.getNasIp(context)}:8989", true, apiKey = nasHost, status = ServiceStatus.FREE),
             ApiService("nas_traffic", "Fusion Engine NAS (Primary)", "Trạm cảnh báo camera phạt nguội & tốc độ siêu tốc (8088 / DuckDNS).", NasConnectionManager.getFusionEngineBaseUrl(context), false, status = ServiceStatus.FREE),
             ApiService("nas_geo", "Nominatim & Photon NAS (Primary)", "Tìm kiếm & giải mã tọa độ Việt Nam từ NAS (8081 / DuckDNS).", NasConnectionManager.getNominatimBaseUrl(context), false, status = ServiceStatus.FREE),
             ApiService("weatherapi", "WeatherAPI.com (Khuyên dùng)", "Dự báo thời tiết & mưa Việt Nam cực chuẩn (1.000.000 req/tháng miễn phí).", "https://www.weatherapi.com/signup.aspx", true, apiKey = weatherApiKey, status = if (weatherApiKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
@@ -513,6 +517,7 @@ class SettingsFragment : Fragment() {
         )
         binding.rvApiServices.adapter = apiServiceAdapter
         binding.rvApiServices.layoutManager = LinearLayoutManager(context)
+        binding.rvApiServices.isNestedScrollingEnabled = false
 
         binding.btnCheckApiHealth.setOnClickListener {
             checkAllApiServicesHealth()
@@ -521,6 +526,13 @@ class SettingsFragment : Fragment() {
 
     private fun saveApiKey(serviceId: String, apiKey: String) {
         val context = context ?: return
+        if (serviceId == "nas_routing") {
+            val clean = apiKey.trim()
+            PrefsHelper.putString(context, "nas_ip", clean)
+            PrefsHelper.putString(context, "nas_server_ip", clean)
+            NasConnectionManager.markNasSuccess()
+            return
+        }
         val keyName = when(serviceId) {
             "goong" -> "api_key_goong"
             "weatherapi" -> "api_key_weatherapi"
@@ -718,8 +730,20 @@ class SettingsFragment : Fragment() {
     }
 
     private fun testNasGraphhopper(): Boolean {
-        val url = NasConnectionManager.getGraphHopperBaseUrl(requireContext()) + "/health"
-        return try { OkHttpClient.Builder().connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS).build().newCall(Request.Builder().url(url).build()).execute().use { it.isSuccessful } } catch (e: Exception) { false }
+        val candidates = NasConnectionManager.getGraphHopperCandidateUrls(requireContext())
+        for (base in candidates) {
+            val url = "$base/health"
+            val ok = try {
+                OkHttpClient.Builder().connectTimeout(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                    .newCall(Request.Builder().url(url).build())
+                    .execute().use { it.isSuccessful }
+            } catch (e: Exception) { false }
+            if (ok) {
+                NasConnectionManager.markNasSuccess()
+                return true
+            }
+        }
+        return false
     }
 
     private fun testNasFusionEngine(): Boolean {
@@ -908,19 +932,11 @@ class SettingsFragment : Fragment() {
 
         // 2. MAP
         val mapSources = arrayOf(
-            "CartoDB Dark Matter",
-            "CartoDB Positron",
-            "CartoDB Voyager",
             "Google Maps (MT)",
             "Google Maps Dark (MT)",
             "Google Maps Đảo Màu (MT Invert)",
-            "Google Maps Satellite (MT)",
-            "Google Maps Hybrid (MT)",
-            "OpenStreetMap Chuẩn",
-            "OSM Transport Map",
-            "Vector OpenStreetMap (OLED) ⭐",
-            "CartoDB Dark No Labels",
             "Stamen Toner Lines (OSM)",
+            "OpenStreetMap Chuẩn",
             "Tùy chỉnh (Self-Hosted/URL)"
         )
         val rawTileSource = PrefsHelper.getInt(context, "tile_source", 0)
@@ -1296,9 +1312,14 @@ class SettingsFragment : Fragment() {
     private fun setupSpinner(spinner: android.widget.Spinner, items: Array<String>, selection: Int, onSelected: (Int) -> Unit) {
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, items)
         spinner.adapter = adapter
-        spinner.setSelection(selection)
+        var isInitial = true
+        spinner.setSelection(selection, false)
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p0: AdapterView<*>?, p1: View?, position: Int, p3: Long) {
+                if (isInitial) {
+                    isInitial = false
+                    return
+                }
                 onSelected(position)
             }
             override fun onNothingSelected(p0: AdapterView<*>?) {}
@@ -1311,7 +1332,9 @@ class SettingsFragment : Fragment() {
             2 -> AppCompatDelegate.MODE_NIGHT_YES
             else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
         }
-        AppCompatDelegate.setDefaultNightMode(mode)
+        if (AppCompatDelegate.getDefaultNightMode() != mode) {
+            AppCompatDelegate.setDefaultNightMode(mode)
+        }
     }
 
     override fun onResume() {
@@ -1518,6 +1541,10 @@ class SettingsFragment : Fragment() {
                 }
                 .setNegativeButton("Hủy", null)
                 .show()
+        }
+
+        binding.btnKeepAliveSettings.setOnClickListener {
+            showKeepAliveSettingsDialog()
         }
 
         binding.btnCheckUpdate.setOnClickListener {
@@ -1743,6 +1770,71 @@ class SettingsFragment : Fragment() {
                 binding.tvUpdateStatus.text = "❌ Thất bại khi truyền Firmware iOS BLE sang ESP32! Vui lòng thử lại gần xe hơn."
             }
         }
+    }
+
+    /**
+     * 🧭 Hộp thoại cấu hình các cấp độ Giữ Sống Bản Đồ (Google Maps) khi tắt màn hình
+     */
+    private fun showKeepAliveSettingsDialog() {
+        val ctx = context ?: return
+        val keepAlive = com.example.tymap.service.TymapKeepAliveEngine.getInstance(ctx)
+        val tiers = com.example.tymap.service.KeepAliveTier.values()
+        var selectedTier = keepAlive.currentTier
+        var autoEscalate = keepAlive.isAutoEscalateEnabled
+
+        val dialogView = android.widget.ScrollView(ctx).apply {
+            setPadding(40, 30, 40, 30)
+        }
+
+        val container = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+        }
+
+        val tvIntro = android.widget.TextView(ctx).apply {
+            text = "Chọn phương thức ngăn chặn Android đưa Google Maps vào trạng thái ngủ đông khi bạn tắt màn hình / đút điện thoại vào túi hoặc cốp xe:"
+            textSize = 12.5f
+            setTextColor(android.graphics.Color.parseColor("#94A3B8"))
+            setPadding(0, 0, 0, 20)
+        }
+        container.addView(tvIntro)
+
+        val radioGroup = android.widget.RadioGroup(ctx)
+        tiers.forEachIndexed { index, tier ->
+            val rb = android.widget.RadioButton(ctx).apply {
+                id = index + 7000
+                val titleColor = if (tier == com.example.tymap.service.KeepAliveTier.TIER_2_SILENT_CONTINUOUS) " (Khuyên dùng)" else ""
+                text = "${tier.title}$titleColor\n• ${tier.description}\n${tier.note}\n"
+                textSize = 12f
+                setTextColor(android.graphics.Color.WHITE)
+                isChecked = (tier == selectedTier)
+                setPadding(14, 10, 14, 16)
+                setOnClickListener { selectedTier = tier }
+            }
+            radioGroup.addView(rb)
+        }
+        container.addView(radioGroup)
+
+        val cbAutoEsc = android.widget.CheckBox(ctx).apply {
+            text = "⚡ Tự động leo thang cấp độ thông minh:\nNếu phát hiện Google Maps bị mất tín hiệu > 20 giây khi tắt màn hình, app sẽ tự động nâng lên cấp độ cao hơn để duy trì dẫn đường."
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#00F0FF"))
+            isChecked = autoEscalate
+            setOnCheckedChangeListener { _, isChecked -> autoEscalate = isChecked }
+            setPadding(10, 16, 10, 16)
+        }
+        container.addView(cbAutoEsc)
+        dialogView.addView(container)
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(ctx)
+            .setTitle("🧭 Cấp Độ Giữ Sống Google Maps")
+            .setView(dialogView)
+            .setPositiveButton("Lưu Cài Đặt") { _, _ ->
+                keepAlive.setTier(selectedTier)
+                keepAlive.setAutoEscalate(autoEscalate)
+                Toast.makeText(ctx, "🟢 Đã áp dụng: ${selectedTier.title}", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
     }
 
     override fun onDestroyView() {
