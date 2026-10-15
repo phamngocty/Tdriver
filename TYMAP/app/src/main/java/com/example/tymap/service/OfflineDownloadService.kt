@@ -263,7 +263,7 @@ class OfflineDownloadService : Service() {
 
     private fun downloadTile(url: String, targetFile: File) {
         val request = Request.Builder().url(url)
-            .header("User-Agent", "TYMAP-Motorbike-Nav/1.0.24 (Android; com.example.tymap; support@tymap.vn)")
+            .header("User-Agent", "TYMAP/1.0.24 (Android; com.example.tymap; support@tymap.vn)")
             .build()
 
         httpClient.newCall(request).execute().use { response ->
@@ -302,16 +302,16 @@ class OfflineDownloadService : Service() {
                 if (key.isNotEmpty()) {
                     "https://tiles.stadiamaps.com/tiles/stamen_toner_lines/{z}/{x}/{y}.png?api_key=$key"
                 } else {
-                    "https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png"
+                    "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                 }
             }
             4 -> {
-                // OpenStreetMap Chuẩn (CDN Mirror)
-                "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
+                // OpenStreetMap Chuẩn (Pure OSM)
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             }
             else -> {
                 val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
-                if (customUrl.isNotEmpty()) customUrl else "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
+                if (customUrl.isNotEmpty()) customUrl else "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             }
         }
     }

@@ -176,7 +176,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     private val stamenTonerLines = object : XYTileSource(
-        "Stamen Toner Lines (OSM CDN)",
+        "Stamen Toner Lines (OSM)",
         1, 20, 256, ".png",
         arrayOf("https://tiles.stadiamaps.com/tiles/stamen_toner_lines/"),
         "© OpenStreetMap, © Stadia Maps, © Stamen Design"
@@ -187,32 +187,38 @@ class MapFragment : Fragment(), IOrientationConsumer {
             return if (key.isNotEmpty()) {
                 "$base?api_key=$key"
             } else {
-                // Tự động fallback sang CartoDB Dark Matter độ tương phản cao khi chưa có Stadia API Key
+                // Khi chưa có Stadia API Key, dùng trực tiếp máy chủ OpenStreetMap thuần
                 val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
                 val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
                 val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-                val sub = arrayOf("a", "b", "c")[(x + y).toInt().let { if (it < 0) -it else it } % 3]
-                "https://$sub.basemaps.cartocdn.com/rastertiles/dark_all/$z/$x/$y.png"
+                "https://tile.openstreetmap.org/$z/$x/$y.png"
             }
         }
     }
 
     private val osmStandard: ITileSource = object : XYTileSource(
-        "OpenStreetMap CDN",
-        1, 20, 256, ".png",
+        "OpenStreetMap",
+        1, 19, 256, ".png",
         arrayOf(
-            "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
-            "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
-            "https://c.basemaps.cartocdn.com/rastertiles/voyager/"
+            "https://tile.openstreetmap.org/",
+            "https://a.tile.openstreetmap.fr/osmfr/",
+            "https://b.tile.openstreetmap.fr/osmfr/",
+            "https://tile.openstreetmap.de/"
         ),
-        "© OpenStreetMap contributors, © CARTO"
+        "© OpenStreetMap contributors"
     ) {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            val sub = arrayOf("a", "b", "c")[(x + y).toInt().let { if (it < 0) -it else it } % 3]
-            return "https://$sub.basemaps.cartocdn.com/rastertiles/voyager/$z/$x/$y.png"
+            val servers = arrayOf(
+                "https://tile.openstreetmap.org",
+                "https://a.tile.openstreetmap.fr/osmfr",
+                "https://b.tile.openstreetmap.fr/osmfr",
+                "https://tile.openstreetmap.de"
+            )
+            val srv = servers[(x + y).toInt().let { if (it < 0) -it else it } % servers.size]
+            return "$srv/$z/$x/$y.png"
         }
     }
 
@@ -244,17 +250,18 @@ class MapFragment : Fragment(), IOrientationConsumer {
         savedInstanceState: Bundle?
     ): View {
         Configuration.getInstance().load(requireContext(), requireContext().getSharedPreferences("tymap_osmdroid", Context.MODE_PRIVATE))
-        Configuration.getInstance().userAgentValue = "TYMAP-Motorbike-Nav/1.0.24 (Android; com.example.tymap; support@tymap.vn)"
+        Configuration.getInstance().userAgentValue = "TYMAP/1.0.24 (Android; com.example.tymap; support@tymap.vn)"
         // Tự động xóa sạch cache gạch bản đồ bị lỗi 403 / 401 cũ
         try {
             val tileCacheDir = Configuration.getInstance().osmdroidTileCache
             if (tileCacheDir != null && tileCacheDir.exists()) {
                 java.io.File(tileCacheDir, "Mapnik").deleteRecursively()
                 java.io.File(tileCacheDir, "Stamen Toner Lines (OSM)").deleteRecursively()
+                java.io.File(tileCacheDir, "OpenStreetMap CDN").deleteRecursively()
                 val tilesDb = java.io.File(tileCacheDir, "tiles.db")
-                if (tilesDb.exists() && !PrefsHelper.getBoolean(requireContext(), "osmdroid_403_cleared_v24", false)) {
+                if (tilesDb.exists() && !PrefsHelper.getBoolean(requireContext(), "osmdroid_403_cleared_v24_osm", false)) {
                     tilesDb.delete()
-                    PrefsHelper.putBoolean(requireContext(), "osmdroid_403_cleared_v24", true)
+                    PrefsHelper.putBoolean(requireContext(), "osmdroid_403_cleared_v24_osm", true)
                 }
             }
         } catch (e: Exception) {
@@ -1391,8 +1398,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
             val sources = getTileSources()
             val sourceNames = sources.map { 
                 when (it.name()) {
-                    "OpenStreetMap CDN" -> "OpenStreetMap Chuẩn"
-                    "Stamen Toner Lines (OSM CDN)" -> "Stamen Toner Lines (OSM)"
+                    "OpenStreetMap" -> "OpenStreetMap Chuẩn"
+                    "Stamen Toner Lines (OSM)" -> "Stamen Toner Lines (OSM)"
                     else -> it.name()
                 }
             }

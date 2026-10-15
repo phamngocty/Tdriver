@@ -578,7 +578,7 @@ class NavigationService : Service() {
     }
 
     private fun setupHeadlessMap() {
-        Configuration.getInstance().userAgentValue = "TYMAP-Motorbike-Nav/1.0.24 (Android; com.example.tymap; support@tymap.vn)"
+        Configuration.getInstance().userAgentValue = "TYMAP/1.0.24 (Android; com.example.tymap; support@tymap.vn)"
         headlessMapView = MapView(this)
         // Rule APP-21: Bật cache tối thiểu 50MB cho headless map
         headlessMapView?.setTileSource(osmStandard)
@@ -1379,7 +1379,7 @@ class NavigationService : Service() {
     }
 
     private val stamenTonerLines = object : XYTileSource(
-        "Stamen Toner Lines (OSM CDN)",
+        "Stamen Toner Lines (OSM)",
         1, 20, 256, ".png",
         arrayOf("https://tiles.stadiamaps.com/tiles/stamen_toner_lines/"),
         "© OpenStreetMap, © Stadia Maps, © Stamen Design"
@@ -1390,32 +1390,38 @@ class NavigationService : Service() {
             return if (key.isNotEmpty()) {
                 "$base?api_key=$key"
             } else {
-                // Tự động fallback sang CartoDB Dark Matter độ tương phản cao khi chưa có Stadia API Key
+                // Tự động fallback sang máy chủ OpenStreetMap thuần khi chưa có Stadia API Key
                 val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
                 val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
                 val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-                val sub = arrayOf("a", "b", "c")[(x + y).toInt().let { if (it < 0) -it else it } % 3]
-                "https://$sub.basemaps.cartocdn.com/rastertiles/dark_all/$z/$x/$y.png"
+                "https://tile.openstreetmap.org/$z/$x/$y.png"
             }
         }
     }
 
     private val osmStandard: ITileSource = object : XYTileSource(
-        "OpenStreetMap CDN",
-        1, 20, 256, ".png",
+        "OpenStreetMap",
+        1, 19, 256, ".png",
         arrayOf(
-            "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
-            "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
-            "https://c.basemaps.cartocdn.com/rastertiles/voyager/"
+            "https://tile.openstreetmap.org/",
+            "https://a.tile.openstreetmap.fr/osmfr/",
+            "https://b.tile.openstreetmap.fr/osmfr/",
+            "https://tile.openstreetmap.de/"
         ),
-        "© OpenStreetMap contributors, © CARTO"
+        "© OpenStreetMap contributors"
     ) {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
             val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
             val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-            val sub = arrayOf("a", "b", "c")[(x + y).toInt().let { if (it < 0) -it else it } % 3]
-            return "https://$sub.basemaps.cartocdn.com/rastertiles/voyager/$z/$x/$y.png"
+            val servers = arrayOf(
+                "https://tile.openstreetmap.org",
+                "https://a.tile.openstreetmap.fr/osmfr",
+                "https://b.tile.openstreetmap.fr/osmfr",
+                "https://tile.openstreetmap.de"
+            )
+            val srv = servers[(x + y).toInt().let { if (it < 0) -it else it } % servers.size]
+            return "$srv/$z/$x/$y.png"
         }
     }
 

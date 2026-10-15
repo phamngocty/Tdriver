@@ -4,7 +4,7 @@
     "versionName": "1.0.24",
     "apkUrl": "https://github.com/phamngocty/tymapwebside/releases/download/v1.0.24/app-debug.apk",
     "apkName": "app-debug.apk",
-    "changelog": "• Khắc phục triệt để lỗi OpenStreetMap bị chặn 403 & Stamen Toner Lines: nâng cấp sang hạ tầng CDN Voyager/Dark Matter siêu tốc, tuân thủ chuẩn User-Agent và tự động xóa sạch gạch lỗi cũ.\n• Sửa dứt điểm lỗi tự tắt app khi chạy ngầm lâu: khóa đồng bộ luồng âm thanh PCM an toàn tuyệt đối và hoàn thiện Watchdog leo thang thông minh.\n• Bổ sung 4 cấp độ giữ sống bản đồ khi khóa màn hình (Google Maps).\n• Tích hợp tác vụ giả lập tai nghe xe máy (MediaSession) chạy ngầm."
+    "changelog": "• Khắc phục triệt để lỗi OpenStreetMap (OSM) bị chặn 403: giữ nguyên 100% nguồn OpenStreetMap chính gốc và cụm máy chủ cộng đồng OSM, chuẩn hóa User-Agent theo đúng chính sách và tự động xóa sạch gạch lỗi cũ.\n• Sửa dứt điểm lỗi tự tắt app khi chạy ngầm lâu: khóa đồng bộ luồng âm thanh PCM an toàn tuyệt đối và hoàn thiện Watchdog leo thang thông minh.\n• Bổ sung 4 cấp độ giữ sống bản đồ khi khóa màn hình (Google Maps).\n• Tích hợp tác vụ giả lập tai nghe xe máy (MediaSession) chạy ngầm."
   },
   "firmware_gc9a01": {
     "name": "Màn hình tròn màu GC9A01",
