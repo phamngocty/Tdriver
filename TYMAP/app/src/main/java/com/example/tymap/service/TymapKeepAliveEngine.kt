@@ -107,6 +107,10 @@ class TymapKeepAliveEngine(private val context: Context) {
     private var wakeLock: PowerManager.WakeLock? = null
 
     // Cấp độ 2 & 3: AudioTrack tự sinh PCM im lặng
+    private val audioLock = Any()
+    @Volatile
+    private var isAudioRunning = false
+    private var audioThread: Thread? = null
     private var audioTrack: AudioTrack? = null
     private val pulseHandler = Handler(Looper.getMainLooper())
 
@@ -114,16 +118,17 @@ class TymapKeepAliveEngine(private val context: Context) {
     private var mediaSession: MediaSession? = null
 
     // Watchdog giám sát mất gói tin từ Google Maps
-    private var lastGoogleMapsPacketTime = System.currentTimeMillis()
+    private var isGmapsNavigating = false
+    private var lastGoogleMapsPacketTime = 0L
     private val watchdogHandler = Handler(Looper.getMainLooper())
 
     private val watchdogRunnable = object : Runnable {
         override fun run() {
             if (!isRunning) return
-            if (isAutoEscalateEnabled) {
+            // Chỉ leo thang khi Google Maps đang thực sự dẫn đường nhưng bị ngắt quãng > 20s
+            if (isAutoEscalateEnabled && isGmapsNavigating && lastGoogleMapsPacketTime > 0) {
                 val elapsed = System.currentTimeMillis() - lastGoogleMapsPacketTime
-                // Nếu đang dẫn đường mà quá 20s không nhận được thông báo mới từ Google Maps
-                if (elapsed > 20000L && lastGoogleMapsPacketTime > 0) {
+                if (elapsed > 20000L) {
                     when (currentTier) {
                         KeepAliveTier.TIER_1_NATIVE -> {
                             Log.w(TAG, "⚠️ Cấp 1 mất tín hiệu Google Maps > 20s. Tự động leo thang lên Cấp 2!")
@@ -176,7 +181,8 @@ class TymapKeepAliveEngine(private val context: Context) {
         applyTierLogic(currentTier)
         showOrUpdateNotification()
 
-        lastGoogleMapsPacketTime = System.currentTimeMillis()
+        isGmapsNavigating = false
+        lastGoogleMapsPacketTime = 0L
         watchdogHandler.removeCallbacks(watchdogRunnable)
         watchdogHandler.postDelayed(watchdogRunnable, 10000L)
     }
@@ -186,6 +192,8 @@ class TymapKeepAliveEngine(private val context: Context) {
      */
     fun stop() {
         isRunning = false
+        isGmapsNavigating = false
+        lastGoogleMapsPacketTime = 0L
         watchdogHandler.removeCallbacks(watchdogRunnable)
         releaseWakeLock()
         stopAudioTrack()
@@ -236,7 +244,16 @@ class TymapKeepAliveEngine(private val context: Context) {
      * Báo cho Watchdog biết vừa nhận được gói tin dẫn đường từ Google Maps
      */
     fun feedGoogleMapsData() {
+        isGmapsNavigating = true
         lastGoogleMapsPacketTime = System.currentTimeMillis()
+    }
+
+    /**
+     * Báo cho Watchdog biết Google Maps đã kết thúc hành trình dẫn đường
+     */
+    fun onGoogleMapsStopped() {
+        isGmapsNavigating = false
+        lastGoogleMapsPacketTime = 0L
     }
 
     // =========================================================================
@@ -289,26 +306,42 @@ class TymapKeepAliveEngine(private val context: Context) {
                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                 .build()
 
-            audioTrack = AudioTrack.Builder()
-                .setAudioAttributes(audioAttributes)
-                .setAudioFormat(audioFormat)
-                .setBufferSizeInBytes(bufferSize)
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .build()
+            synchronized(audioLock) {
+                audioTrack = AudioTrack.Builder()
+                    .setAudioAttributes(audioAttributes)
+                    .setAudioFormat(audioFormat)
+                    .setBufferSizeInBytes(bufferSize)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
 
-            audioTrack?.play()
+                if (audioTrack?.state == AudioTrack.STATE_INITIALIZED) {
+                    audioTrack?.play()
+                }
+            }
 
+            isAudioRunning = true
             val silentBuffer = ByteArray(bufferSize) { 0 }
-            Thread {
-                while (isRunning && (currentTier == KeepAliveTier.TIER_2_SILENT_CONTINUOUS || currentTier == KeepAliveTier.TIER_4_VIRTUAL_HEADSET)) {
-                    audioTrack?.write(silentBuffer, 0, silentBuffer.size)
+            audioThread = Thread({
+                while (isAudioRunning && isRunning && (currentTier == KeepAliveTier.TIER_2_SILENT_CONTINUOUS || currentTier == KeepAliveTier.TIER_4_VIRTUAL_HEADSET)) {
                     try {
+                        synchronized(audioLock) {
+                            val track = audioTrack
+                            if (track != null && track.state == AudioTrack.STATE_INITIALIZED && track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                                track.write(silentBuffer, 0, silentBuffer.size)
+                            }
+                        }
                         Thread.sleep(60)
                     } catch (e: InterruptedException) {
                         break
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Audio write loop caught: ${t.message}")
+                        break
                     }
                 }
-            }.start()
+            }, "Tymap-SilentAudio").apply {
+                isDaemon = true
+                start()
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Lỗi AudioTrack Cấp 2", e)
@@ -316,12 +349,26 @@ class TymapKeepAliveEngine(private val context: Context) {
     }
 
     private fun stopAudioTrack() {
+        isAudioRunning = false
         try {
-            audioTrack?.pause()
-            audioTrack?.flush()
-            audioTrack?.release()
+            audioThread?.interrupt()
+            audioThread = null
         } catch (e: Exception) {}
-        audioTrack = null
+
+        synchronized(audioLock) {
+            try {
+                audioTrack?.let { track ->
+                    if (track.state == AudioTrack.STATE_INITIALIZED) {
+                        try { track.pause() } catch (e: Exception) {}
+                        try { track.flush() } catch (e: Exception) {}
+                    }
+                    try { track.release() } catch (e: Exception) {}
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Lỗi release AudioTrack: ${e.message}")
+            }
+            audioTrack = null
+        }
     }
 
     // =========================================================================
@@ -340,13 +387,14 @@ class TymapKeepAliveEngine(private val context: Context) {
     }
 
     private fun playMicroSilentPulse() {
-        Thread {
+        Thread({
+            var track: AudioTrack? = null
             try {
                 val sampleRate = 8000
                 val shortBufferSize = 1600
                 val silentBuffer = ByteArray(shortBufferSize) { 0 }
 
-                val track = AudioTrack.Builder()
+                track = AudioTrack.Builder()
                     .setAudioAttributes(
                         AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
@@ -364,12 +412,24 @@ class TymapKeepAliveEngine(private val context: Context) {
                     .setTransferMode(AudioTrack.MODE_STATIC)
                     .build()
 
-                track.write(silentBuffer, 0, silentBuffer.size)
-                track.play()
-                Thread.sleep(220)
-                track.release()
-            } catch (e: Exception) {}
-        }.start()
+                if (track.state == AudioTrack.STATE_INITIALIZED) {
+                    track.write(silentBuffer, 0, silentBuffer.size)
+                    track.play()
+                    Thread.sleep(200)
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Micro pulse error: ${t.message}")
+            } finally {
+                try {
+                    track?.pause()
+                    track?.flush()
+                    track?.release()
+                } catch (e: Exception) {}
+            }
+        }, "Tymap-MicroAudioPulse").apply {
+            isDaemon = true
+            start()
+        }
     }
 
     // =========================================================================

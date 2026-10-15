@@ -263,7 +263,7 @@ class OfflineDownloadService : Service() {
 
     private fun downloadTile(url: String, targetFile: File) {
         val request = Request.Builder().url(url)
-            .header("User-Agent", "TYMAP")
+            .header("User-Agent", "TYMAP-Motorbike-Nav/1.0.24 (Android; com.example.tymap; support@tymap.vn)")
             .build()
 
         httpClient.newCall(request).execute().use { response ->
@@ -306,12 +306,12 @@ class OfflineDownloadService : Service() {
                 }
             }
             4 -> {
-                // OpenStreetMap Chuẩn
-                "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                // OpenStreetMap Chuẩn (CDN Mirror)
+                "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
             }
             else -> {
                 val customUrl = PrefsHelper.getString(this, "custom_tile_url", "")
-                if (customUrl.isNotEmpty()) customUrl else "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                if (customUrl.isNotEmpty()) customUrl else "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
             }
         }
     }

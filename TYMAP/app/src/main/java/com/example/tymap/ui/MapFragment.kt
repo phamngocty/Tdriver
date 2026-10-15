@@ -176,7 +176,7 @@ class MapFragment : Fragment(), IOrientationConsumer {
     }
 
     private val stamenTonerLines = object : XYTileSource(
-        "Stamen Toner Lines (OSM)",
+        "Stamen Toner Lines (OSM CDN)",
         1, 20, 256, ".png",
         arrayOf("https://tiles.stadiamaps.com/tiles/stamen_toner_lines/"),
         "© OpenStreetMap, © Stadia Maps, © Stamen Design"
@@ -187,16 +187,34 @@ class MapFragment : Fragment(), IOrientationConsumer {
             return if (key.isNotEmpty()) {
                 "$base?api_key=$key"
             } else {
-                // Tự động fallback sang CartoDB Dark Matter khi người dùng chưa cấu hình Stadia API Key
+                // Tự động fallback sang CartoDB Dark Matter độ tương phản cao khi chưa có Stadia API Key
                 val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
                 val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
                 val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-                "https://a.basemaps.cartocdn.com/rastertiles/dark_all/$z/$x/$y.png"
+                val sub = arrayOf("a", "b", "c")[(x + y).toInt().let { if (it < 0) -it else it } % 3]
+                "https://$sub.basemaps.cartocdn.com/rastertiles/dark_all/$z/$x/$y.png"
             }
         }
     }
 
-    private val osmStandard: ITileSource = TileSourceFactory.MAPNIK
+    private val osmStandard: ITileSource = object : XYTileSource(
+        "OpenStreetMap CDN",
+        1, 20, 256, ".png",
+        arrayOf(
+            "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
+            "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
+            "https://c.basemaps.cartocdn.com/rastertiles/voyager/"
+        ),
+        "© OpenStreetMap contributors, © CARTO"
+    ) {
+        override fun getTileURLString(pMapTileIndex: Long): String {
+            val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+            val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+            val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+            val sub = arrayOf("a", "b", "c")[(x + y).toInt().let { if (it < 0) -it else it } % 3]
+            return "https://$sub.basemaps.cartocdn.com/rastertiles/voyager/$z/$x/$y.png"
+        }
+    }
 
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
@@ -226,7 +244,22 @@ class MapFragment : Fragment(), IOrientationConsumer {
         savedInstanceState: Bundle?
     ): View {
         Configuration.getInstance().load(requireContext(), requireContext().getSharedPreferences("tymap_osmdroid", Context.MODE_PRIVATE))
-        Configuration.getInstance().userAgentValue = "Mozilla/5.0 (Android; Mobile; TYMAP/1.0)"
+        Configuration.getInstance().userAgentValue = "TYMAP-Motorbike-Nav/1.0.24 (Android; com.example.tymap; support@tymap.vn)"
+        // Tự động xóa sạch cache gạch bản đồ bị lỗi 403 / 401 cũ
+        try {
+            val tileCacheDir = Configuration.getInstance().osmdroidTileCache
+            if (tileCacheDir != null && tileCacheDir.exists()) {
+                java.io.File(tileCacheDir, "Mapnik").deleteRecursively()
+                java.io.File(tileCacheDir, "Stamen Toner Lines (OSM)").deleteRecursively()
+                val tilesDb = java.io.File(tileCacheDir, "tiles.db")
+                if (tilesDb.exists() && !PrefsHelper.getBoolean(requireContext(), "osmdroid_403_cleared_v24", false)) {
+                    tilesDb.delete()
+                    PrefsHelper.putBoolean(requireContext(), "osmdroid_403_cleared_v24", true)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("MapFragment", "Could not purge old tile cache: ${e.message}")
+        }
         // Rule APP-21: Bật cache tối thiểu 50MB
         Configuration.getInstance().cacheMapTileCount = 50 
         Configuration.getInstance().tileDownloadThreads = 2
@@ -1357,7 +1390,11 @@ class MapFragment : Fragment(), IOrientationConsumer {
         binding.fabLayers.setOnClickListener {
             val sources = getTileSources()
             val sourceNames = sources.map { 
-                if (it.name() == org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK.name()) "OpenStreetMap Chuẩn" else it.name() 
+                when (it.name()) {
+                    "OpenStreetMap CDN" -> "OpenStreetMap Chuẩn"
+                    "Stamen Toner Lines (OSM CDN)" -> "Stamen Toner Lines (OSM)"
+                    else -> it.name()
+                }
             }
             val currentIdx = PrefsHelper.getInt(requireContext(), "tile_source", 0)
             val safeIdx = if (currentIdx >= sources.size) 0 else currentIdx
