@@ -230,6 +230,7 @@ class SettingsFragment : Fragment() {
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupHistorySpinner() {
         val context = context ?: return
         val historySet = PrefsHelper.getPairedHistory(context)
@@ -242,9 +243,16 @@ class SettingsFragment : Fragment() {
         
         val adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, historyList)
         binding.spinnerHistory.adapter = adapter
+        var userInteracted = false
+        binding.spinnerHistory.setOnTouchListener { _, _ ->
+            userInteracted = true
+            false
+        }
         
         binding.spinnerHistory.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                if (!userInteracted) return
+                userInteracted = false
                 if (position > 0) {
                     val entry = historyList[position]
                     val mac = entry.substringAfter("(").substringBefore(")")
@@ -846,8 +854,18 @@ class SettingsFragment : Fragment() {
     private fun observeServiceStatus() {
         viewLifecycleOwner.lifecycleScope.launch {
             NavigationRepository.isServiceRunning.collect { running ->
-                if (_binding != null) {
+                if (_binding != null && binding.switchServiceStatus.isChecked != running) {
+                    binding.switchServiceStatus.setOnCheckedChangeListener(null)
                     binding.switchServiceStatus.isChecked = running
+                    binding.switchServiceStatus.setOnCheckedChangeListener { _, isChecked ->
+                        val ctx = context ?: return@setOnCheckedChangeListener
+                        val serviceIntent = Intent(ctx, NavigationService::class.java)
+                        if (isChecked) {
+                            ctx.startForegroundService(serviceIntent)
+                        } else {
+                            ctx.stopService(serviceIntent)
+                        }
+                    }
                 }
             }
         }
@@ -1310,15 +1328,21 @@ class SettingsFragment : Fragment() {
         return flat?.contains(pkgName) == true
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupSpinner(spinner: android.widget.Spinner, items: Array<String>, selection: Int, onSelected: (Int) -> Unit) {
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, items)
         spinner.adapter = adapter
-        var lastSelected = selection
-        spinner.setSelection(selection, false)
+        var userInteracted = false
+        spinner.setOnTouchListener { _, _ ->
+            userInteracted = true
+            false
+        }
+        val safeSelection = if (selection in items.indices) selection else 0
+        spinner.setSelection(safeSelection, false)
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p0: AdapterView<*>?, p1: View?, position: Int, p3: Long) {
-                if (position == lastSelected) return
-                lastSelected = position
+                if (!userInteracted) return
+                userInteracted = false
                 onSelected(position)
             }
             override fun onNothingSelected(p0: AdapterView<*>?) {}
@@ -1326,14 +1350,8 @@ class SettingsFragment : Fragment() {
     }
 
     private fun applyTheme(themeMode: Int) {
-        val mode = when (themeMode) {
-            1 -> AppCompatDelegate.MODE_NIGHT_NO
-            2 -> AppCompatDelegate.MODE_NIGHT_YES
-            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-        }
-        if (AppCompatDelegate.getDefaultNightMode() != mode) {
-            AppCompatDelegate.setDefaultNightMode(mode)
-        }
+        // TYMAP sử dụng giao diện Cockpit Dark chuẩn cho màn hình xe máy và OLED HUD.
+        // Không gọi AppCompatDelegate.setDefaultNightMode tại đây để tránh Activity recreation loop ("nháy chồng hình").
     }
 
     override fun onResume() {
@@ -1783,6 +1801,18 @@ class SettingsFragment : Fragment() {
             Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
         }
 
+        binding.switchKeepAliveActive.isChecked = engine.isRunning
+        binding.switchKeepAliveActive.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                engine.start()
+                Toast.makeText(requireContext(), "🚀 Đã kích hoạt ${engine.currentTier.title} chạy nền!", Toast.LENGTH_SHORT).show()
+            } else {
+                engine.stop()
+                Toast.makeText(requireContext(), "🛑 Đã tắt tác vụ giữ sống chạy nền", Toast.LENGTH_SHORT).show()
+            }
+            updateKeepAliveStatusSummary(engine)
+        }
+
         binding.btnKeepAliveSettings.setOnClickListener {
             showKeepAliveSettingsDialog()
         }
@@ -1792,7 +1822,23 @@ class SettingsFragment : Fragment() {
         if (_binding == null) return
         val tier = engine.currentTier
         val autoEsc = if (engine.isAutoEscalateEnabled) "BẬT (Khuyên dùng)" else "TẮT"
-        binding.tvKeepAliveStatus.text = "Đang chọn: ${tier.title}\n⚡ Tự động leo thang: $autoEsc"
+        val statusText = if (engine.isRunning) "🟢 Đang chạy ngầm" else "⚪ Sẵn sàng (Tự bật khi dẫn đường)"
+        binding.tvKeepAliveStatus.text = "Trạng thái: $statusText\nĐang chọn: ${tier.title}\n⚡ Tự động leo thang: $autoEsc"
+
+        if (binding.switchKeepAliveActive.isChecked != engine.isRunning) {
+            binding.switchKeepAliveActive.setOnCheckedChangeListener(null)
+            binding.switchKeepAliveActive.isChecked = engine.isRunning
+            binding.switchKeepAliveActive.setOnCheckedChangeListener { _, isChecked ->
+                if (isChecked) {
+                    engine.start()
+                    Toast.makeText(requireContext(), "🚀 Đã kích hoạt ${engine.currentTier.title} chạy nền!", Toast.LENGTH_SHORT).show()
+                } else {
+                    engine.stop()
+                    Toast.makeText(requireContext(), "🛑 Đã tắt tác vụ giữ sống chạy nền", Toast.LENGTH_SHORT).show()
+                }
+                updateKeepAliveStatusSummary(engine)
+            }
+        }
     }
 
     /**

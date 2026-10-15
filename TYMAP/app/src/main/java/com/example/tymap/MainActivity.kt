@@ -45,15 +45,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Đồng bộ chế độ hiển thị đêm/ngày theo cài đặt (Mặc định: 2 - Chế độ Tối)
-        val savedTheme = PrefsHelper.getInt(this, "app_theme", 2)
-        val targetNightMode = when (savedTheme) {
-            1 -> AppCompatDelegate.MODE_NIGHT_NO
-            2 -> AppCompatDelegate.MODE_NIGHT_YES
-            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-        }
-        if (AppCompatDelegate.getDefaultNightMode() != targetNightMode) {
-            AppCompatDelegate.setDefaultNightMode(targetNightMode)
+        // TYMAP sử dụng giao diện Cockpit Dark tối ưu cho màn hình xe máy và OLED HUD.
+        // Khóa cố định MODE_NIGHT_YES để loại bỏ hoàn toàn hiện tượng Activity recreation loop ("nháy chồng hình").
+        if (AppCompatDelegate.getDefaultNightMode() != AppCompatDelegate.MODE_NIGHT_YES) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         }
 
         com.example.tymap.utils.NasConnectionManager.init(this)

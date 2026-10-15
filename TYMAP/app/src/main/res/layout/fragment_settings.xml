@@ -1966,6 +1966,157 @@
 
                     <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="8dp"/>
 
+                    <!-- PHẦN: GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH (GOOGLE MAPS) -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH (GOOGLE MAPS)"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorAccentCyan"
+                        android:layout_marginBottom="8dp"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_glass_card"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <FrameLayout
+                                android:layout_width="38dp"
+                                android:layout_height="38dp"
+                                android:background="@drawable/bg_icon_tint"
+                                android:padding="8dp">
+                                <ImageView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:src="@drawable/ic_navigation_arrow"
+                                    app:tint="@color/colorAccentCyan" />
+                            </FrameLayout>
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="12dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="🧭 Chống tắt bản đồ khi khóa màn hình"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#F1F5F9" />
+
+                                <TextView
+                                    android:id="@+id/tvKeepAliveStatus"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Trạng thái: ⚪ Sẵn sàng\nĐang chọn: Cấp độ 2 - Âm thanh im lặng liên tục [Khuyên dùng]\n⚡ Tự động leo thang: BẬT"
+                                    android:textSize="11sp"
+                                    android:textColor="#94A3B8"
+                                    android:layout_marginTop="2dp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnKeepAliveSettings"
+                            style="@style/Widget.Material3.Button.TonalButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="🧭 Cấp độ giữ sống bản đồ (Chống tắt khi khóa màn hình)"
+                            android:textAllCaps="false"
+                            android:textColor="@color/colorAccentCyan"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="6dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingVertical="4dp">
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="⚡ Tự động leo thang thông minh"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#00F0FF" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Tự nâng cấp khi mất tín hiệu Google Maps > 20s"
+                                    android:textSize="10sp"
+                                    android:textColor="#94A3B8" />
+                            </LinearLayout>
+
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchAutoEscalateKeepAlive"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+
+                        <com.google.android.material.divider.MaterialDivider
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginVertical="6dp"/>
+
+                        <!-- Tác vụ giả lập chạy nền tức thì (Thử nghiệm) -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingVertical="4dp">
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="▶ Bật tác vụ giữ sống nền ngay (Thử nghiệm)"
+                                    android:textSize="12sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#38BDF8" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Chạy ngầm luồng âm thanh 0dB / Car-Kit và hiện thanh thông báo"
+                                    android:textSize="10sp"
+                                    android:textColor="#94A3B8" />
+                            </LinearLayout>
+
+                            <com.google.android.material.switchmaterial.SwitchMaterial
+                                android:id="@+id/switchKeepAliveActive"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <com.google.android.material.divider.MaterialDivider android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginVertical="8dp"/>
+
                     <!-- PHẦN 4: NÂNG CAO DẪN ĐƯỜNG & MÁY CHỦ (PROGRESSIVE DISCLOSURE) -->
                     <TextView
                         android:id="@+id/toggleRoutingAdvanced"
@@ -2137,119 +2288,6 @@
                                 android:id="@+id/spinnerLanguage"
                                 android:layout_width="140dp"
                                 android:layout_height="wrap_content" />
-                        </LinearLayout>
-
-                        <com.google.android.material.divider.MaterialDivider
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginVertical="12dp"/>
-
-                        <!-- PHẦN 4: GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH -->
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="GIỮ SỐNG BẢN ĐỒ KHI TẮT MÀN HÌNH (GOOGLE MAPS)"
-                            android:textSize="11sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/colorAccentCyan"
-                            android:layout_marginBottom="8dp"/>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:background="@drawable/bg_glass_card"
-                            android:orientation="vertical"
-                            android:padding="12dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical">
-
-                                <FrameLayout
-                                    android:layout_width="38dp"
-                                    android:layout_height="38dp"
-                                    android:background="@drawable/bg_icon_tint"
-                                    android:padding="8dp">
-                                    <ImageView
-                                        android:layout_width="match_parent"
-                                        android:layout_height="match_parent"
-                                        android:src="@drawable/ic_navigation_arrow"
-                                        app:tint="@color/colorAccentCyan" />
-                                </FrameLayout>
-
-                                <LinearLayout
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:layout_marginStart="12dp"
-                                    android:orientation="vertical">
-
-                                    <TextView
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:text="🧭 Chống tắt bản đồ khi khóa màn hình"
-                                        android:textSize="13sp"
-                                        android:textStyle="bold"
-                                        android:textColor="#F1F5F9" />
-
-                                    <TextView
-                                        android:id="@+id/tvKeepAliveStatus"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:text="Đang chọn: Cấp độ 2 - Âm thanh im lặng liên tục [Khuyên dùng]\n⚡ Tự động leo thang: BẬT"
-                                        android:textSize="11sp"
-                                        android:textColor="#94A3B8"
-                                        android:layout_marginTop="2dp" />
-                                </LinearLayout>
-                            </LinearLayout>
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnKeepAliveSettings"
-                                style="@style/Widget.Material3.Button.TonalButton"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="🧭 Cấp độ giữ sống bản đồ (Chống tắt khi khóa màn hình)"
-                                android:textAllCaps="false"
-                                android:textColor="@color/colorAccentCyan"
-                                android:layout_marginTop="10dp"
-                                android:layout_marginBottom="6dp" />
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:paddingVertical="4dp">
-
-                                <LinearLayout
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:orientation="vertical">
-
-                                    <TextView
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:text="⚡ Tự động leo thang thông minh"
-                                        android:textSize="12sp"
-                                        android:textStyle="bold"
-                                        android:textColor="#00F0FF" />
-
-                                    <TextView
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:text="Tự nâng cấp khi mất tín hiệu Google Maps > 20s"
-                                        android:textSize="10sp"
-                                        android:textColor="#94A3B8" />
-                                </LinearLayout>
-
-                                <com.google.android.material.switchmaterial.SwitchMaterial
-                                    android:id="@+id/switchAutoEscalateKeepAlive"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content" />
-                            </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>

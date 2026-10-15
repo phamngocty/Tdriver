@@ -10,6 +10,13 @@ import android.os.Looper
 import android.os.PowerManager
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.os.Build
+import com.example.tymap.R
 import android.util.Log
 
 /**
@@ -69,6 +76,8 @@ class TymapKeepAliveEngine(private val context: Context) {
         private const val PREFS_NAME = "tymap_keep_alive_prefs"
         private const val KEY_SELECTED_TIER = "selected_keep_alive_tier"
         private const val KEY_AUTO_ESCALATE = "auto_escalate_enabled"
+        private const val KEEPALIVE_NOTIFICATION_ID = 9904
+        private const val CHANNEL_ID = "tymap_keepalive_channel"
 
         @Volatile
         private var instance: TymapKeepAliveEngine? = null
@@ -165,6 +174,7 @@ class TymapKeepAliveEngine(private val context: Context) {
 
         acquireWakeLock()
         applyTierLogic(currentTier)
+        showOrUpdateNotification()
 
         lastGoogleMapsPacketTime = System.currentTimeMillis()
         watchdogHandler.removeCallbacks(watchdogRunnable)
@@ -181,6 +191,7 @@ class TymapKeepAliveEngine(private val context: Context) {
         stopAudioTrack()
         pulseHandler.removeCallbacksAndMessages(null)
         stopVirtualHeadsetSession()
+        cancelNotification()
         Log.i(TAG, "🛑 Đã dừng toàn bộ Keep-Alive Engine")
     }
 
@@ -192,6 +203,9 @@ class TymapKeepAliveEngine(private val context: Context) {
         pulseHandler.removeCallbacksAndMessages(null)
         stopVirtualHeadsetSession()
         applyTierLogic(currentTier)
+        if (isRunning) {
+            showOrUpdateNotification()
+        }
     }
 
     /**
@@ -385,5 +399,75 @@ class TymapKeepAliveEngine(private val context: Context) {
             mediaSession?.release()
         } catch (e: Exception) {}
         mediaSession = null
+    }
+
+    // =========================================================================
+    // 🔹 THÔNG BÁO TÁC VỤ CHẠY NỀN & WIDGET MEDIASESSION CHO HỆ THỐNG
+    // =========================================================================
+    private fun showOrUpdateNotification() {
+        try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "TYMAP - Tác vụ Giữ Sống Nền",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Duy trì Google Maps & cảm biến khi tắt màn hình"
+                    setShowBadge(false)
+                }
+                nm.createNotificationChannel(channel)
+            }
+
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            val pendingIntent = if (launchIntent != null) {
+                PendingIntent.getActivity(
+                    context,
+                    0,
+                    launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            } else null
+
+            val title = when (currentTier) {
+                KeepAliveTier.TIER_1_NATIVE -> "🛰️ Cấp 1: GPS Native"
+                KeepAliveTier.TIER_2_SILENT_CONTINUOUS -> "🔊 Cấp 2: Âm thanh im lặng"
+                KeepAliveTier.TIER_3_AUDIO_PULSE -> "⏱️ Cấp 3: Xung âm thanh định kỳ"
+                KeepAliveTier.TIER_4_VIRTUAL_HEADSET -> "🎧 Cấp 4: Giả lập Tai nghe Car-Kit [Bất tử]"
+            }
+
+            val desc = when (currentTier) {
+                KeepAliveTier.TIER_1_NATIVE -> "Duy trì WakeLock và GPS nền chống tắt Google Maps."
+                KeepAliveTier.TIER_2_SILENT_CONTINUOUS -> "Phát âm thanh PCM 0dB liên tục giữ bản đồ chạy ngầm."
+                KeepAliveTier.TIER_3_AUDIO_PULSE -> "Mỗi 15 giây phát xung 200ms thức cảm biến và âm thanh."
+                KeepAliveTier.TIER_4_VIRTUAL_HEADSET -> "MediaSession rảnh tay xe máy đang bảo vệ Google Maps."
+            }
+
+            val builder = Notification.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_navigation_arrow)
+                .setContentTitle(title)
+                .setContentText(desc)
+                .setOngoing(true)
+                .setContentIntent(pendingIntent)
+
+            if (currentTier == KeepAliveTier.TIER_4_VIRTUAL_HEADSET && mediaSession != null) {
+                builder.setStyle(
+                    Notification.MediaStyle()
+                        .setMediaSession(mediaSession?.sessionToken)
+                )
+            }
+
+            nm.notify(KEEPALIVE_NOTIFICATION_ID, builder.build())
+            Log.i(TAG, "🔔 Đã cập nhật Notification tác vụ chạy nền: $title")
+        } catch (e: Exception) {
+            Log.e(TAG, "Lỗi cập nhật Notification KeepAlive", e)
+        }
+    }
+
+    private fun cancelNotification() {
+        try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(KEEPALIVE_NOTIFICATION_ID)
+        } catch (e: Exception) {}
     }
 }
