@@ -187,11 +187,12 @@ class MapFragment : Fragment(), IOrientationConsumer {
             return if (key.isNotEmpty()) {
                 "$base?api_key=$key"
             } else {
-                // Khi chưa có Stadia API Key, dùng trực tiếp máy chủ OpenStreetMap thuần
+                // Khi chưa có Stadia API Key, dùng CartoDB Light No Labels (nền trắng nét đen độ tương phản cao, khi invert sẽ tạo nền đen nét trắng siêu nét không nhòe)
                 val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
                 val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
                 val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-                "https://tile.openstreetmap.org/$z/$x/$y.png"
+                val sub = arrayOf("a", "b", "c")[(x + y).toInt().let { if (it < 0) -it else it } % 3]
+                "https://$sub.basemaps.cartocdn.com/rastertiles/light_nolabels/$z/$x/$y.png"
             }
         }
     }

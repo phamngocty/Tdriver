@@ -4,7 +4,7 @@
     "versionName": "1.0.24",
     "apkUrl": "https://github.com/phamngocty/tymapwebside/releases/download/v1.0.24/app-debug.apk",
     "apkName": "app-debug.apk",
-    "changelog": "• Khắc phục hoàn toàn lỗi giật nháy chồng hình và crash tab Cài đặt.\n• Bổ sung 4 cấp độ giữ sống bản đồ khi khóa màn hình (Google Maps).\n• Tích hợp tác vụ giả lập tai nghe xe máy (MediaSession) chạy ngầm.\n• Bổ sung công tắc bật thử nghiệm tác vụ giữ sống nền ngay trong Cài đặt."
+    "changelog": "• Khắc phục triệt để chất lượng bản đồ Stamen Toner Lines gửi sang ESP32-C3/OLED: loại bỏ hoàn toàn hiện tượng nhòe mờ, tối ưu đường nét đơn sắc siêu nét và độ tương phản cao.\n• Hiển thị cố định cài đặt Tốc độ khung hình (FPS) và Chất lượng truyền ảnh sang ESP32 trên cả OLED và GC9A01.\n• Khắc phục hoàn toàn lỗi cuộn trang Cài đặt, giúp nhập API Key Stadia / Goong / Weather dễ dàng.\n• Tối giản mục Dẫn đường: giữ lại chuẩn xác Báo chệch hướng (ICE) và khoảng cách báo chệch hướng, ẩn các tùy chọn dư thừa."
   },
   "firmware_gc9a01": {
     "name": "Màn hình tròn màu GC9A01",

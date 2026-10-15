@@ -302,7 +302,7 @@ class OfflineDownloadService : Service() {
                 if (key.isNotEmpty()) {
                     "https://tiles.stadiamaps.com/tiles/stamen_toner_lines/{z}/{x}/{y}.png?api_key=$key"
                 } else {
-                    "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    "https://a.basemaps.cartocdn.com/rastertiles/light_nolabels/{z}/{x}/{y}.png"
                 }
             }
             4 -> {

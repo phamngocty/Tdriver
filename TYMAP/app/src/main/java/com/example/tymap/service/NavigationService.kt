@@ -1390,11 +1390,12 @@ class NavigationService : Service() {
             return if (key.isNotEmpty()) {
                 "$base?api_key=$key"
             } else {
-                // Tự động fallback sang máy chủ OpenStreetMap thuần khi chưa có Stadia API Key
+                // Khi chưa có Stadia API Key, dùng CartoDB Light No Labels (nền trắng nét đen độ tương phản cao, khi invert sẽ tạo nền đen nét trắng siêu nét không nhòe)
                 val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
                 val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
                 val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
-                "https://tile.openstreetmap.org/$z/$x/$y.png"
+                val sub = arrayOf("a", "b", "c")[(x + y).toInt().let { if (it < 0) -it else it } % 3]
+                "https://$sub.basemaps.cartocdn.com/rastertiles/light_nolabels/$z/$x/$y.png"
             }
         }
     }
@@ -1450,6 +1451,10 @@ class NavigationService : Service() {
 
     suspend fun renderOsmMap(quality: Int): ByteArray? {
         val location = NavigationRepository.gpsLocation.value
+        val deviceDisplay = NavigationRepository.deviceStatus.value["display"] ?: ""
+        val isOledDevice = deviceDisplay.contains("OLED", ignoreCase = true) || 
+                           deviceDisplay.contains("SSD1306", ignoreCase = true) || 
+                           deviceDisplay.contains("SH1106", ignoreCase = true)
         
         // Capture size is 240x240 for ESP32
         // We render a larger area then crop if configured
@@ -1694,7 +1699,8 @@ class NavigationService : Service() {
                 val scaled = Bitmap.createScaledBitmap(cropped, 240, 240, true)
                 try {
                     val outputStream = ByteArrayOutputStream()
-                    scaled.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+                    val actualQuality = if (isOledDevice) maxOf(quality, 95) else quality
+                    scaled.compress(Bitmap.CompressFormat.JPEG, actualQuality, outputStream)
                     return outputStream.toByteArray()
                 } finally {
                     if (scaled != cropped && scaled != bitmap && !scaled.isRecycled) scaled.recycle()
