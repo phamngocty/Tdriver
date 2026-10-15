@@ -2113,8 +2113,8 @@ class MapFragment : Fragment(), IOrientationConsumer {
         val distKm = String.format(java.util.Locale.US, "%.1f", selectedRoute.distance / 1000.0)
 
         binding.bottomSheet.tvMainDurationDistance.text = "$durationMin phút ($distKm km)"
-        binding.bottomSheet.tvRouteDescription.text = if (selectedRoute.engineName.contains("NAS") || selectedRoute.engineName.contains("GraphHopper")) {
-            "Tuyến đường tốt nhất từ Server NAS nhà (192.168.1.114:8989)"
+        binding.bottomSheet.tvRouteDescription.text = if (selectedRoute.engineName.contains("TYMAP") || selectedRoute.engineName.contains("GraphHopper") || selectedRoute.engineName.contains("NAS")) {
+            "Tuyến đường tối ưu nhất (TYMAP High-Speed Engine)"
         } else {
             "Tuyến đường dự phòng từ ${selectedRoute.engineName}"
         }

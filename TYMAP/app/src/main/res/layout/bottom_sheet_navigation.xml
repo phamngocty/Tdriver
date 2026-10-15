@@ -328,7 +328,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Tuyến đường nhanh nhất từ Server NAS dựa trên tình trạng giao thông hiện tại"
+                    android:text="Tuyến đường tối ưu nhất dựa trên tình trạng giao thông hiện tại"
                     android:textColor="#94A3B8"
                     android:textSize="13sp" />
 
@@ -416,7 +416,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="CÁC TUYẾN ĐƯỜNG GỢI Ý (ƯU TIÊN NAS)"
+                    android:text="CÁC TUYẾN ĐƯỜNG GỢI Ý (ĐỀ XUẤT TỐI ƯU)"
                     android:textColor="@color/colorAccentCyan"
                     android:textSize="11sp"
                     android:textStyle="bold" />

@@ -459,10 +459,10 @@ class RoutingEngine(private val client: OkHttpClient) {
                 }
                 return combinedRoutes.mapIndexed { idx, r ->
                     val title = when (idx) {
-                        0 -> "GraphHopper [Server Nhà] (Tối ưu)"
-                        1 -> "GraphHopper [Server Nhà] (Đường tránh)"
-                        2 -> "GraphHopper [Server Nhà] (Ngắn nhất)"
-                        else -> "GraphHopper [Server Nhà] (Tuyến ${idx + 1})"
+                        0 -> "TYMAP Pro (Tối ưu)"
+                        1 -> "TYMAP Pro (Đường tránh)"
+                        2 -> "TYMAP Pro (Ngắn nhất)"
+                        else -> "TYMAP Pro (Tuyến ${idx + 1})"
                     }
                     r.copy(engineName = title, isSelected = (idx == 0))
                 }
@@ -617,10 +617,10 @@ class RoutingEngine(private val client: OkHttpClient) {
             val (realisticDuration, realisticSteps) = calculateRealisticDuration(duration, distance, steps)
 
             val routeTitle = when (i) {
-                0 -> "GraphHopper [Server Nhà] (Tối ưu)"
-                1 -> "GraphHopper [Server Nhà] (Đường tránh)"
-                2 -> "GraphHopper [Server Nhà] (Ngắn nhất)"
-                else -> "GraphHopper [Server Nhà] (Tuyến ${i + 1})"
+                0 -> "TYMAP Pro (Tối ưu)"
+                1 -> "TYMAP Pro (Đường tránh)"
+                2 -> "TYMAP Pro (Ngắn nhất)"
+                else -> "TYMAP Pro (Tuyến ${i + 1})"
             }
 
             result.add(RouteInfo(

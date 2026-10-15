@@ -498,9 +498,9 @@ class SettingsFragment : Fragment() {
 
         apiServicesList.clear()
         apiServicesList.addAll(listOf(
-            ApiService("nas_routing", "GraphHopper NAS (Primary)", "Máy chủ định tuyến tốc độ cao (Tự động LAN: 192.168.1.114, 4G: nas152.duckdns.org). Nhập IP LAN hoặc Domain tùy chỉnh nếu muốn.", "http://${NasConnectionManager.getNasIp(context)}:8989", true, apiKey = nasHost, status = ServiceStatus.FREE),
-            ApiService("nas_traffic", "Fusion Engine NAS (Primary)", "Trạm cảnh báo camera phạt nguội & tốc độ siêu tốc (8088 / DuckDNS).", NasConnectionManager.getFusionEngineBaseUrl(context), false, status = ServiceStatus.FREE),
-            ApiService("nas_geo", "Nominatim & Photon NAS (Primary)", "Tìm kiếm & giải mã tọa độ Việt Nam từ NAS (8081 / DuckDNS).", NasConnectionManager.getNominatimBaseUrl(context), false, status = ServiceStatus.FREE),
+            ApiService("nas_routing", "TYMAP Routing Cloud (Primary)", "Máy chủ định tuyến độc quyền tốc độ cao tối ưu đường phố xe máy Việt Nam.", "", false, status = ServiceStatus.FREE),
+            ApiService("nas_traffic", "TYMAP Traffic & Camera Fusion", "Trạm cảnh báo camera phạt nguội & giới hạn tốc độ thời gian thực.", "", false, status = ServiceStatus.FREE),
+            ApiService("nas_geo", "TYMAP Places & Geocoding", "Dịch vụ định vị & tìm kiếm địa chỉ Việt Nam độ trễ cực thấp.", "", false, status = ServiceStatus.FREE),
             ApiService("weatherapi", "WeatherAPI.com (Khuyên dùng)", "Dự báo thời tiết & mưa Việt Nam cực chuẩn (1.000.000 req/tháng miễn phí).", "https://www.weatherapi.com/signup.aspx", true, apiKey = weatherApiKey, status = if (weatherApiKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("goong", "Goong.io API (Việt Nam)", "Cảnh báo biển báo, camera phạt nguội & dẫn đường Việt Nam.", "https://account.goong.io/", true, apiKey = goongKey, status = if (goongKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
             ApiService("stadia", "Stadia Maps (Stamen Toner / Alidade)", "Bản đồ tối giản Stamen Toner Lines & Alidade Dark cho OLED. Yêu cầu API Key miễn phí.", "https://stadiamaps.com/", true, apiKey = stadiaKey, status = if (stadiaKey.isNotEmpty()) ServiceStatus.CONFIGURED else ServiceStatus.NOT_CONFIGURED),
@@ -515,8 +515,10 @@ class SettingsFragment : Fragment() {
             apiServicesList,
             onTestClick = { service -> testApiService(service) },
             onRegisterClick = { service -> 
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(service.registrationUrl))
-                startActivity(intent)
+                if (service.registrationUrl.isNotEmpty()) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(service.registrationUrl))
+                    startActivity(intent)
+                }
             },
             onKeyChanged = { service, newKey ->
                 service.apiKey = newKey
@@ -1562,7 +1564,7 @@ class SettingsFragment : Fragment() {
 
         binding.btnCheckUpdate.setOnClickListener {
             val currentCtx = context ?: return@setOnClickListener
-            binding.tvUpdateStatus.text = "Đang kiểm tra máy chủ cập nhật (Gitea NAS / Fusion Engine / GitHub)..."
+            binding.tvUpdateStatus.text = "Đang kiểm tra máy chủ cập nhật hệ thống TYMAP..."
             binding.progressUpdate.visibility = View.VISIBLE
             binding.btnCheckUpdate.isEnabled = false
 
@@ -1684,7 +1686,7 @@ class SettingsFragment : Fragment() {
         binding.btnApplyFwUpdate.isEnabled = false
         binding.progressUpdate.visibility = View.VISIBLE
         binding.progressUpdate.progress = 0
-        binding.tvUpdateStatus.text = "Đang tải firmware.bin v${info.firmwareVersionName} từ máy chủ NAS / Gitea..."
+        binding.tvUpdateStatus.text = "Đang tải firmware.bin v${info.firmwareVersionName} từ máy chủ đám mây TYMAP..."
 
         lifecycleScope.launch {
             val binData = UpdateManager.downloadFirmwareBin(info.firmwareBinUrl)

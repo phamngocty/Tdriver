@@ -32,9 +32,7 @@ class RouteAlternativeAdapter(private val onRouteSelected: (Int) -> Unit) :
         val time = (route.duration / 60).toInt()
         val dist = String.format("%.1f km", route.distance / 1000)
         
-        val isNas = route.engineName.contains("NAS") || route.engineName.contains("GraphHopper")
-        val badge = if (isNas && !route.engineName.contains("[Server Nhà]")) " [Server Nhà]" else ""
-        holder.text1.text = "${route.engineName}$badge: $time phút ($dist)"
+        holder.text1.text = "${route.engineName}: $time phút ($dist)"
         holder.text1.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
 
         val context = holder.itemView.context
