@@ -184,13 +184,19 @@ class MapFragment : Fragment(), IOrientationConsumer {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val base = super.getTileURLString(pMapTileIndex)
             val key = try { PrefsHelper.getSecureString(requireContext(), "api_key_stadia", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+            return if (key.isNotEmpty()) {
+                "$base?api_key=$key"
+            } else {
+                // Tự động fallback sang CartoDB Dark Matter khi người dùng chưa cấu hình Stadia API Key
+                val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+                val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+                val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+                "https://a.basemaps.cartocdn.com/rastertiles/dark_all/$z/$x/$y.png"
+            }
         }
     }
 
-    private val osmStandard = XYTileSource("OpenStreetMap Chuẩn", 1, 19, 256, ".png",
-        arrayOf("https://tile.openstreetmap.org/"),
-        "© OpenStreetMap contributors")
+    private val osmStandard: ITileSource = TileSourceFactory.MAPNIK
 
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
@@ -1345,13 +1351,14 @@ class MapFragment : Fragment(), IOrientationConsumer {
                 val targetRotation = if (isTrackUp) -it.bearing else 0f
                 
                 binding.mapView.controller.animateTo(point, targetZoom, 200L)
-                animateMapRotation(binding.mapView.mapOrientation, targetRotation)
             }
         }
 
         binding.fabLayers.setOnClickListener {
             val sources = getTileSources()
-            val sourceNames = sources.map { it.name() }
+            val sourceNames = sources.map { 
+                if (it.name() == org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK.name()) "OpenStreetMap Chuẩn" else it.name() 
+            }
             val currentIdx = PrefsHelper.getInt(requireContext(), "tile_source", 0)
             val safeIdx = if (currentIdx >= sources.size) 0 else currentIdx
             

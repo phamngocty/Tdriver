@@ -54,8 +54,11 @@ class ApiServiceAdapter(
             binding.ivExpandArrow.rotation = if (service.isExpanded) 180f else 0f
             
             binding.layoutHeader.setOnClickListener {
-                service.isExpanded = !service.isExpanded
-                notifyItemChanged(bindingAdapterPosition)
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) {
+                    service.isExpanded = !service.isExpanded
+                    notifyItemChanged(pos)
+                }
             }
             
             // API Key field

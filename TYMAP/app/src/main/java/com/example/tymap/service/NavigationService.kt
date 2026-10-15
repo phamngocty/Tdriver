@@ -1386,13 +1386,19 @@ class NavigationService : Service() {
         override fun getTileURLString(pMapTileIndex: Long): String {
             val base = super.getTileURLString(pMapTileIndex)
             val key = try { PrefsHelper.getSecureString(this@NavigationService, "api_key_stadia", "") } catch (e: Exception) { "" }
-            return if (key.isNotEmpty()) "$base?api_key=$key" else base
+            return if (key.isNotEmpty()) {
+                "$base?api_key=$key"
+            } else {
+                // Tự động fallback sang CartoDB Dark Matter khi chưa có Stadia API Key
+                val z = org.osmdroid.util.MapTileIndex.getZoom(pMapTileIndex)
+                val x = org.osmdroid.util.MapTileIndex.getX(pMapTileIndex)
+                val y = org.osmdroid.util.MapTileIndex.getY(pMapTileIndex)
+                "https://a.basemaps.cartocdn.com/rastertiles/dark_all/$z/$x/$y.png"
+            }
         }
     }
 
-    private val osmStandard = XYTileSource("OpenStreetMap Chuẩn", 1, 19, 256, ".png",
-        arrayOf("https://tile.openstreetmap.org/"),
-        "© OpenStreetMap contributors")
+    private val osmStandard: ITileSource = TileSourceFactory.MAPNIK
 
     private fun getTileSources(): List<ITileSource> {
         val list = mutableListOf<ITileSource>()
